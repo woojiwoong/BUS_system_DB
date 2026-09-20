@@ -1677,6 +1677,46 @@ main{padding-top:18px !important;}
         drivers: [...new Set((e && e.drivers || []).map(n => String(n || '').replace('(S)', '').trim()).filter(Boolean))]
           .sort((a, b) => a.localeCompare(b, 'ko'))
       })).filter(e => e.date && e.date.startsWith(prefix) && e.drivers.length);
+
+      // 테이블 → 휴무자 필드 동기화
+      // 오버라이딩 필드가 대상 월에 있으면 오버라이딩 필드에 저장, 없으면 원래 필드(offDays)에 저장
+      const yyShort = String(y).slice(-2);
+      const mmPad = String(m).padStart(2, '0');
+      function toShortKey(iso) {
+        const p = String(iso || '').split('-');
+        if (p.length !== 3) return '';
+        return String(p[0]).slice(-2) + '-' + String(p[1]).padStart(2, '0') + '-' + String(p[2]).padStart(2, '0');
+      }
+      function isTargetMonthKey(key) {
+        let s = String(key || '').trim();
+        if (/^\d{2}-\d{2}-\d{2}$/.test(s)) s = '20' + s;
+        return s.startsWith(prefix);
+      }
+      const offMap = (window.manualOffDisplayOverrides && typeof window.manualOffDisplayOverrides === 'object')
+        ? { ...window.manualOffDisplayOverrides }
+        : {};
+      const hasOverrideForMonth = Object.keys(offMap).some(k => isTargetMonthKey(k));
+      const ad = (typeof window.appData === 'object' && window.appData) ? window.appData
+        : (typeof appData !== 'undefined' ? appData : { offDays: {} });
+      if (!ad.offDays || typeof ad.offDays !== 'object') ad.offDays = {};
+
+      if (hasOverrideForMonth) {
+        Object.keys(offMap).forEach(k => { if (isTargetMonthKey(k)) delete offMap[k]; });
+        tableEntries.forEach(e => {
+          const sk = toShortKey(e.date);
+          if (sk) offMap[sk] = (e.drivers || []).slice();
+        });
+        window.manualOffDisplayOverrides = offMap;
+        try { if (typeof manualOffDisplayOverrides !== 'undefined') manualOffDisplayOverrides = offMap; } catch (e) {}
+      } else {
+        Object.keys(ad.offDays).forEach(k => { if (isTargetMonthKey(k)) delete ad.offDays[k]; });
+        tableEntries.forEach(e => {
+          const sk = toShortKey(e.date);
+          if (sk) ad.offDays[sk] = (e.drivers || []).slice();
+        });
+        window.appData = ad;
+      }
+
       // 노선·차량별 정규기사/스페어 배치를 한 달 전체(1일~말일)로 계산합니다.
       // 그 날짜에 휴무로 등록된 정규기사는 휴무가 아닌 스페어로 자동 대체해서 저장합니다.
       const fullSchedule = (typeof buildMonthlyOffFullScheduleForTargetMonth === 'function')
@@ -1688,6 +1728,8 @@ main{padding-top:18px !important;}
         monthlyOffListSelections: window.monthlyOffListSelections || {},
         monthlyOffDayEntries: tableEntries,
         monthlyOffFullSchedule: fullSchedule,
+        offDays: ad.offDays || {},
+        manualOffDisplayOverrides: window.manualOffDisplayOverrides || {},
         offListSavedAt: serverTimestamp()
       };
       await withTimeout(setDoc(doc(db, 'daehoSchedules', monthlyKey), payload, { merge: true }));
@@ -2490,7 +2532,7 @@ main{padding-top:18px !important;}
                                     <tr>
                                         <th class="monthly-off-day-th-date">휴무일자</th>
                                         <th>휴무기사명</th>
-                                        <th class="monthly-off-day-th-del">삭제</th>
+                                        <th class="monthly-off-day-th-del">제거</th>
                                     </tr>
                                 </thead>
                                 <tbody id="monthlyOffDayTableBody"></tbody>
@@ -3688,31 +3730,56 @@ main{padding-top:18px !important;}
         }
 
         // appData.offDays → 휴무자 테이블용 목록 (다음 달만)
+                // 휴무자명단 테이블용 목록 (다음 달만)
+        // 불러오기: 오버라이딩 휴무자 필드가 있으면 우선, 없으면 원래 필드(offDays)
         function buildMonthlyOffDayEntriesFromOffDays() {
             const { y, m } = getOffListTargetYearMonth();
             const mm = String(m).padStart(2, '0');
             const prefixFull = `${y}-${mm}-`;
             const prefixShort = `${String(y).slice(-2)}-${mm}-`;
-            const map = {};
-            Object.entries(appData.offDays || {}).forEach(([key, list]) => {
+
+            function toIsoDateKey(key) {
                 let iso = String(key || '').trim();
                 if (/^\d{2}-\d{2}-\d{2}$/.test(iso)) iso = '20' + iso;
-                if (!iso.startsWith(prefixFull) && !String(key).startsWith(prefixShort)) return;
+                if (!iso.startsWith(prefixFull) && !String(key).startsWith(prefixShort)) return '';
                 if (!iso.startsWith(prefixFull) && /^\d{2}-\d{2}-\d{2}$/.test(String(key).trim())) {
                     iso = '20' + String(key).trim();
                 }
-                if (!iso.startsWith(prefixFull)) return;
-                const drivers = (list || [])
+                return iso.startsWith(prefixFull) ? iso : '';
+            }
+            function cleanDrivers(list) {
+                return [...new Set((list || [])
                     .map(n => String(n || '').replace('(S)', '').replace(/배봉균/g, '배봉군').trim())
-                    .filter(Boolean);
+                    .filter(n => n && n !== '운행종료'))];
+            }
+
+            // 1) 원래 필드(appData.offDays)
+            const map = {};
+            Object.entries(appData.offDays || {}).forEach(([key, list]) => {
+                const iso = toIsoDateKey(key);
+                if (!iso) return;
+                const drivers = cleanDrivers(list);
                 if (!drivers.length) return;
-                if (!map[iso]) map[iso] = [];
-                drivers.forEach(d => { if (!map[iso].includes(d)) map[iso].push(d); });
+                map[iso] = drivers;
             });
+
+            // 2) 오버라이딩 필드가 있으면 해당 날짜는 오버라이드 값으로 교체
+            const offMap = (typeof manualOffDisplayOverrides === 'object' && manualOffDisplayOverrides)
+                ? manualOffDisplayOverrides
+                : ((window.manualOffDisplayOverrides && typeof window.manualOffDisplayOverrides === 'object')
+                    ? window.manualOffDisplayOverrides : {});
+            Object.keys(offMap).forEach((key) => {
+                if (!Object.prototype.hasOwnProperty.call(offMap, key)) return;
+                if (!Array.isArray(offMap[key])) return;
+                const iso = toIsoDateKey(key);
+                if (!iso) return;
+                map[iso] = cleanDrivers(offMap[key]);
+            });
+
             return Object.keys(map).sort().map(date => ({
                 date,
                 drivers: map[date].sort((a, b) => a.localeCompare(b, 'ko'))
-            }));
+            })).filter(e => e.drivers.length);
         }
 
         window.applyMonthlyOffFromDB = function (selections, dayEntries) {
@@ -4313,7 +4380,7 @@ function getMonthlyOffAllDriverNames(){
                 return `<tr>
                     <td class="off-day-date-cell">${esc(formatMonthlyOffDayDisplay(entry.date))}</td>
                     <td class="off-day-names-cell">${namesHtml || '—'}</td>
-                    <td><button type="button" class="off-day-del" onclick="removeMonthlyOffDayEntry('${esc(entry.date)}')">삭제</button></td>
+                    <td><button type="button" class="off-day-del" onclick="removeMonthlyOffDayEntry('${esc(entry.date)}')">제거</button></td>
                 </tr>`;
             }).join('');
             const pad = Math.max(0, 5 - sortedEntries.length);
