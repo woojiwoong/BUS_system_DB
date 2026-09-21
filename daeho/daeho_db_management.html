@@ -1802,15 +1802,25 @@ main{padding-top:18px !important;}
             ? tableByShort[sk].slice()
             : [];
         }
-        Object.keys(ad.offDays).forEach(k => { if (isTargetMonthKey(k)) delete ad.offDays[k]; });
-        // 테이블에 있는 날만 offDays에도 맞춰 둠 (다른 탭 폴백용)
-        Object.keys(tableByShort).forEach(sk => { ad.offDays[sk] = tableByShort[sk].slice(); });
+        // Firestore merge는 없는 키를 삭제하지 않음 → 대상 월 전일을 명시 기록
+        // 테이블에 없는 날(제거한 11/2 등)은 [] 로 덮어 잔존 키를 제거
+        for (let d = 1; d <= lastDayOfTarget; d++) {
+          const sk = yyShort + '-' + mmPad + '-' + String(d).padStart(2, '0');
+          ad.offDays[sk] = Object.prototype.hasOwnProperty.call(tableByShort, sk)
+            ? tableByShort[sk].slice()
+            : [];
+        }
         window.manualOffDisplayOverrides = offMap;
         try { if (typeof manualOffDisplayOverrides !== 'undefined') manualOffDisplayOverrides = offMap; } catch (e) {}
       } else {
-        // 원본 필드에만 저장: 대상 월 offDays = 테이블만
-        Object.keys(ad.offDays).forEach(k => { if (isTargetMonthKey(k)) delete ad.offDays[k]; });
-        Object.keys(tableByShort).forEach(sk => { ad.offDays[sk] = tableByShort[sk].slice(); });
+        // 원본 필드: 대상 월 전일 offDays를 테이블 기준으로 재기록
+        // merge 시 제거한 날짜 키가 서버에 남지 않도록 [] 명시 저장
+        for (let d = 1; d <= lastDayOfTarget; d++) {
+          const sk = yyShort + '-' + mmPad + '-' + String(d).padStart(2, '0');
+          ad.offDays[sk] = Object.prototype.hasOwnProperty.call(tableByShort, sk)
+            ? tableByShort[sk].slice()
+            : [];
+        }
         // ★ 대상 월 오버라이드 잔여 키 완전 삭제 (안 지우면 11월 불러오기 시 옛 11/3 표시)
         Object.keys(offMap).forEach(k => { if (isTargetMonthKey(k)) delete offMap[k]; });
         window.manualOffDisplayOverrides = offMap;
@@ -1986,11 +1996,25 @@ main{padding-top:18px !important;}
       let selections = (data && data.monthlyOffListSelections && typeof data.monthlyOffListSelections === 'object')
         ? data.monthlyOffListSelections : {};
 
-      // 대상 월 문서에서 offDays+오버라이드+엔트리를 항상 병합
-      let dayEntries = data ? collectAllOffDayEntries(data) : [];
-      console.log('[휴무명단] 대상월 문서 병합 결과:', dayEntries.length, '건', dayEntries.map(e => e.date).join(', '));
+      // 휴무자명단 테이블 기준:
+      // - 대상 월 문서에 monthlyOffDayEntries(배열) 또는 offListSavedAt 이 있으면
+      //   그 엔트리만 유일한 기준 (제거한 11/2 등이 offDays/이전달에서 다시 붙지 않음)
+      // - 아직 명단 저장이 한 번도 없으면 offDays+오버라이드+엔트리 병합 + 이전달 보완
+      const offListAuthoritative = !!(data && (
+        data.offListSavedAt != null ||
+        Object.prototype.hasOwnProperty.call(data, 'monthlyOffDayEntries')
+      ));
+      let dayEntries;
+      if (offListAuthoritative) {
+        dayEntries = extractDayEntries(data);
+        console.log('[휴무명단] 대상월 엔트리 기준(권위):', dayEntries.length, '건', dayEntries.map(e => e.date).join(', '));
+      } else {
+        dayEntries = data ? collectAllOffDayEntries(data) : [];
+        console.log('[휴무명단] 대상월 문서 병합 결과:', dayEntries.length, '건', dayEntries.map(e => e.date).join(', '));
+      }
 
-      // 이전달(10월) 문서에 저장된 다음달(11월) 엔트리/휴무도 병합 (누락 보완)
+      // 이전달(10월) 문서: 명단이 아직 권위 저장되지 않았을 때만 다음달 엔트리 보완
+      // (권위 저장 후 제거한 날짜가 이전달 잔여값으로 되살아나는 것 방지)
       {
         let py = y, pm = m - 1;
         if (pm < 1) { pm = 12; py -= 1; }
@@ -2006,15 +2030,19 @@ main{padding-top:18px !important;}
             if (prevSnap.exists()) prevData = prevSnap.data() || {};
           }
           if (prevData) {
-            const fromPrev = collectAllOffDayEntries(prevData);
-            if (fromPrev.length) {
-              const map = {};
-              dayEntries.forEach(e => { map[e.date] = e.drivers; });
-              fromPrev.forEach(e => {
-                if (!map[e.date] || !map[e.date].length) map[e.date] = e.drivers;
-              });
-              dayEntries = Object.keys(map).sort().map(date => ({ date, drivers: map[date] }));
-              console.log('[휴무명단] 이전달 병합 후:', dayEntries.length, '건');
+            if (!offListAuthoritative) {
+              const fromPrev = collectAllOffDayEntries(prevData);
+              if (fromPrev.length) {
+                const map = {};
+                dayEntries.forEach(e => { map[e.date] = e.drivers; });
+                fromPrev.forEach(e => {
+                  if (!map[e.date] || !map[e.date].length) map[e.date] = e.drivers;
+                });
+                dayEntries = Object.keys(map).sort().map(date => ({ date, drivers: map[date] }));
+                console.log('[휴무명단] 이전달 병합 후:', dayEntries.length, '건');
+              }
+            } else {
+              console.log('[휴무명단] 권위 엔트리 있음 → 이전달 일자 병합 생략');
             }
             if (!Object.keys(selections).length && prevData.monthlyOffListSelections && typeof prevData.monthlyOffListSelections === 'object') {
               selections = prevData.monthlyOffListSelections;
