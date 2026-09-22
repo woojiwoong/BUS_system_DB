@@ -4207,9 +4207,10 @@ main{padding-top:18px !important;}
         function buildMonthlyOffFullScheduleForTargetMonth(){
             // 오전 = 정규기사 왼쪽/오전(drivers[0], shift 1)
             // 오후 = 정규기사 오른쪽/오후(drivers[1], shift 2)
-            // 스페어 규칙:
-            //  - 휴무전날 오전 → 휴무다음날 오후
-            //  - 휴무전날 오후 → 휴무다음날 오전
+            // 스페어 규칙 (주별통합과 동일):
+            //  - 휴무 직전 마지막 근무(연속 휴무면 전전날 등) 오전 → 복귀일 오후 우선
+            //  - 휴무 직전 마지막 근무 오후 → 복귀일 오전 우선
+            //  - 선호 교대 빈자리 없고 반대 교대 빈자리 있으면 반대 교대로 배차
             //  - 연속 근무: 오후 → 다음날 오전 불가 / 오전 → 다음날 오후 가능
             //  - 같은 날 동일 스페어 중복 배정 불가
             const { y, m } = getOffListTargetYearMonth();
@@ -4277,10 +4278,13 @@ main{padding-top:18px !important;}
                                 if (usedSparesToday.has(cand)) continue;
                                 const last = spareLastWork[cand];
                                 const cameFromOff = !!spareWasOffYesterday[cand];
-                                if (cameFromOff && last && last.shiftLabel) {
-                                    // 휴무전날 오전 → 휴무다음날 오후 / 휴무전날 오후 → 휴무다음날 오전
-                                    const need = (last.shiftLabel === '오전') ? '오후' : '오전';
-                                    if (shiftLabel !== need) continue;
+                                if (cameFromOff) {
+                                    // 복귀일: last = 연속 휴무 직전 마지막 근무(전전날 등)
+                                    // 마지막 근무 기록 없으면 1차에서 일반과 동일하게 투입 가능
+                                    if (last && last.shiftLabel) {
+                                        const need = (last.shiftLabel === '오전') ? '오후' : '오전';
+                                        if (shiftLabel !== need) continue; // 1차: 선호 교대만
+                                    }
                                 } else {
                                     // 연속 근무: 오후 → 다음날 오전 불가
                                     if (shiftLabel === '오전' && last && last.day === d - 1 && last.shiftLabel === '오후') {
@@ -4312,6 +4316,26 @@ main{padding-top:18px !important;}
 
                 fillSlots(morningSlots);
                 fillSlots(afternoonSlots);
+
+                // 2차: 선호 교대에 못 들어간 복귀 스페어 → 반대 교대 빈자리에 무조건 배차
+                rows.forEach(r => {
+                    if (!r.off || r.substitute || r.driver) return;
+                    for (let i = 0; i < availableSpares.length; i++) {
+                        const cand = availableSpares[i];
+                        if (usedSparesToday.has(cand)) continue;
+                        if (!spareWasOffYesterday[cand]) continue;
+                        const last = spareLastWork[cand];
+                        if (last && last.shiftLabel) {
+                            const need = (last.shiftLabel === '오전') ? '오후' : '오전';
+                            if (r.shiftLabel === need) continue; // 선호 교대는 1차에서 이미 시도
+                        }
+                        // last 없어도 빈 슬롯이면 투입 (무조건 배차)
+                        usedSparesToday.add(cand);
+                        r.substitute = cand;
+                        r.driver = cand;
+                        break;
+                    }
+                });
 
                 rows.forEach(r => {
                     if (r.substitute) {
@@ -5330,11 +5354,13 @@ function getMonthlyOffAllDriverNames(){
             if (Object.keys(ovMap).length) { manualOverrides = ovMap; window.manualOverrides = ovMap; }
             if (Object.keys(offMap).length) { manualOffDisplayOverrides = offMap; window.manualOffDisplayOverrides = offMap; }
 
-            // 스페어 교대 패턴:
-            //  1) 휴무 전날 오전 근무 → 휴무 다음날 오후 근무
-            //  2) 휴무 전날 오후 근무 → 휴무 다음날 오전 근무
-            //  3) 연속 근무(휴무 없음): 오후 → 다음날 오전 불가 / 오전 → 다음날 오후 가능
-            //  4) 같은 날 동일 스페어 중복 배정 불가
+            // 스페어 교대 패턴 (주별통합 테이블):
+            //  1) 휴무 직전 마지막 근무가 오전 → 복귀일 오후 우선
+            //  2) 휴무 직전 마지막 근무가 오후 → 복귀일 오전 우선
+            //     (연속 휴무면 전날이 아니라 전전날·그 이전 실제 근무일 기준)
+            //  3) 선호 교대 빈자리 없고 반대 교대 빈자리 있으면 → 반대 교대로 배차 (무조건 배차)
+            //  4) 연속 근무(휴무 없음): 오후 → 다음날 오전 불가 / 오전 → 다음날 오후 가능
+            //  5) 같은 날 동일 스페어 중복 배정 불가
             const spareLastWork = {}; // { [name]: { day, shift: '오전'|'오후' } }
             const spareWasOffYesterday = {}; // { [name]: true/false }
             let dailySimResults = {}, totalDays = getDaysInMonth(targetYear, targetMonth), yyStr = String(targetYear).substring(2);
@@ -5355,25 +5381,27 @@ function getMonthlyOffAllDriverNames(){
                 let offList = [...baseOffList];
                 const isSun = isSunday(dateKey, targetYear);
 
-                // 휴무 다음날 강제 교대: 전날(휴무) 직전 근무의 반대 교대
-                //  lastWork.shift === '오전' → 오늘은 오후만
-                //  lastWork.shift === '오후' → 오늘은 오전만
-                const preferredAfterOff = {}; // name -> '오전'|'오후'
+                // 휴무 복귀일 교대 (주별통합 스페어 규칙):
+                //  - spareLastWork = 연속 휴무 직전 '마지막 실제 근무일' (전날·전전날·그 이전 모두 가능)
+                //  - 마지막 근무 오후 → 복귀일 오전 우선 / 마지막 근무 오전 → 복귀일 오후 우선
+                //  - 선호 교대 빈자리 없고 반대 교대 빈자리 있으면 반대 교대로 배차 (무조건 배차)
+                const preferredAfterOff = {}; // name -> '오전'|'오후' (복귀 시 선호 교대)
                 (appData.spares || []).forEach(s => {
                     const name = normSpare(s);
                     if (!name) return;
-                    if (!spareWasOffYesterday[name]) return;
+                    if (!spareWasOffYesterday[name]) return; // 어제 휴무 → 오늘이 복귀일(또는 연속휴무 중)
                     const last = spareLastWork[name];
+                    // last는 휴무 구간 직전 마지막 근무(전전날 등). 없으면 선호 없이 양쪽 가능
                     if (!last || !last.shift) return;
                     preferredAfterOff[name] = (last.shift === '오전') ? '오후' : '오전';
                 });
 
+                // 복귀일: 선호·반대 교대 모두 자격 (선호 우선, 없으면 폴백으로 무조건 배차)
                 const morningEligible = (appData.spares || []).filter(s => {
                     const name = normSpare(s);
                     if (!name || offList.includes(s) || offList.includes(name)) return false;
-                    // 휴무 다음날: 오전 패턴만 허용
-                    if (preferredAfterOff[name]) {
-                        return preferredAfterOff[name] === '오전';
+                    if (Object.prototype.hasOwnProperty.call(preferredAfterOff, name)) {
+                        return true; // 복귀 스페어: 오전·오후 모두 가능
                     }
                     // 연속 근무: 전날 오후 → 당일 오전 불가
                     const last = spareLastWork[name];
@@ -5383,15 +5411,31 @@ function getMonthlyOffAllDriverNames(){
                 const afternoonEligible = (appData.spares || []).filter(s => {
                     const name = normSpare(s);
                     if (!name || offList.includes(s) || offList.includes(name)) return false;
-                    // 휴무 다음날: 오후 패턴만 허용
-                    if (preferredAfterOff[name]) {
-                        return preferredAfterOff[name] === '오후';
+                    if (Object.prototype.hasOwnProperty.call(preferredAfterOff, name)) {
+                        return true;
                     }
-                    // 연속 근무: 전날 오전 → 당일 오후 가능 (제한 없음)
                     return true;
                 });
-                let morningSpares = shuffleArrayWithSeed(morningEligible.map(normSpare), d * 123);
-                let afternoonSpares = shuffleArrayWithSeed(afternoonEligible.map(normSpare), d * 456 + 7);
+                // 1차: 선호 교대만 / 2차: 반대 교대 폴백 (무조건 배차)
+                // 일반 스페어는 1·2차 모두 사용 가능
+                const isPreferred = (name, shiftLabel) => preferredAfterOff[name] === shiftLabel;
+                const isFallback = (name, shiftLabel) => {
+                    const p = preferredAfterOff[name];
+                    return (p === '오전' || p === '오후') && p !== shiftLabel;
+                };
+                const isNormalSpare = (name) => !Object.prototype.hasOwnProperty.call(preferredAfterOff, name);
+                let morningPreferred = shuffleArrayWithSeed(
+                    morningEligible.map(normSpare).filter(n => isPreferred(n, '오전')), d * 123);
+                let morningNormal = shuffleArrayWithSeed(
+                    morningEligible.map(normSpare).filter(n => isNormalSpare(n)), d * 124);
+                let morningFallback = shuffleArrayWithSeed(
+                    morningEligible.map(normSpare).filter(n => isFallback(n, '오전')), d * 125);
+                let afternoonPreferred = shuffleArrayWithSeed(
+                    afternoonEligible.map(normSpare).filter(n => isPreferred(n, '오후')), d * 456);
+                let afternoonNormal = shuffleArrayWithSeed(
+                    afternoonEligible.map(normSpare).filter(n => isNormalSpare(n)), d * 457);
+                let afternoonFallback = shuffleArrayWithSeed(
+                    afternoonEligible.map(normSpare).filter(n => isFallback(n, '오후')), d * 458);
                 const usedSparesToday = new Set();
 
                 let sundaySwaps = 0;
@@ -5410,8 +5454,19 @@ function getMonthlyOffAllDriverNames(){
                     }
                     return '';
                 };
+                // 1차: 선호+일반 / 2차: 폴백까지 (선호 교대 자리 없을 때 반대 교대로 무조건 배차)
+                const takeMorningSpare = (pass) => {
+                    if (pass === 1) return takeSpare(morningPreferred) || takeSpare(morningNormal);
+                    return takeSpare(morningPreferred) || takeSpare(morningNormal) || takeSpare(morningFallback);
+                };
+                const takeAfternoonSpare = (pass) => {
+                    if (pass === 1) return takeSpare(afternoonPreferred) || takeSpare(afternoonNormal);
+                    return takeSpare(afternoonPreferred) || takeSpare(afternoonNormal) || takeSpare(afternoonFallback);
+                };
 
+                // 1차 배차: 선호 교대·일반만 사용 (폴백 스페어는 아직 남겨 둠)
                 let busAssignments = [], assignedSpares = [];
+                const pendingRows = [];
                 getOrderedRouteEntries(appData.routes).forEach(([routeName, buses]) => {
                     buses.forEach(bus => {
                         let base1 = bus.drivers[0] || "미정", base2 = bus.drivers[1] || "미정";
@@ -5423,9 +5478,26 @@ function getMonthlyOffAllDriverNames(){
                         if (mOff && aOff && isSun) {
                             mAssigned = "운행종료"; aAssigned = "운행종료";
                         } else {
-                            mAssigned = !mOff ? mReg : (takeSpare(morningSpares) || (isSun ? "운행종료" : "운행종료"));
-                            aAssigned = !aOff ? aReg : (takeSpare(afternoonSpares) || (isSun ? "운행종료" : "운행종료"));
+                            mAssigned = !mOff ? mReg : (takeMorningSpare(1) || '');
+                            aAssigned = !aOff ? aReg : (takeAfternoonSpare(1) || '');
                         }
+                        pendingRows.push({ routeName, busNo: bus.busNo, mReg, aReg, mOff, aOff, mAssigned, aAssigned });
+                    });
+                });
+                // 2차: 아직 비어 있는 대체 슬롯에 폴백(반대 교대 선호) 스페어 투입 → 무조건 배차
+                pendingRows.forEach(row => {
+                    if (row.mOff && !row.mAssigned) {
+                        row.mAssigned = takeMorningSpare(2) || (isSun ? '운행종료' : '운행종료');
+                    }
+                    if (row.aOff && !row.aAssigned) {
+                        row.aAssigned = takeAfternoonSpare(2) || (isSun ? '운행종료' : '운행종료');
+                    }
+                });
+                pendingRows.forEach(row => {
+                        let mAssigned = row.mAssigned, aAssigned = row.aAssigned;
+                        const routeName = row.routeName;
+                        const bus = { busNo: row.busNo };
+                        const mReg = row.mReg, aReg = row.aReg, mOff = row.mOff, aOff = row.aOff;
 
                         const overrideKey = `${dateKey}_${routeName}_${bus.busNo}`;
                         // DB manualOverrides 최우선 적용 (화면 표시 = 저장값)
@@ -5461,12 +5533,12 @@ function getMonthlyOffAllDriverNames(){
                         }
 
                         busAssignments.push({ line: routeName, busNo: bus.busNo, morningRegular: mReg, afternoonRegular: aReg, morningAssigned: mAssigned, afternoonAssigned: aAssigned, morningIsOff: mOff, afternoonIsOff: aOff });
-                    });
                 });
                 // 주별통합·전체 탭 휴무자 표시:
                 // 1) 오버라이드 필드(manualOffDisplayOverrides)에 해당 날짜 키가 있으면 그 값
                 // 2) 없으면 원본(appData.offDays = baseOffList)
-                // (키가 있으면 빈 배열도 유효 — 원본으로 대체하지 않음 → 명단에서 제거 후 저장 시 빈 휴무 반영)
+                // 3) 그날 오전/오후에 실제 배차된 사람은 휴무자에서 제외
+                //    (근무 중인데 휴무자에 같이 나오는 모순 방지 — 예: 스페어 문성현)
                 let displayOffList;
                 if (Object.prototype.hasOwnProperty.call(offMap, dateKey) && Array.isArray(offMap[dateKey])) {
                     displayOffList = offMap[dateKey]
@@ -5475,6 +5547,17 @@ function getMonthlyOffAllDriverNames(){
                 } else {
                     displayOffList = [...baseOffList];
                 }
+                const workingToday = new Set();
+                (busAssignments || []).forEach(b => {
+                    const m = String(b.morningAssigned || '').replace('(S)', '').trim();
+                    const a = String(b.afternoonAssigned || '').replace('(S)', '').trim();
+                    if (m && m !== '운행종료' && m !== '미정') workingToday.add(m);
+                    if (a && a !== '운행종료' && a !== '미정') workingToday.add(a);
+                });
+                displayOffList = displayOffList.filter(n => {
+                    const cn = String(n || '').replace('(S)', '').trim();
+                    return cn && !workingToday.has(cn);
+                });
                 dailySimResults[dateKey] = { offList: displayOffList, busAssignments, assignedSpares };
 
                 // 다음날 패턴용: 오늘 휴무 여부 기록 (근무한 스페어의 lastWork는 위에서 갱신됨)
@@ -5682,32 +5765,26 @@ function getMonthlyOffAllDriverNames(){
                 return;
             }
 
-            // ② 다른 칸의 현재 배차(스페어 포함)를 고정 — 휴무 변경으로 시뮬레이션이 다른 칸을 건드리지 않게 함
-            //    스페어는 다른 칸에서도 선택 가능 (단, 같은 날·같은 교대 중복만 ①에서 차단)
+            // ② 다른 칸의 현재 배차(스페어 포함)를 강제 고정
+            //    ★ 변경하는 셀의 해당 교대만 새 값으로 바꾸고,
+            //      나머지 모든 셀(같은 차량 반대교대 포함)은 변경 직전 값으로 무조건 고정한다.
+            //      → 휴무자 이동/시뮬레이션 재실행으로 다른 셀이 절대 바뀌지 않게 함
             (dayDataBefore.busAssignments || []).forEach(b => {
                 const bKey = `${dateKey}_${b.line}_${b.busNo}`;
                 if (!manualOverrides[bKey]) manualOverrides[bKey] = {};
-                const isEditCell = b.line === line && String(b.busNo) === String(busNo);
+                const isEditCell = (b.line === line && String(b.busNo) === String(busNo));
+
                 if (isEditCell) {
-                    // 편집 칸: 변경 교대만 새 값, 반대 교대는 현재 값 유지
+                    // 편집 중인 셀: 선택한 교대만 새 이름, 반대 교대는 변경 전 값으로 강제 유지
                     manualOverrides[bKey][shift] = cleanSelectedName;
                     const other = shift === 'morning' ? 'afternoon' : 'morning';
-                    if (!Object.prototype.hasOwnProperty.call(manualOverrides[bKey], other)
-                        || manualOverrides[bKey][other] === undefined || manualOverrides[bKey][other] === null) {
-                        manualOverrides[bKey][other] = norm(
-                            shift === 'morning' ? b.afternoonAssigned : b.morningAssigned
-                        );
-                    }
+                    manualOverrides[bKey][other] = norm(
+                        shift === 'morning' ? b.afternoonAssigned : b.morningAssigned
+                    );
                 } else {
-                    // 다른 칸: 이미 오버라이드가 있으면 유지, 없으면 현재 화면 값으로 고정
-                    if (!Object.prototype.hasOwnProperty.call(manualOverrides[bKey], 'morning')
-                        || manualOverrides[bKey].morning === undefined || manualOverrides[bKey].morning === null) {
-                        manualOverrides[bKey].morning = norm(b.morningAssigned);
-                    }
-                    if (!Object.prototype.hasOwnProperty.call(manualOverrides[bKey], 'afternoon')
-                        || manualOverrides[bKey].afternoon === undefined || manualOverrides[bKey].afternoon === null) {
-                        manualOverrides[bKey].afternoon = norm(b.afternoonAssigned);
-                    }
+                    // 다른 모든 칸: 오전/오후 모두 변경 직전 화면 값으로 강제 고정 (기존 오버라이드 덮어씀)
+                    manualOverrides[bKey].morning = norm(b.morningAssigned);
+                    manualOverrides[bKey].afternoon = norm(b.afternoonAssigned);
                 }
             });
 
