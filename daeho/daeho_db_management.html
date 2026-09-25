@@ -191,6 +191,44 @@
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
             }
+            /* 커스텀 인쇄 루트: 화면은 숨기고 인쇄용 문서만 출력 */
+            body.is-printing > *:not(#printRoot) {
+                display: none !important;
+            }
+            body.is-printing #printRoot {
+                display: block !important;
+                position: static !important;
+                left: auto !important;
+                top: auto !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #fff !important;
+                overflow: visible !important;
+            }
+            body.is-printing #printRoot .print-sheet {
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+            body.is-printing #printRoot table {
+                border-collapse: collapse !important;
+            }
+            body.is-printing #printRoot th,
+            body.is-printing #printRoot td {
+                border: 1px solid #cbd5e1 !important;
+            }
+            @page {
+                size: A4 landscape;
+                margin: 6mm;
+            }
+        }
+        #printRoot {
+            display: none;
+            position: fixed;
+            left: -99999px;
+            top: 0;
+            background: #fff;
+            z-index: -1;
         }
         #view-weekly table td {
             vertical-align: middle !important;
@@ -6987,19 +7025,295 @@ function getMonthlyOffAllDriverNames(){
             return true;
         }
 
+        function ensurePrintRoot() {
+            let root = document.getElementById('printRoot');
+            if (!root) {
+                root = document.createElement('div');
+                root.id = 'printRoot';
+                document.body.appendChild(root);
+            }
+            return root;
+        }
+
+        function buildWeeklyCalendarPrintSheet() {
+            const totalDays = getDaysInMonth(currentYear, currentMonth);
+            const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            const isHol = (y, m, d) => (typeof isKoreanPublicHoliday === 'function' && isKoreanPublicHoliday(y, m, d));
+            const dowLabels = ['일','월','화','수','목','금','토'];
+            const sheet = document.createElement('div');
+            sheet.className = 'print-sheet';
+            sheet.style.cssText = 'font-family:Noto Sans KR,Arial,sans-serif;padding:4px;box-sizing:border-box;';
+
+            sheet.innerHTML = `<div style="text-align:center;margin-bottom:6px;">
+                <div style="display:inline-block;padding:4px 12px;border-radius:999px;background:#1e3a5f;color:#fbbf24;font-size:11px;font-weight:800;letter-spacing:0.06em;">WEEK-SCHEDULE</div>
+                <div style="font-size:22px;font-weight:900;color:#0f172a;margin-top:4px;">${currentYear}년 ${currentMonth}월 월간 배차현황</div>
+                <div style="font-size:12px;font-weight:700;color:#64748b;">주별통합 · 날짜별 달력</div>
+            </div>`;
+
+            const grid = document.createElement('div');
+            grid.style.cssText = 'display:grid;grid-template-columns:repeat(7,1fr);gap:4px;';
+            const dowColors = ['#dc2626','#0f172a','#0f172a','#0f172a','#0f172a','#0f172a','#2563eb'];
+            dowLabels.forEach((dow, i) => {
+                const h = document.createElement('div');
+                h.textContent = dow;
+                h.style.cssText = `text-align:center;font-weight:900;font-size:12px;padding:4px 0;color:${dowColors[i]};border:1px solid #cbd5e1;background:#f8fafc;`;
+                grid.appendChild(h);
+            });
+
+            const firstDow = new Date(currentYear, currentMonth - 1, 1).getDay();
+            for (let i = 0; i < firstDow; i++) {
+                const blank = document.createElement('div');
+                blank.style.cssText = 'min-height:1px;border:1px dashed #e2e8f0;background:#fafafa;';
+                grid.appendChild(blank);
+            }
+
+            let allBuses = [];
+            if (typeof getOrderedBusList === 'function') {
+                getOrderedBusList(appData.routes).forEach(b => allBuses.push({ line: b.line, busNo: b.busNo }));
+            }
+
+            for (let d = 1; d <= totalDays; d++) {
+                const dateKey = `${String(currentYear).substring(2)}-${String(currentMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const dayData = (typeof getDailyAssignment === 'function') ? getDailyAssignment(dateKey) : { offList: [], busAssignments: [] };
+                const dow = new Date(currentYear, currentMonth - 1, d).getDay();
+                const holiday = isHol(currentYear, currentMonth, d);
+                const isSun = dow === 0;
+                const isSat = dow === 6;
+                const dateColor = (isSun || holiday) ? '#dc2626' : (isSat ? '#2563eb' : '#0f172a');
+                const cell = document.createElement('div');
+                cell.style.cssText = `border:1px solid #cbd5e1;padding:3px;box-sizing:border-box;background:#fff;font-size:9px;`;
+
+                const offNames = (dayData.offList || []).map(n => String(n||'').replace('(S)','').trim()).filter(Boolean);
+                const offText = offNames.length ? offNames.join(', ') : '-';
+
+                let html = `<div style="text-align:center;font-weight:900;font-size:11px;color:${dateColor};padding:2px 0;">${currentMonth}/${d} (${dowLabels[dow]})</div>`;
+                html += `<div style="text-align:center;color:#15803d;font-weight:700;font-size:8px;line-height:1.25;margin-bottom:2px;border-bottom:1px solid #bbf7d0;padding-bottom:2px;">휴 ${esc(offText)}</div>`;
+                html += `<table style="width:100%;border-collapse:collapse;font-size:8px;"><thead><tr>
+                    <th style="border:1px solid #e2e8f0;padding:1px;background:#f8fafc;">노선</th>
+                    <th style="border:1px solid #e2e8f0;padding:1px;background:#fffbeb;">오전</th>
+                    <th style="border:1px solid #e2e8f0;padding:1px;background:#fef2f2;">오후</th>
+                </tr></thead><tbody>`;
+                allBuses.forEach(bus => {
+                    const b = (dayData.busAssignments || []).find(x => x.line === bus.line && x.busNo === bus.busNo);
+                    const m = b ? String(b.morningAssigned || '-').replace('(S)','').trim() : '-';
+                    const a = b ? String(b.afternoonAssigned || '-').replace('(S)','').trim() : '-';
+                    const lineColor = String(bus.line).includes('15') ? '#dc2626' : '#2563eb';
+                    html += `<tr>
+                        <td style="border:1px solid #e2e8f0;text-align:center;font-weight:800;color:${lineColor};padding:1px;">${esc(String(bus.line).replace('번',''))}·${esc(bus.busNo)}</td>
+                        <td style="border:1px solid #e2e8f0;text-align:center;padding:1px;">${esc(m)}</td>
+                        <td style="border:1px solid #e2e8f0;text-align:center;padding:1px;">${esc(a)}</td>
+                    </tr>`;
+                });
+                html += `</tbody></table>`;
+                cell.innerHTML = html;
+                grid.appendChild(cell);
+            }
+            const totalCells = firstDow + totalDays;
+            const remain = (7 - (totalCells % 7)) % 7;
+            for (let i = 0; i < remain; i++) {
+                const blank = document.createElement('div');
+                blank.style.cssText = 'border:1px dashed #e2e8f0;background:#fafafa;';
+                grid.appendChild(blank);
+            }
+            sheet.appendChild(grid);
+            return sheet;
+        }
+
+        function buildFitA4PrintSheet(sourceEl, titleText) {
+            const sheet = document.createElement('div');
+            sheet.className = 'print-sheet';
+            sheet.style.cssText = 'font-family:Noto Sans KR,Arial,sans-serif;box-sizing:border-box;';
+            const title = document.createElement('div');
+            title.textContent = titleText;
+            title.style.cssText = 'text-align:center;font-size:16px;font-weight:900;color:#0f172a;margin:0 0 6px;';
+            sheet.appendChild(title);
+
+            const clone = sourceEl.cloneNode(true);
+            clone.querySelectorAll('.no-print, button, .sticky').forEach(el => {
+                if (el.classList && el.classList.contains('sticky')) {
+                    el.style.position = 'static';
+                    el.style.left = 'auto';
+                }
+            });
+            clone.querySelectorAll('[class*="sticky"]').forEach(el => {
+                el.style.position = 'static';
+                el.style.left = 'auto';
+            });
+            clone.querySelectorAll('.overflow-x-auto, .overflow-auto').forEach(el => {
+                el.style.overflow = 'visible';
+                el.style.width = '100%';
+                el.style.maxWidth = 'none';
+            });
+            clone.style.width = '100%';
+            clone.style.maxWidth = '100%';
+            clone.style.overflow = 'visible';
+            clone.style.margin = '0';
+            // 표 글자 축소로 A4 1장 유도
+            clone.querySelectorAll('table').forEach(t => {
+                t.style.width = '100%';
+                t.style.fontSize = '8px';
+                t.style.borderCollapse = 'collapse';
+            });
+            clone.querySelectorAll('th, td').forEach(c => {
+                c.style.padding = '1px 2px';
+                c.style.fontSize = '8px';
+                c.style.lineHeight = '1.15';
+                c.style.height = 'auto';
+                c.style.whiteSpace = 'nowrap';
+            });
+            sheet.appendChild(clone);
+
+            // 인쇄 직전에 스케일 맞춤 (A4 가로 약 285mm 사용 영역)
+            sheet.dataset.fitA4 = '1';
+            return sheet;
+        }
+
+        function buildOffdaysPrintSheet() {
+            const active = document.getElementById('view-offdays');
+            const calendarGrid = active && active.querySelector('#calendarGrid');
+            const calendarColumn = calendarGrid ? calendarGrid.parentElement : null;
+            const sheet = document.createElement('div');
+            sheet.className = 'print-sheet';
+            sheet.style.cssText = 'font-family:Noto Sans KR,Arial,sans-serif;box-sizing:border-box;padding:2px;';
+            const title = document.createElement('div');
+            title.textContent = `${currentYear}년 ${String(currentMonth).padStart(2,'0')}월 휴무대장`;
+            title.style.cssText = 'text-align:center;font-size:18px;font-weight:900;color:#0f172a;margin-bottom:4px;';
+            sheet.appendChild(title);
+            const sub = document.createElement('div');
+            sub.textContent = '일자별 휴무 현황';
+            sub.style.cssText = 'text-align:center;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;';
+            sheet.appendChild(sub);
+
+            if (!calendarColumn) {
+                sheet.appendChild(document.createTextNode('달력 데이터가 없습니다.'));
+                return sheet;
+            }
+            const clone = calendarColumn.cloneNode(true);
+            clone.style.width = '100%';
+            clone.style.border = 'none';
+            clone.style.boxShadow = 'none';
+            clone.style.background = '#fff';
+            const grid = clone.querySelector('#calendarGrid') || clone.querySelector('[class*="grid"]');
+            if (grid) {
+                grid.removeAttribute('id');
+                grid.style.gap = '0';
+                grid.style.padding = '0';
+                grid.style.background = '#fff';
+                grid.style.border = 'none';
+                grid.style.display = 'grid';
+                grid.style.gridTemplateColumns = 'repeat(7, 1fr)';
+            }
+            clone.querySelectorAll('#calendarGrid > div, .grid > div').forEach(cell => {
+                cell.style.minHeight = '0';
+                cell.style.height = 'auto';
+                cell.style.padding = '3px 2px';
+                cell.style.border = '1px solid #e2e8f0';
+                cell.style.borderRadius = '0';
+                cell.style.boxShadow = 'none';
+                cell.style.background = '#fff';
+                cell.style.fontSize = '9px';
+            });
+            clone.querySelectorAll('span').forEach(span => {
+                span.style.fontSize = '9px';
+                span.style.lineHeight = '1.2';
+                span.style.background = 'transparent';
+                span.style.border = 'none';
+                span.style.borderRadius = '0';
+                span.style.padding = '0';
+                span.style.margin = '0';
+            });
+            sheet.appendChild(clone);
+            sheet.dataset.fitA4 = '1';
+            return sheet;
+        }
+
+        function fitSheetToA4(sheet) {
+            // A4 landscape printable ~ 285mm x 190mm → CSS px approx 1078 x 718 at 96dpi
+            const maxW = 1100;
+            const maxH = 700;
+            // temporarily show offscreen to measure
+            const root = ensurePrintRoot();
+            root.style.display = 'block';
+            root.style.left = '-99999px';
+            root.style.position = 'fixed';
+            const w = Math.max(sheet.scrollWidth || 0, sheet.offsetWidth || 0, 1);
+            const h = Math.max(sheet.scrollHeight || 0, sheet.offsetHeight || 0, 1);
+            const scale = Math.min(1, maxW / w, maxH / h);
+            if (scale < 0.999) {
+                sheet.style.transformOrigin = 'top left';
+                sheet.style.transform = `scale(${scale})`;
+                sheet.style.width = (100 / scale) + '%';
+            }
+        }
+
         function prepareAndPrint() {
-            // 화면 DOM은 건드리지 않음. 브라우저 인쇄 미리보기만 연다.
             try {
                 const active = document.querySelector('.tab-content:not(.hidden)');
                 if (!active) {
                     if (typeof showModal === 'function') showModal('인쇄', '인쇄할 탭을 먼저 선택해 주세요.', true, 3000);
                     return;
                 }
-                window.print();
+
+                const root = ensurePrintRoot();
+                root.innerHTML = '';
+                let sheet = null;
+
+                if (active.id === 'view-weekly') {
+                    // 1) 주별통합 → 달력 형식
+                    sheet = buildWeeklyCalendarPrintSheet();
+                } else if (active.id === 'view-drivers') {
+                    // 2) 기사별 근무통계 → A4 1장
+                    const table = active.querySelector('#dailyShiftStatsHeader')?.closest('table') || active.querySelector('table');
+                    if (!table) {
+                        if (typeof showModal === 'function') showModal('인쇄', '인쇄할 통계 표가 없습니다.', true, 3000);
+                        return;
+                    }
+                    sheet = buildFitA4PrintSheet(table, `${currentYear}년 ${currentMonth}월 기사별 근무 및 휴무 통계`);
+                } else if (active.id === 'view-offdays') {
+                    // 3) 월간 휴무대장 → A4 1장
+                    sheet = buildOffdaysPrintSheet();
+                } else {
+                    // 기타 탭: 화면 그대로 인쇄
+                    window.print();
+                    return;
+                }
+
+                root.appendChild(sheet);
+                if (sheet.dataset.fitA4 === '1') {
+                    // measure after attach
+                    requestAnimationFrame(() => {
+                        fitSheetToA4(sheet);
+                        runPrintWithRoot(root);
+                    });
+                } else {
+                    // weekly calendar also fit
+                    requestAnimationFrame(() => {
+                        fitSheetToA4(sheet);
+                        runPrintWithRoot(root);
+                    });
+                }
             } catch (e) {
                 console.error('인쇄 오류:', e);
+                document.body.classList.remove('is-printing');
                 if (typeof showModal === 'function') showModal('인쇄 오류', '인쇄를 시작할 수 없습니다.', true, 3000);
             }
+        }
+
+        function runPrintWithRoot(root) {
+            document.body.classList.add('is-printing');
+            let cleaned = false;
+            const cleanup = () => {
+                if (cleaned) return;
+                cleaned = true;
+                document.body.classList.remove('is-printing');
+                if (root) root.innerHTML = '';
+                window.removeEventListener('afterprint', cleanup);
+            };
+            window.addEventListener('afterprint', cleanup);
+            requestAnimationFrame(() => {
+                try { window.print(); } catch (err) { console.error(err); }
+                setTimeout(cleanup, 2000);
+            });
         }
 
         async function downloadFile(blob, fileName) {
