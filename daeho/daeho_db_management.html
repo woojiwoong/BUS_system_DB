@@ -7214,7 +7214,7 @@ function getMonthlyOffAllDriverNames(){
         }
 
         function buildWeeklyCalendarPrintSheet() {
-            // 탭 이미지저장(월간 배차현황 주별통합)과 동일한 달력 형식
+            // A4 가로 1장 꽉 채움 · 글자 최대 · 중앙 정렬 (PC 인쇄용)
             const totalDays = getDaysInMonth(currentYear, currentMonth);
             const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
             const isHol = (y, m, d) => (typeof isKoreanPublicHoliday === 'function' && isKoreanPublicHoliday(y, m, d));
@@ -7224,19 +7224,20 @@ function getMonthlyOffAllDriverNames(){
 
             const sheet = document.createElement('div');
             sheet.className = 'print-sheet';
-            sheet.style.cssText = "width:1400px;background:linear-gradient(180deg,#f8fafc 0%,#ffffff 60px);box-sizing:border-box;padding:8px 6px 6px;font-family:'Noto Sans KR',Arial,sans-serif;";
+            // 디자인 기준폭: 측정 후 A4에 맞춰 확대/축소
+            sheet.style.cssText = "width:1200px;box-sizing:border-box;padding:6px 4px;font-family:'Noto Sans KR',Arial,sans-serif;background:#fff;";
 
             const title = document.createElement('div');
             title.innerHTML = `
-                <div style="text-align:center;margin-bottom:6px;">
-                    <div style="display:inline-block;padding:5px 14px;border-radius:999px;background:linear-gradient(135deg,#1e3a5f,#2758a0);color:#fbbf24;font-size:13px;font-weight:800;letter-spacing:0.06em;">WEEK-SCHEDULE</div>
+                <div style="text-align:center;margin:0 0 4px;">
+                    <div style="display:inline-block;padding:4px 12px;border-radius:999px;background:linear-gradient(135deg,#1e3a5f,#2758a0);color:#fbbf24;font-size:11px;font-weight:800;letter-spacing:0.06em;">WEEK-SCHEDULE</div>
                 </div>
-                <div style="font-size:26px;font-weight:900;text-align:center;color:#0f172a;letter-spacing:-0.03em;line-height:1.15;">${currentYear}년 ${currentMonth}월 월간 배차현황</div>
-                <div style="font-size:13px;font-weight:700;text-align:center;color:#64748b;margin:4px 0 6px;">주별통합 · 날짜별 달력</div>`;
+                <div style="font-size:22px;font-weight:900;text-align:center;color:#0f172a;letter-spacing:-0.03em;line-height:1.15;">${currentYear}년 ${currentMonth}월 월간 배차현황</div>
+                <div style="font-size:12px;font-weight:700;text-align:center;color:#64748b;margin:2px 0 6px;">주별통합 · 날짜별 달력</div>`;
             sheet.appendChild(title);
 
             const grid = document.createElement('div');
-            grid.style.cssText = 'display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding:4px;background:linear-gradient(135deg,#eef2f7,#e2e8f0);border:1px solid #cbd5e1;border-radius:8px;box-sizing:border-box;';
+            grid.style.cssText = 'display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding:3px;background:#e8eef5;border:1px solid #cbd5e1;border-radius:6px;box-sizing:border-box;';
 
             const dowLabels = ['일','월','화','수','목','금','토'];
             const dowColors = ['#dc2626','#0f172a','#0f172a','#0f172a','#0f172a','#0f172a','#2563eb'];
@@ -7244,14 +7245,14 @@ function getMonthlyOffAllDriverNames(){
             dowLabels.forEach((dow, i) => {
                 const h = document.createElement('div');
                 h.textContent = dow;
-                h.style.cssText = `text-align:center;font-weight:900;font-size:16px;padding:6px 0;background:${dowBgs[i]};color:${dowColors[i]};border:1px solid #cbd5e1;border-radius:8px;letter-spacing:0.04em;`;
+                h.style.cssText = `text-align:center;font-weight:900;font-size:13px;padding:5px 0;background:${dowBgs[i]};color:${dowColors[i]};border:1px solid #cbd5e1;border-radius:4px;`;
                 grid.appendChild(h);
             });
 
             const firstDow = new Date(currentYear, currentMonth - 1, 1).getDay();
             for (let i = 0; i < firstDow; i++) {
                 const blank = document.createElement('div');
-                blank.style.cssText = 'min-height:40px;background:rgba(248,250,252,.7);border:1px dashed #e2e8f0;border-radius:4px;';
+                blank.style.cssText = 'min-height:8px;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:4px;';
                 grid.appendChild(blank);
             }
 
@@ -7266,16 +7267,11 @@ function getMonthlyOffAllDriverNames(){
                         (buses || []).forEach(b => allBuses.push({ line: routeName, busNo: b.busNo }));
                     });
                 }
-                // 화면 주간 카드에 이미 그려진 차량 목록 폴백
-                if (!allBuses.length) {
-                    const firstCard = document.querySelector('#allWeeklyTablesContainer .weekly-schedule-card table tbody tr');
-                    // 카드 자체가 있으면 카드 기반 인쇄로 전환하지 않고, 아래 warn 처리
-                }
             } catch (e) { console.warn(e); }
 
             if (!allBuses.length) {
                 const warn = document.createElement('div');
-                warn.style.cssText = 'grid-column:1/-1;text-align:center;color:#b91c1c;font-weight:800;padding:24px;';
+                warn.style.cssText = 'grid-column:1/-1;text-align:center;color:#b91c1c;font-weight:800;padding:24px;font-size:16px;';
                 warn.textContent = '배차 데이터가 없습니다. 데이터 불러오기 후 다시 인쇄해 주세요.';
                 warn.setAttribute('data-print-empty', '1');
                 grid.appendChild(warn);
@@ -7295,31 +7291,27 @@ function getMonthlyOffAllDriverNames(){
                 const isSun = dow === 0;
                 const isSat = dow === 6;
                 const dateColor = (isSun || holiday) ? '#dc2626' : (isSat ? '#2563eb' : '#0f172a');
-                const headBg = (isSun || holiday)
-                    ? 'linear-gradient(180deg,#fef2f2,#fee2e2)'
-                    : (isSat ? 'linear-gradient(180deg,#eff6ff,#dbeafe)' : 'linear-gradient(180deg,#f8fafc,#eef2f7)');
+                const headBg = (isSun || holiday) ? '#fef2f2' : (isSat ? '#eff6ff' : '#f8fafc');
                 const cellBorder = (isSun || holiday) ? '#fecaca' : (isSat ? '#bfdbfe' : '#cbd5e1');
 
                 const cell = document.createElement('div');
-                cell.style.cssText = `min-height:0;background:#ffffff;border:1px solid ${cellBorder};border-radius:4px;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;`;
+                cell.style.cssText = `background:#fff;border:1px solid ${cellBorder};border-radius:4px;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;`;
 
                 const offNames = (dayData.offList || []).map(name => String(name || '').replace('(S)','').trim()).filter(Boolean);
                 const offText = offNames.length ? offNames.join(', ') : '-';
 
-                let html = `<div style="padding:6px 4px 4px;background:${headBg};border-bottom:1px solid ${cellBorder};text-align:center;">
-                    <div style="font-weight:900;font-size:15px;color:${dateColor};line-height:1.15;">${currentMonth}월 ${d}일</div>
-                    <div style="margin-top:1px;font-size:12px;font-weight:800;color:${dateColor};opacity:.9;">(${dowLabels[dow]})</div>
+                let html = `<div style="padding:3px 2px;background:${headBg};border-bottom:1px solid ${cellBorder};text-align:center;">
+                    <div style="font-weight:900;font-size:12px;color:${dateColor};line-height:1.1;">${currentMonth}/${d} (${dowLabels[dow]})</div>
                 </div>`;
-                html += `<div style="padding:4px;background:#f0fdf4;border-bottom:1px solid #bbf7d0;text-align:center;">
-                    <div style="font-size:11px;font-weight:900;color:#15803d;margin-bottom:1px;">휴무</div>
-                    <div style="font-size:11px;font-weight:700;color:#16a34a;line-height:1.25;word-break:keep-all;">${esc(offText)}</div>
+                html += `<div style="padding:2px;background:#f0fdf4;border-bottom:1px solid #bbf7d0;text-align:center;">
+                    <div style="font-size:9px;font-weight:800;color:#15803d;line-height:1.2;word-break:keep-all;">휴 ${esc(offText)}</div>
                 </div>`;
-                html += `<div style="padding:3px;flex:1;box-sizing:border-box;">
-                    <table style="width:100%;border-collapse:collapse;table-layout:fixed;background:#fff;">
+                html += `<div style="padding:1px;flex:1;box-sizing:border-box;">
+                    <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
                         <thead><tr>
-                            <th style="width:28%;text-align:center;font-size:11px;font-weight:900;color:#334155;padding:3px 1px;border:1px solid #cbd5e1;background:#f8fafc;">노선</th>
-                            <th style="width:36%;text-align:center;font-size:11px;font-weight:900;color:#b45309;padding:3px 1px;border:1px solid #cbd5e1;background:#fffbeb;">오전</th>
-                            <th style="width:36%;text-align:center;font-size:11px;font-weight:900;color:#c2410c;padding:3px 1px;border:1px solid #cbd5e1;background:#fef2f2;">오후</th>
+                            <th style="width:26%;text-align:center;font-size:9px;font-weight:900;padding:1px;border:1px solid #e2e8f0;background:#f8fafc;">노</th>
+                            <th style="width:37%;text-align:center;font-size:9px;font-weight:900;padding:1px;border:1px solid #e2e8f0;background:#fffbeb;color:#b45309;">전</th>
+                            <th style="width:37%;text-align:center;font-size:9px;font-weight:900;padding:1px;border:1px solid #e2e8f0;background:#fef2f2;color:#c2410c;">후</th>
                         </tr></thead><tbody>`;
 
                 allBuses.forEach(bus => {
@@ -7333,9 +7325,9 @@ function getMonthlyOffAllDriverNames(){
                     const mColor = m === '운행종료' ? '#dc2626' : (mSpare ? '#2563eb' : '#0f172a');
                     const aColor = a === '운행종료' ? '#dc2626' : (aSpare ? '#2563eb' : '#0f172a');
                     html += `<tr>
-                        <td style="text-align:center;font-size:12px;font-weight:900;color:${lineColor};padding:2px 1px;border:1px solid #e2e8f0;">${esc(String(bus.line).replace('번',''))}·${esc(bus.busNo)}</td>
-                        <td style="text-align:center;font-size:12px;font-weight:800;color:${mColor};padding:2px 1px;border:1px solid #e2e8f0;">${esc(m)}</td>
-                        <td style="text-align:center;font-size:12px;font-weight:800;color:${aColor};padding:2px 1px;border:1px solid #e2e8f0;">${esc(a)}</td>
+                        <td style="text-align:center;font-size:10px;font-weight:900;color:${lineColor};padding:1px 0;border:1px solid #e2e8f0;line-height:1.15;">${esc(String(bus.line).replace('번',''))}·${esc(bus.busNo)}</td>
+                        <td style="text-align:center;font-size:10px;font-weight:800;color:${mColor};padding:1px 0;border:1px solid #e2e8f0;line-height:1.15;">${esc(m)}</td>
+                        <td style="text-align:center;font-size:10px;font-weight:800;color:${aColor};padding:1px 0;border:1px solid #e2e8f0;line-height:1.15;">${esc(a)}</td>
                     </tr>`;
                 });
                 html += `</tbody></table></div>`;
@@ -7347,16 +7339,16 @@ function getMonthlyOffAllDriverNames(){
             const remain = (7 - (totalCells % 7)) % 7;
             for (let i = 0; i < remain; i++) {
                 const blank = document.createElement('div');
-                blank.style.cssText = 'min-height:40px;background:rgba(248,250,252,.7);border:1px dashed #e2e8f0;border-radius:4px;';
+                blank.style.cssText = 'min-height:8px;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:4px;';
                 grid.appendChild(blank);
             }
             sheet.appendChild(grid);
 
             const legend = document.createElement('div');
-            legend.innerHTML = `<div style="margin-top:6px;text-align:center;font-size:12px;font-weight:700;color:#475569;line-height:1.4;">
-                <span style="margin:0 8px;">오전 · 오후</span>
-                <span style="margin:0 8px;color:#2563eb;">파란 글자 = 스페어</span>
-                <span style="margin:0 8px;color:#dc2626;">빨강 날짜 = 일요일/공휴일</span>
+            legend.innerHTML = `<div style="margin-top:4px;text-align:center;font-size:10px;font-weight:700;color:#475569;">
+                <span style="margin:0 6px;">전=오전 · 후=오후</span>
+                <span style="margin:0 6px;color:#2563eb;">파랑=스페어</span>
+                <span style="margin:0 6px;color:#dc2626;">빨강=일/공휴</span>
             </div>`;
             sheet.appendChild(legend);
             sheet.dataset.fitA4 = '1';
@@ -7532,10 +7524,10 @@ function getMonthlyOffAllDriverNames(){
         }
 
         function fitSheetToA4(sheet, opts) {
-            // A4 가로 1장만 점유하도록 래퍼를 mm 단위로 고정하고 내용을 그 안에 맞춤
+            // A4 가로 영역 전체를 쓰도록 최대 배율로 확대 후 중앙 배치
             opts = opts || {};
-            const maxW = opts.maxW || 1100;
-            const maxH = opts.maxH || 770;
+            const maxW = opts.maxW || 1120;  // ~291mm @96dpi
+            const maxH = opts.maxH || 780;   // ~204mm
             const minScale = (opts.minScale != null) ? opts.minScale : 0.08;
             const root = ensurePrintRoot();
 
@@ -7551,7 +7543,7 @@ function getMonthlyOffAllDriverNames(){
                 }
             }
 
-            root.style.cssText = 'display:block;position:fixed;left:-20000px;top:0;width:297mm;height:210mm;background:#fff;z-index:-1;overflow:hidden;visibility:hidden;';
+            root.style.cssText = 'display:block;position:fixed;left:-20000px;top:0;width:' + maxW + 'px;height:' + maxH + 'px;background:#fff;z-index:-1;overflow:hidden;visibility:hidden;';
             wrap.style.cssText = 'display:block;position:relative;overflow:visible;margin:0;padding:0;background:#fff;width:auto;height:auto;';
             sheet.style.transform = 'none';
             sheet.style.position = 'relative';
@@ -7560,24 +7552,27 @@ function getMonthlyOffAllDriverNames(){
             sheet.style.margin = '0';
             sheet.style.transformOrigin = 'top left';
             if (!sheet.style.width || sheet.style.width === '100%' || sheet.style.width === 'auto') {
-                sheet.style.width = '1400px';
+                sheet.style.width = '1200px';
             }
             void sheet.offsetHeight;
             const w = Math.max(sheet.scrollWidth || 0, sheet.offsetWidth || 0, 1);
             const h = Math.max(sheet.scrollHeight || 0, sheet.offsetHeight || 0, 1);
-            let scale = Math.min(maxW / w, maxH / h, 1);
+            // 용지를 최대한 채우도록 scale (확대 허용은 1.35까지 — 글자 크게)
+            let scale = Math.min(maxW / w, maxH / h);
             if (!isFinite(scale) || scale <= 0) scale = minScale;
             if (scale < minScale) scale = minScale;
+            if (scale > 1.35) scale = 1.35;
 
-            // 시각 축소
+            const scaledW = Math.max(1, Math.floor(w * scale));
+            const scaledH = Math.max(1, Math.floor(h * scale));
+
             sheet.style.transformOrigin = 'top left';
             sheet.style.transform = 'scale(' + scale + ')';
 
-            // ★ 인쇄 엔진이 볼 레이아웃 크기 = 정확히 A4 가로 1장 (mm)
-            // (px scale 래퍼는 브라우저가 다시 여러 장으로 쪼갤 수 있음)
+            // 래퍼 = 축소/확대된 실제 크기, 페이지 안 중앙
             wrap.style.boxSizing = 'border-box';
-            wrap.style.width = '291mm';
-            wrap.style.height = '204mm';
+            wrap.style.width = scaledW + 'px';
+            wrap.style.height = scaledH + 'px';
             wrap.style.maxWidth = '291mm';
             wrap.style.maxHeight = '204mm';
             wrap.style.overflow = 'hidden';
@@ -7587,8 +7582,8 @@ function getMonthlyOffAllDriverNames(){
             wrap.style.breakInside = 'avoid';
 
             sheet.dataset.printScale = String(scale);
-            wrap.dataset.scaledW = String(Math.floor(w * scale));
-            wrap.dataset.scaledH = String(Math.floor(h * scale));
+            wrap.dataset.scaledW = String(scaledW);
+            wrap.dataset.scaledH = String(scaledH);
             return scale;
         }
 
@@ -7692,8 +7687,8 @@ function getMonthlyOffAllDriverNames(){
                 requestAnimationFrame(() => {
                     // 주별통합 달력은 A4 가로 1장에 맞춤 (가로로 넓게 배치 후 축소)
                     const fitOpts = (active.id === 'view-weekly')
-                        ? { maxW: 1100, maxH: 760, minScale: 0.08 }
-                        : { maxW: 1100, maxH: 760, minScale: 0.10 };
+                        ? { maxW: 1120, maxH: 780, minScale: 0.08 }
+                        : { maxW: 1120, maxH: 780, minScale: 0.10 };
                     fitSheetToA4(sheet, fitOpts);
                     runPrintWithRoot(root);
                 });
