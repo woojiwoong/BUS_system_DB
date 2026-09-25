@@ -196,8 +196,8 @@
                 margin: 3mm;
             }
             html.is-printing, body.is-printing {
-                width: 100% !important;
-                height: auto !important;
+                width: 297mm !important;
+                height: 210mm !important;
                 margin: 0 !important;
                 padding: 0 !important;
                 overflow: hidden !important;
@@ -210,23 +210,31 @@
                 position: static !important;
                 left: auto !important;
                 top: auto !important;
-                width: 100% !important;
-                max-width: 100% !important;
-                min-height: 100vh !important;
-                height: 100% !important;
+                width: 291mm !important;
+                max-width: 291mm !important;
+                height: 204mm !important;
+                max-height: 204mm !important;
+                min-height: 0 !important;
                 margin: 0 auto !important;
                 padding: 0 !important;
                 background: #fff !important;
                 overflow: hidden !important;
                 z-index: auto !important;
                 box-sizing: border-box !important;
+                page-break-after: avoid !important;
+                page-break-inside: avoid !important;
             }
             body.is-printing #printRoot .print-fit-wrap {
                 display: block !important;
                 overflow: hidden !important;
+                width: 291mm !important;
+                height: 204mm !important;
+                max-width: 291mm !important;
+                max-height: 204mm !important;
                 page-break-after: avoid !important;
                 page-break-inside: avoid !important;
                 break-inside: avoid !important;
+                break-after: avoid !important;
                 margin: 0 auto !important;
                 padding: 0 !important;
             }
@@ -7524,11 +7532,11 @@ function getMonthlyOffAllDriverNames(){
         }
 
         function fitSheetToA4(sheet, opts) {
-            // transform만 쓰면 인쇄기가 원본 높이로 여러 장 출력 → 래퍼를 축소 크기로 고정
+            // A4 가로 1장만 점유하도록 래퍼를 mm 단위로 고정하고 내용을 그 안에 맞춤
             opts = opts || {};
             const maxW = opts.maxW || 1100;
             const maxH = opts.maxH || 770;
-            const minScale = (opts.minScale != null) ? opts.minScale : 0.12;
+            const minScale = (opts.minScale != null) ? opts.minScale : 0.08;
             const root = ensurePrintRoot();
 
             let wrap = sheet.parentElement;
@@ -7543,8 +7551,7 @@ function getMonthlyOffAllDriverNames(){
                 }
             }
 
-            // 측정용: 화면 밖이지만 레이아웃 가능 상태로 둠
-            root.style.cssText = 'display:block;position:fixed;left:-15000px;top:0;width:' + Math.max(maxW, 1600) + 'px;background:#fff;z-index:-1;overflow:visible;visibility:hidden;';
+            root.style.cssText = 'display:block;position:fixed;left:-20000px;top:0;width:297mm;height:210mm;background:#fff;z-index:-1;overflow:hidden;visibility:hidden;';
             wrap.style.cssText = 'display:block;position:relative;overflow:visible;margin:0;padding:0;background:#fff;width:auto;height:auto;';
             sheet.style.transform = 'none';
             sheet.style.position = 'relative';
@@ -7552,36 +7559,36 @@ function getMonthlyOffAllDriverNames(){
             sheet.style.top = '0';
             sheet.style.margin = '0';
             sheet.style.transformOrigin = 'top left';
-            sheet.style.visibility = 'visible';
             if (!sheet.style.width || sheet.style.width === '100%' || sheet.style.width === 'auto') {
                 sheet.style.width = '1400px';
             }
-            // 2프레임 대기 없이 강제 리플로우
             void sheet.offsetHeight;
-            const w = Math.max(sheet.scrollWidth || 0, sheet.offsetWidth || 0, sheet.getBoundingClientRect().width || 0, 1);
-            const h = Math.max(sheet.scrollHeight || 0, sheet.offsetHeight || 0, sheet.getBoundingClientRect().height || 0, 1);
+            const w = Math.max(sheet.scrollWidth || 0, sheet.offsetWidth || 0, 1);
+            const h = Math.max(sheet.scrollHeight || 0, sheet.offsetHeight || 0, 1);
             let scale = Math.min(maxW / w, maxH / h, 1);
             if (!isFinite(scale) || scale <= 0) scale = minScale;
             if (scale < minScale) scale = minScale;
 
-            const scaledW = Math.max(1, Math.floor(w * scale));
-            const scaledH = Math.max(1, Math.floor(h * scale));
-
+            // 시각 축소
             sheet.style.transformOrigin = 'top left';
             sheet.style.transform = 'scale(' + scale + ')';
+
+            // ★ 인쇄 엔진이 볼 레이아웃 크기 = 정확히 A4 가로 1장 (mm)
+            // (px scale 래퍼는 브라우저가 다시 여러 장으로 쪼갤 수 있음)
+            wrap.style.boxSizing = 'border-box';
+            wrap.style.width = '291mm';
+            wrap.style.height = '204mm';
+            wrap.style.maxWidth = '291mm';
+            wrap.style.maxHeight = '204mm';
             wrap.style.overflow = 'hidden';
-            wrap.style.width = scaledW + 'px';
-            wrap.style.height = scaledH + 'px';
-            wrap.style.maxWidth = maxW + 'px';
-            wrap.style.maxHeight = maxH + 'px';
-            wrap.style.marginLeft = 'auto';
-            wrap.style.marginRight = 'auto';
-            wrap.style.marginTop = 'auto';
-            wrap.style.marginBottom = 'auto';
+            wrap.style.margin = '0 auto';
+            wrap.style.pageBreakAfter = 'avoid';
+            wrap.style.pageBreakInside = 'avoid';
+            wrap.style.breakInside = 'avoid';
 
             sheet.dataset.printScale = String(scale);
-            wrap.dataset.scaledW = String(scaledW);
-            wrap.dataset.scaledH = String(scaledH);
+            wrap.dataset.scaledW = String(Math.floor(w * scale));
+            wrap.dataset.scaledH = String(Math.floor(h * scale));
             return scale;
         }
 
@@ -7664,28 +7671,6 @@ function getMonthlyOffAllDriverNames(){
                     }
                     // PC: 월 전체 달력 A4 가로 1장 (데이터 없으면 화면 주차 카드로 폴백)
                     sheet = buildWeeklyCalendarPrintSheet();
-                    if (sheet && sheet.querySelector && sheet.querySelector('[data-print-empty="1"]')) {
-                        const pages = buildIOSWeeklyWeekPages();
-                        if (pages.length) {
-                            // PC에서도 주차 카드로 데이터 출력
-                            root.innerHTML = '';
-                            pages.forEach((p, idx) => {
-                                p.style.pageBreakAfter = (idx < pages.length - 1) ? 'always' : 'auto';
-                                p.classList.add('print-sheet');
-                                root.appendChild(p);
-                            });
-                            document.body.classList.add('is-printing');
-                            setTimeout(() => {
-                                try { window.print(); } catch (e) {}
-                                setTimeout(() => {
-                                    document.body.classList.remove('is-printing');
-                                    root.innerHTML = '';
-                                    root.style.cssText = 'display:none;';
-                                }, 1500);
-                            }, 100);
-                            return;
-                        }
-                    }
                 } else if (active.id === 'view-monthlyOff') {
                     // 월간 휴무 현황표
                     sheet = buildMonthlyOffPrintSheet();
@@ -7707,8 +7692,8 @@ function getMonthlyOffAllDriverNames(){
                 requestAnimationFrame(() => {
                     // 주별통합 달력은 A4 가로 1장에 맞춤 (가로로 넓게 배치 후 축소)
                     const fitOpts = (active.id === 'view-weekly')
-                        ? { maxW: 1120, maxH: 790, minScale: 0.12 }
-                        : { maxW: 1120, maxH: 790, minScale: 0.15 };
+                        ? { maxW: 1100, maxH: 760, minScale: 0.08 }
+                        : { maxW: 1100, maxH: 760, minScale: 0.10 };
                     fitSheetToA4(sheet, fitOpts);
                     runPrintWithRoot(root);
                 });
