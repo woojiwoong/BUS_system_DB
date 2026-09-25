@@ -317,8 +317,67 @@
             flex: 1 1 auto;
             overflow: auto;
             -webkit-overflow-scrolling: touch;
+            background: #e2e8f0;
+            padding: 10px 8px 24px;
+        }
+        #iosPrintOverlay .ios-week-print-page {
             background: #fff;
-            padding: 8px;
+            border-radius: 12px;
+            margin: 0 0 14px;
+            padding: 10px 8px 12px;
+            box-shadow: 0 2px 10px rgba(15,23,42,.08);
+            overflow: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        #iosPrintOverlay .ios-week-print-page .ios-week-page-label {
+            text-align: center;
+            font-size: 13px;
+            font-weight: 900;
+            color: #1e3a5f;
+            margin: 0 0 8px;
+            padding: 6px;
+            background: #f1f5f9;
+            border-radius: 8px;
+        }
+        @media print {
+            body.is-ios-print > *:not(#iosPrintOverlay) {
+                display: none !important;
+            }
+            body.is-ios-print #iosPrintOverlay {
+                display: block !important;
+                position: static !important;
+                inset: auto !important;
+                background: #fff !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+            body.is-ios-print #iosPrintOverlay .ios-print-bar {
+                display: none !important;
+            }
+            body.is-ios-print #iosPrintOverlay .ios-print-body {
+                display: block !important;
+                overflow: visible !important;
+                background: #fff !important;
+                padding: 0 !important;
+            }
+            body.is-ios-print #iosPrintOverlay .ios-week-print-page {
+                box-shadow: none !important;
+                border-radius: 0 !important;
+                margin: 0 !important;
+                padding: 4mm !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                page-break-inside: avoid !important;
+                overflow: visible !important;
+            }
+            body.is-ios-print #iosPrintOverlay .ios-week-print-page:last-child {
+                page-break-after: auto !important;
+                break-after: auto !important;
+            }
+            @page {
+                size: A4 landscape;
+                margin: 5mm;
+            }
         }
         #view-weekly table td {
             vertical-align: middle !important;
@@ -7115,6 +7174,27 @@ function getMonthlyOffAllDriverNames(){
             return true;
         }
 
+
+        function getActiveRoutesForPrint() {
+            try {
+                if (appData && appData.routes && Object.keys(appData.routes).length > 0) {
+                    return appData.routes;
+                }
+            } catch (e) {}
+            try {
+                if (typeof getMonthlyOffBaselineRoutes === 'function') {
+                    const b = getMonthlyOffBaselineRoutes();
+                    if (b && Object.keys(b).length > 0) return b;
+                }
+            } catch (e) {}
+            try {
+                if (typeof window !== 'undefined' && window.appData && window.appData.routes && Object.keys(window.appData.routes).length > 0) {
+                    return window.appData.routes;
+                }
+            } catch (e) {}
+            return (appData && appData.routes) ? appData.routes : {};
+        }
+
         function ensurePrintRoot() {
             let root = document.getElementById('printRoot');
             if (!root) {
@@ -7169,7 +7249,7 @@ function getMonthlyOffAllDriverNames(){
 
             let allBuses = [];
             try {
-                const routes = (appData && appData.routes) ? appData.routes : {};
+                const routes = (typeof getActiveRoutesForPrint === 'function') ? getActiveRoutesForPrint() : ((appData && appData.routes) || {});
                 if (typeof getOrderedBusList === 'function') {
                     getOrderedBusList(routes).forEach(b => allBuses.push({ line: b.line, busNo: b.busNo }));
                 }
@@ -7178,14 +7258,21 @@ function getMonthlyOffAllDriverNames(){
                         (buses || []).forEach(b => allBuses.push({ line: routeName, busNo: b.busNo }));
                     });
                 }
+                // 화면 주간 카드에 이미 그려진 차량 목록 폴백
+                if (!allBuses.length) {
+                    const firstCard = document.querySelector('#allWeeklyTablesContainer .weekly-schedule-card table tbody tr');
+                    // 카드 자체가 있으면 카드 기반 인쇄로 전환하지 않고, 아래 warn 처리
+                }
             } catch (e) { console.warn(e); }
 
             if (!allBuses.length) {
                 const warn = document.createElement('div');
                 warn.style.cssText = 'grid-column:1/-1;text-align:center;color:#b91c1c;font-weight:800;padding:24px;';
                 warn.textContent = '배차 데이터가 없습니다. 데이터 불러오기 후 다시 인쇄해 주세요.';
+                warn.setAttribute('data-print-empty', '1');
                 grid.appendChild(warn);
                 sheet.appendChild(grid);
+                sheet.setAttribute('data-print-empty', '1');
                 return sheet;
             }
 
@@ -7437,8 +7524,7 @@ function getMonthlyOffAllDriverNames(){
         }
 
         function fitSheetToA4(sheet, opts) {
-            // transform만 쓰면 인쇄기가 원본 높이로 3장 출력함.
-            // 반드시 바깥 래퍼 width/height = 원본×scale 로 줄여 1장 면적만 점유.
+            // transform만 쓰면 인쇄기가 원본 높이로 여러 장 출력 → 래퍼를 축소 크기로 고정
             opts = opts || {};
             const maxW = opts.maxW || 1100;
             const maxH = opts.maxH || 770;
@@ -7457,23 +7543,25 @@ function getMonthlyOffAllDriverNames(){
                 }
             }
 
-            root.style.cssText = 'display:block;position:fixed;left:-15000px;top:0;width:' + maxW + 'px;background:#fff;z-index:-1;overflow:visible;';
-            wrap.style.cssText = 'display:block;position:relative;overflow:hidden;margin:0;padding:0;background:#fff;';
-            sheet.style.cssText = (sheet.getAttribute('style') || '') + '';
+            // 측정용: 화면 밖이지만 레이아웃 가능 상태로 둠
+            root.style.cssText = 'display:block;position:fixed;left:-15000px;top:0;width:' + Math.max(maxW, 1600) + 'px;background:#fff;z-index:-1;overflow:visible;visibility:hidden;';
+            wrap.style.cssText = 'display:block;position:relative;overflow:visible;margin:0;padding:0;background:#fff;width:auto;height:auto;';
             sheet.style.transform = 'none';
             sheet.style.position = 'relative';
             sheet.style.left = '0';
             sheet.style.top = '0';
             sheet.style.margin = '0';
             sheet.style.transformOrigin = 'top left';
+            sheet.style.visibility = 'visible';
             if (!sheet.style.width || sheet.style.width === '100%' || sheet.style.width === 'auto') {
-                sheet.style.width = '1600px';
+                sheet.style.width = '1400px';
             }
-            void root.offsetWidth;
-            void sheet.offsetWidth;
-            const w = Math.max(sheet.scrollWidth, sheet.offsetWidth, 1);
-            const h = Math.max(sheet.scrollHeight, sheet.offsetHeight, 1);
+            // 2프레임 대기 없이 강제 리플로우
+            void sheet.offsetHeight;
+            const w = Math.max(sheet.scrollWidth || 0, sheet.offsetWidth || 0, sheet.getBoundingClientRect().width || 0, 1);
+            const h = Math.max(sheet.scrollHeight || 0, sheet.offsetHeight || 0, sheet.getBoundingClientRect().height || 0, 1);
             let scale = Math.min(maxW / w, maxH / h, 1);
+            if (!isFinite(scale) || scale <= 0) scale = minScale;
             if (scale < minScale) scale = minScale;
 
             const scaledW = Math.max(1, Math.floor(w * scale));
@@ -7481,12 +7569,11 @@ function getMonthlyOffAllDriverNames(){
 
             sheet.style.transformOrigin = 'top left';
             sheet.style.transform = 'scale(' + scale + ')';
-            // 레이아웃 점유 = 축소된 크기 (이게 1장 핵심) + 용지 중앙 정렬
+            wrap.style.overflow = 'hidden';
             wrap.style.width = scaledW + 'px';
             wrap.style.height = scaledH + 'px';
             wrap.style.maxWidth = maxW + 'px';
             wrap.style.maxHeight = maxH + 'px';
-            wrap.style.overflow = 'hidden';
             wrap.style.marginLeft = 'auto';
             wrap.style.marginRight = 'auto';
             wrap.style.marginTop = 'auto';
@@ -7496,6 +7583,57 @@ function getMonthlyOffAllDriverNames(){
             wrap.dataset.scaledW = String(scaledW);
             wrap.dataset.scaledH = String(scaledH);
             return scale;
+        }
+
+        function buildIOSWeeklyWeekPages() {
+            // 주간 이미지저장과 같이: 주차 카드 1장 = 인쇄 1페이지
+            const cards = Array.from(document.querySelectorAll('#allWeeklyTablesContainer .weekly-schedule-card'));
+            if (!cards.length) return [];
+            const pages = [];
+            cards.forEach((card, i) => {
+                const weekTitle = card.getAttribute('data-week-title') || ((i + 1) + '주차');
+                const weekStart = card.getAttribute('data-week-start') || '';
+                const weekEnd = card.getAttribute('data-week-end') || '';
+
+                const page = document.createElement('div');
+                page.className = 'ios-week-print-page print-sheet';
+
+                const label = document.createElement('div');
+                label.className = 'ios-week-page-label';
+                label.textContent = currentYear + '년 ' + String(currentMonth).padStart(2, '0') + '월 ' + weekTitle +
+                    (weekStart && weekEnd ? (' · ' + weekStart + '일~' + weekEnd + '일') : '') +
+                    '  (' + (i + 1) + '/' + cards.length + ')';
+                page.appendChild(label);
+
+                const clone = card.cloneNode(true);
+                clone.querySelectorAll('[class*="sticky"]').forEach(el => {
+                    el.style.position = 'static';
+                    el.style.left = 'auto';
+                    el.style.zIndex = 'auto';
+                });
+                clone.querySelectorAll('.overflow-x-auto, .overflow-auto, .overflow-hidden').forEach(el => {
+                    el.style.overflow = 'visible';
+                    el.style.maxWidth = 'none';
+                    el.style.width = '100%';
+                });
+                clone.querySelectorAll('.weekly-offday-name, .weekly-offday-row td, tr:has(.weekly-offday-name) td').forEach(el => {
+                    el.style.height = 'auto';
+                    el.style.minHeight = '48px';
+                    el.style.padding = '8px 6px';
+                    el.style.overflow = 'visible';
+                    el.style.whiteSpace = 'normal';
+                });
+                clone.querySelectorAll('.no-print, button').forEach(el => el.remove());
+                clone.style.width = '100%';
+                clone.style.maxWidth = '100%';
+                clone.style.margin = '0';
+                clone.style.boxShadow = 'none';
+                clone.style.border = '1px solid #cbd5e1';
+                clone.style.background = '#fff';
+                page.appendChild(clone);
+                pages.push(page);
+            });
+            return pages;
         }
 
         function prepareAndPrint() {
@@ -7511,8 +7649,43 @@ function getMonthlyOffAllDriverNames(){
                 let sheet = null;
 
                 if (active.id === 'view-weekly') {
-                    // 주별통합 → 탭 이미지저장과 동일한 달력 형식
+                    try {
+                        if (typeof renderAllWeeklyView === 'function') renderAllWeeklyView();
+                    } catch (e) {}
+                    // iPhone: 주간 이미지처럼 주차 단위 1장씩
+                    if (typeof isIOSDevice === 'function' ? isIOSDevice() : /iphone|ipad|ipod/i.test(navigator.userAgent || '')) {
+                        const pages = buildIOSWeeklyWeekPages();
+                        if (!pages.length) {
+                            if (typeof showModal === 'function') showModal('인쇄', '주간 배차표를 찾을 수 없습니다. 데이터 불러오기 후 다시 시도해 주세요.', true, 3000);
+                            return;
+                        }
+                        openIOSPrintOverlayPages(pages, '주차별 인쇄 미리보기');
+                        return;
+                    }
+                    // PC: 월 전체 달력 A4 가로 1장 (데이터 없으면 화면 주차 카드로 폴백)
                     sheet = buildWeeklyCalendarPrintSheet();
+                    if (sheet && sheet.querySelector && sheet.querySelector('[data-print-empty="1"]')) {
+                        const pages = buildIOSWeeklyWeekPages();
+                        if (pages.length) {
+                            // PC에서도 주차 카드로 데이터 출력
+                            root.innerHTML = '';
+                            pages.forEach((p, idx) => {
+                                p.style.pageBreakAfter = (idx < pages.length - 1) ? 'always' : 'auto';
+                                p.classList.add('print-sheet');
+                                root.appendChild(p);
+                            });
+                            document.body.classList.add('is-printing');
+                            setTimeout(() => {
+                                try { window.print(); } catch (e) {}
+                                setTimeout(() => {
+                                    document.body.classList.remove('is-printing');
+                                    root.innerHTML = '';
+                                    root.style.cssText = 'display:none;';
+                                }, 1500);
+                            }, 100);
+                            return;
+                        }
+                    }
                 } else if (active.id === 'view-monthlyOff') {
                     // 월간 휴무 현황표
                     sheet = buildMonthlyOffPrintSheet();
@@ -7567,7 +7740,7 @@ function getMonthlyOffAllDriverNames(){
             }
         }
 
-        function openIOSPrintOverlay(sheet) {
+        function ensureIOSPrintOverlay() {
             let ov = document.getElementById('iosPrintOverlay');
             if (!ov) {
                 ov = document.createElement('div');
@@ -7575,7 +7748,7 @@ function getMonthlyOffAllDriverNames(){
                 ov.innerHTML = `
                     <div class="ios-print-bar">
                         <button type="button" class="ios-print-close" id="iosPrintCloseBtn">취소 · 닫기</button>
-                        <strong>인쇄 미리보기</strong>
+                        <strong id="iosPrintTitle">인쇄 미리보기</strong>
                         <button type="button" class="ios-print-go" id="iosPrintGoBtn">인쇄</button>
                     </div>
                     <div class="ios-print-body"></div>
@@ -7589,14 +7762,18 @@ function getMonthlyOffAllDriverNames(){
                 ov.querySelector('#iosPrintGoBtn').addEventListener('click', function (e) {
                     e.preventDefault();
                     e.stopPropagation();
-                    // iOS: 시스템 인쇄 시트 (취소는 시스템 UI에 있음)
-                    // 본문 숨기지 않음 — 오버레이만 유지
                     try { window.print(); } catch (err) { console.error(err); }
                 });
             }
+            return ov;
+        }
+
+        function openIOSPrintOverlay(sheet) {
+            const ov = ensureIOSPrintOverlay();
+            const titleEl = ov.querySelector('#iosPrintTitle');
+            if (titleEl) titleEl.textContent = '인쇄 미리보기';
             const body = ov.querySelector('.ios-print-body');
             body.innerHTML = '';
-            // sheet 복제본을 넣어 원본 printRoot와 분리
             const clone = sheet.cloneNode(true);
             clone.style.transform = 'none';
             clone.style.width = '100%';
@@ -7604,7 +7781,18 @@ function getMonthlyOffAllDriverNames(){
             body.appendChild(clone);
             document.body.classList.add('is-ios-print');
             ov.classList.add('open');
-            // 스크롤 맨 위
+            body.scrollTop = 0;
+        }
+
+        function openIOSPrintOverlayPages(pages, titleText) {
+            const ov = ensureIOSPrintOverlay();
+            const titleEl = ov.querySelector('#iosPrintTitle');
+            if (titleEl) titleEl.textContent = titleText || ('주차별 미리보기 (' + pages.length + '장)');
+            const body = ov.querySelector('.ios-print-body');
+            body.innerHTML = '';
+            pages.forEach(p => body.appendChild(p));
+            document.body.classList.add('is-ios-print');
+            ov.classList.add('open');
             body.scrollTop = 0;
         }
 
@@ -7626,7 +7814,11 @@ function getMonthlyOffAllDriverNames(){
             }
 
             // ===== PC / Android =====
-            root.style.cssText = 'display:block;position:static;left:auto;top:auto;width:100%;margin:0;padding:8px;background:#fff;z-index:99999;overflow:visible;';
+            root.style.cssText = 'display:block;position:static;left:auto;top:auto;width:100%;margin:0;padding:0;background:#fff;z-index:99999;overflow:visible;visibility:visible;';
+            // fit 래퍼도 보이게
+            root.querySelectorAll('.print-fit-wrap, .print-sheet').forEach(el => {
+                el.style.visibility = 'visible';
+            });
             document.body.classList.add('is-printing');
             document.body.classList.remove('is-ios-print');
             let cleaned = false;
