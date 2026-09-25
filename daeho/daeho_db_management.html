@@ -193,7 +193,14 @@
             }
             @page {
                 size: A4 landscape;
-                margin: 5mm;
+                margin: 3mm;
+            }
+            html.is-printing, body.is-printing {
+                width: 100% !important;
+                height: auto !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
             }
             body.is-printing #printRoot {
                 display: block !important;
@@ -201,21 +208,34 @@
                 left: auto !important;
                 top: auto !important;
                 width: 100% !important;
+                max-width: 100% !important;
                 height: auto !important;
+                max-height: 100% !important;
                 margin: 0 !important;
                 padding: 0 !important;
                 background: #fff !important;
                 overflow: hidden !important;
                 z-index: auto !important;
             }
+            body.is-printing #printRoot .print-fit-wrap {
+                display: block !important;
+                overflow: hidden !important;
+                page-break-after: avoid !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
             body.is-printing #printRoot .print-sheet {
                 box-sizing: border-box !important;
                 transform-origin: top left !important;
                 page-break-inside: avoid !important;
                 break-inside: avoid !important;
+                page-break-after: avoid !important;
             }
             body.is-printing #printRoot .print-sheet * {
                 page-break-inside: avoid !important;
+                break-inside: avoid !important;
             }
             body.is-printing #printRoot table {
                 border-collapse: collapse !important;
@@ -7124,7 +7144,7 @@ function getMonthlyOffAllDriverNames(){
             sheet.appendChild(title);
 
             const grid = document.createElement('div');
-            grid.style.cssText = 'display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:8px;background:linear-gradient(135deg,#eef2f7,#e2e8f0);border:1px solid #cbd5e1;border-radius:14px;box-sizing:border-box;';
+            grid.style.cssText = 'display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding:4px;background:linear-gradient(135deg,#eef2f7,#e2e8f0);border:1px solid #cbd5e1;border-radius:8px;box-sizing:border-box;';
 
             const dowLabels = ['일','월','화','수','목','금','토'];
             const dowColors = ['#dc2626','#0f172a','#0f172a','#0f172a','#0f172a','#0f172a','#2563eb'];
@@ -7139,7 +7159,7 @@ function getMonthlyOffAllDriverNames(){
             const firstDow = new Date(currentYear, currentMonth - 1, 1).getDay();
             for (let i = 0; i < firstDow; i++) {
                 const blank = document.createElement('div');
-                blank.style.cssText = 'min-height:80px;background:rgba(248,250,252,.7);border:1px dashed #e2e8f0;border-radius:8px;';
+                blank.style.cssText = 'min-height:40px;background:rgba(248,250,252,.7);border:1px dashed #e2e8f0;border-radius:4px;';
                 grid.appendChild(blank);
             }
 
@@ -7182,7 +7202,7 @@ function getMonthlyOffAllDriverNames(){
                 const cellBorder = (isSun || holiday) ? '#fecaca' : (isSat ? '#bfdbfe' : '#cbd5e1');
 
                 const cell = document.createElement('div');
-                cell.style.cssText = `min-height:100px;background:#ffffff;border:1px solid ${cellBorder};border-radius:8px;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;`;
+                cell.style.cssText = `min-height:0;background:#ffffff;border:1px solid ${cellBorder};border-radius:4px;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;`;
 
                 const offNames = (dayData.offList || []).map(name => String(name || '').replace('(S)','').trim()).filter(Boolean);
                 const offText = offNames.length ? offNames.join(', ') : '-';
@@ -7228,7 +7248,7 @@ function getMonthlyOffAllDriverNames(){
             const remain = (7 - (totalCells % 7)) % 7;
             for (let i = 0; i < remain; i++) {
                 const blank = document.createElement('div');
-                blank.style.cssText = 'min-height:80px;background:rgba(248,250,252,.7);border:1px dashed #e2e8f0;border-radius:8px;';
+                blank.style.cssText = 'min-height:40px;background:rgba(248,250,252,.7);border:1px dashed #e2e8f0;border-radius:4px;';
                 grid.appendChild(blank);
             }
             sheet.appendChild(grid);
@@ -7413,34 +7433,60 @@ function getMonthlyOffAllDriverNames(){
         }
 
         function fitSheetToA4(sheet, opts) {
-            // A4 가로(landscape) 인쇄 가능 영역 ≈ 287mm × 200mm
-            // 96dpi 기준 약 1085 × 755 px (여백 5~6mm 반영)
+            // transform만 쓰면 인쇄기가 원본 높이로 3장 출력함.
+            // 반드시 바깥 래퍼 width/height = 원본×scale 로 줄여 1장 면적만 점유.
             opts = opts || {};
-            const maxW = opts.maxW || 1085;
-            const maxH = opts.maxH || 755;
-            const minScale = (opts.minScale != null) ? opts.minScale : 0.22;
+            const maxW = opts.maxW || 1100;
+            const maxH = opts.maxH || 770;
+            const minScale = (opts.minScale != null) ? opts.minScale : 0.12;
             const root = ensurePrintRoot();
-            root.style.cssText = 'display:block;position:fixed;left:-12000px;top:0;width:' + maxW + 'px;background:#fff;z-index:-1;overflow:visible;';
-            sheet.style.transform = 'none';
-            sheet.style.transformOrigin = 'top left';
-            // 가로로 넓게 배치 후 한 장에 맞게 축소
-            if (!sheet.style.width || sheet.style.width === '100%') {
-                sheet.style.width = Math.max(maxW, 1400) + 'px';
+
+            let wrap = sheet.parentElement;
+            if (!wrap || !wrap.classList.contains('print-fit-wrap')) {
+                wrap = document.createElement('div');
+                wrap.className = 'print-fit-wrap';
+                if (sheet.parentNode) {
+                    sheet.parentNode.insertBefore(wrap, sheet);
+                    wrap.appendChild(sheet);
+                } else {
+                    wrap.appendChild(sheet);
+                }
             }
-            // 강제 리플로우 후 측정
+
+            root.style.cssText = 'display:block;position:fixed;left:-15000px;top:0;width:' + maxW + 'px;background:#fff;z-index:-1;overflow:visible;';
+            wrap.style.cssText = 'display:block;position:relative;overflow:hidden;margin:0;padding:0;background:#fff;';
+            sheet.style.cssText = (sheet.getAttribute('style') || '') + '';
+            sheet.style.transform = 'none';
+            sheet.style.position = 'relative';
+            sheet.style.left = '0';
+            sheet.style.top = '0';
+            sheet.style.margin = '0';
+            sheet.style.transformOrigin = 'top left';
+            if (!sheet.style.width || sheet.style.width === '100%' || sheet.style.width === 'auto') {
+                sheet.style.width = '1600px';
+            }
+            void root.offsetWidth;
             void sheet.offsetWidth;
-            const w = Math.max(sheet.scrollWidth || 0, sheet.offsetWidth || 0, 1);
-            const h = Math.max(sheet.scrollHeight || 0, sheet.offsetHeight || 0, 1);
-            let scale = Math.min(1, maxW / w, maxH / h);
+            const w = Math.max(sheet.scrollWidth, sheet.offsetWidth, 1);
+            const h = Math.max(sheet.scrollHeight, sheet.offsetHeight, 1);
+            let scale = Math.min(maxW / w, maxH / h, 1);
             if (scale < minScale) scale = minScale;
+
+            const scaledW = Math.max(1, Math.floor(w * scale));
+            const scaledH = Math.max(1, Math.floor(h * scale));
+
             sheet.style.transformOrigin = 'top left';
             sheet.style.transform = 'scale(' + scale + ')';
-            // 스케일된 실제 점유 높이를 부모에 알려 잘림 방지
+            // 레이아웃 점유 = 축소된 크기 (이게 1장 핵심)
+            wrap.style.width = scaledW + 'px';
+            wrap.style.height = scaledH + 'px';
+            wrap.style.maxWidth = maxW + 'px';
+            wrap.style.maxHeight = maxH + 'px';
+            wrap.style.overflow = 'hidden';
+
             sheet.dataset.printScale = String(scale);
-            const scaledH = Math.ceil(h * scale);
-            const scaledW = Math.ceil(w * scale);
-            sheet.dataset.scaledW = String(scaledW);
-            sheet.dataset.scaledH = String(scaledH);
+            wrap.dataset.scaledW = String(scaledW);
+            wrap.dataset.scaledH = String(scaledH);
             return scale;
         }
 
@@ -7480,8 +7526,8 @@ function getMonthlyOffAllDriverNames(){
                 requestAnimationFrame(() => {
                     // 주별통합 달력은 A4 가로 1장에 맞춤 (가로로 넓게 배치 후 축소)
                     const fitOpts = (active.id === 'view-weekly')
-                        ? { maxW: 1085, maxH: 755, minScale: 0.18 }
-                        : { maxW: 1085, maxH: 755, minScale: 0.22 };
+                        ? { maxW: 1100, maxH: 770, minScale: 0.12 }
+                        : { maxW: 1100, maxH: 770, minScale: 0.15 };
                     fitSheetToA4(sheet, fitOpts);
                     runPrintWithRoot(root);
                 });
