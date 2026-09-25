@@ -225,7 +225,9 @@
                 page-break-inside: avoid !important;
             }
             body.is-printing #printRoot .print-fit-wrap {
-                display: block !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
                 overflow: hidden !important;
                 width: 291mm !important;
                 height: 204mm !important;
@@ -237,6 +239,10 @@
                 break-after: avoid !important;
                 margin: 0 auto !important;
                 padding: 0 !important;
+                box-sizing: border-box !important;
+            }
+            body.is-printing #printRoot .print-sheet {
+                margin: 0 auto !important;
             }
             body.is-printing #printRoot .print-sheet {
                 box-sizing: border-box !important;
@@ -5447,10 +5453,23 @@ function getMonthlyOffAllDriverNames(){
                 if (m) mark(span, Number(m[2]));
             });
 
-            // 월간 휴무 대장 달력
+            // 월간 휴무 대장 달력: 토=파랑, 일/공휴=빨강, 평일=검정
             document.querySelectorAll('#calendarGrid > div > div:first-child span:first-child').forEach(span => {
                 const m = (span.textContent || '').trim().match(/^(\d{1,2})\.(\d{1,2})$/);
-                if (m) mark(span, Number(m[2]));
+                if (!m) return;
+                const day = Number(m[2]);
+                const dow = new Date(year, month - 1, day).getDay();
+                const hol = isKoreanPublicHoliday(year, month, day);
+                if (dow === 0 || hol) {
+                    span.style.color = '#dc2626';
+                    span.style.fontWeight = '900';
+                } else if (dow === 6) {
+                    span.style.color = '#2563eb';
+                    span.style.fontWeight = '900';
+                } else {
+                    span.style.color = '#0f172a';
+                    span.style.fontWeight = '800';
+                }
             });
         }
 
@@ -6712,9 +6731,11 @@ function getMonthlyOffAllDriverNames(){
                 const dateKey = `${String(currentYear).substring(2)}-${currentMonth < 10 ? '0'+currentMonth : currentMonth}-${d < 10 ? '0'+d : d}`;
                 const offList = getDailyAssignment(dateKey).offList.map(n => n.replace('(S)','').trim()).filter(Boolean);
                 const dow = new Date(currentYear, currentMonth - 1, d).getDay();
-                // 월간 휴무 대장 달력: 일요일과 대한민국 공휴일은 빨간색으로 표시
+                // 토=파랑, 일/공휴=빨강, 평일=검정
                 const isHoliday = isKoreanPublicHoliday(currentYear, currentMonth, d);
-                const dateColor = (dow === 0 || isHoliday) ? 'text-rose-600' : (dow === 6 ? 'text-blue-600' : 'text-slate-900');
+                let dateStyle = 'color:#0f172a;font-weight:800;'; // 평일 검정
+                if (dow === 0 || isHoliday) dateStyle = 'color:#dc2626;font-weight:900;'; // 일/공휴 빨강
+                else if (dow === 6) dateStyle = 'color:#2563eb;font-weight:900;'; // 토 파랑
 
                 let formattedListHtml = offList.map(n => {
                     const isS = appData.spares.includes(n);
@@ -6723,7 +6744,7 @@ function getMonthlyOffAllDriverNames(){
 
                 gridHtml += `<div>
                     <div class="flex justify-between items-center w-full">
-                        <span class="${dateColor}">${currentMonth}.${d}</span>
+                        <span style="${dateStyle}">${currentMonth}.${d}</span>
                         <span>${offList.length}명</span>
                     </div>
                     <div>${formattedListHtml || '<span class="text-slate-300">-</span>'}</div>
@@ -8347,12 +8368,17 @@ function getMonthlyOffAllDriverNames(){
                     const weekEnd = card.getAttribute('data-week-end') || '';
 
                     const clone = card.cloneNode(true);
-                    clone.style.width = Math.max(card.scrollWidth, card.offsetWidth, 900) + 'px';
-                    clone.style.maxWidth = 'none';
-                    clone.style.margin = '0';
+                    // A4 가로 기준 폭 (약 1123px @96dpi) — 이미지 저장 시 용지 비율에 맞춤
+                    const a4w = 1123;
+                    clone.style.width = a4w + 'px';
+                    clone.style.maxWidth = a4w + 'px';
+                    clone.style.margin = '0 auto';
                     clone.style.background = '#ffffff';
                     clone.style.overflow = 'visible';
                     clone.style.boxSizing = 'border-box';
+                    clone.style.border = 'none';
+                    clone.style.boxShadow = 'none';
+                    clone.style.borderRadius = '0';
 
                     // sticky는 이미지에서는 일반 셀로 처리
                     clone.querySelectorAll('[class*="sticky"]').forEach(el => {
@@ -8362,18 +8388,53 @@ function getMonthlyOffAllDriverNames(){
                     });
                     clone.querySelectorAll('.overflow-x-auto, .overflow-auto').forEach(el => {
                         el.style.overflow = 'visible';
-                        el.style.width = 'max-content';
+                        el.style.width = '100%';
                         el.style.maxWidth = 'none';
                     });
                     clone.style.overflow = 'visible';
                     clone.querySelectorAll('.overflow-hidden').forEach(el => { el.style.overflow = 'visible'; });
+
+                    // 날짜·오전·오후 헤더 바탕색 흰색, 모든 셀 박스(테두리/배경색 박스) 제거
+                    clone.querySelectorAll('th, td').forEach(cell => {
+                        cell.style.background = '#ffffff';
+                        cell.style.backgroundColor = '#ffffff';
+                        cell.style.backgroundImage = 'none';
+                        cell.style.border = 'none';
+                        cell.style.borderWidth = '0';
+                        cell.style.boxShadow = 'none';
+                        cell.style.outline = 'none';
+                    });
+                    clone.querySelectorAll('thead th, thead td, tr:first-child th, tr:first-child td').forEach(cell => {
+                        cell.style.background = '#ffffff';
+                        cell.style.backgroundColor = '#ffffff';
+                        cell.style.border = 'none';
+                    });
+                    // amber/indigo 등 헤더 배경 클래스 무력화
+                    clone.querySelectorAll('[class*="bg-amber"], [class*="bg-indigo"], [class*="bg-slate"], [class*="bg-rose"], [class*="bg-emerald"]').forEach(el => {
+                        el.style.background = '#ffffff';
+                        el.style.backgroundColor = '#ffffff';
+                    });
+                    clone.querySelectorAll('table').forEach(t => {
+                        t.style.borderCollapse = 'collapse';
+                        t.style.border = 'none';
+                        t.style.width = '100%';
+                        t.style.boxShadow = 'none';
+                    });
+                    clone.querySelectorAll('.rounded-xl, .border, .shadow-xs, .shadow-sm').forEach(el => {
+                        el.style.border = 'none';
+                        el.style.boxShadow = 'none';
+                        el.style.borderRadius = '0';
+                    });
+
                     clone.querySelectorAll('.weekly-offday-name, .weekly-offday-row td, tr:has(.weekly-offday-name) td').forEach(el => {
                         el.style.setProperty('height', 'auto', 'important');
-                        el.style.setProperty('min-height', '72px', 'important');
-                        el.style.setProperty('padding', '12px 10px', 'important');
+                        el.style.setProperty('min-height', '56px', 'important');
+                        el.style.setProperty('padding', '10px 8px', 'important');
                         el.style.setProperty('overflow', 'visible', 'important');
-                        el.style.setProperty('line-height', '1.5', 'important');
+                        el.style.setProperty('line-height', '1.45', 'important');
                         el.style.setProperty('vertical-align', 'middle', 'important');
+                        el.style.setProperty('background', '#ffffff', 'important');
+                        el.style.setProperty('border', 'none', 'important');
                     });
                     clone.querySelectorAll('.weekly-offday-inner, .weekly-offday-name > div, .weekly-offday-row td div').forEach(el => {
                         el.style.setProperty('display', 'block', 'important');
@@ -8382,14 +8443,14 @@ function getMonthlyOffAllDriverNames(){
                         el.style.setProperty('white-space', 'normal', 'important');
                         el.style.setProperty('overflow-wrap', 'anywhere', 'important');
                         el.style.setProperty('word-break', 'keep-all', 'important');
-                        el.style.setProperty('line-height', '1.5', 'important');
+                        el.style.setProperty('line-height', '1.45', 'important');
                     });
 
                     const wrap = document.createElement('div');
                     wrap.style.position = 'fixed';
                     wrap.style.left = '-100000px';
                     wrap.style.top = '0';
-                    wrap.style.width = clone.style.width;
+                    wrap.style.width = a4w + 'px';
                     wrap.style.background = '#ffffff';
                     wrap.style.zIndex = '-1';
                     wrap.style.pointerEvents = 'none';
@@ -8400,7 +8461,7 @@ function getMonthlyOffAllDriverNames(){
                     // 주차 제목을 이미지 상단에 명확하게 표시
                     const title = document.createElement('div');
                     title.textContent = `${currentYear}년 ${String(currentMonth).padStart(2,'0')}월 ${weekTitle} · ${weekStart}일~${weekEnd}일`;
-                    title.style.cssText = 'font-size:24px;font-weight:900;text-align:center;color:#0f172a;padding:14px 10px;background:#ffffff;letter-spacing:-.03em;';
+                    title.style.cssText = 'font-size:22px;font-weight:900;text-align:center;color:#0f172a;padding:12px 10px;background:#ffffff;letter-spacing:-.03em;border:none;';
                     clone.insertBefore(title, clone.firstChild);
 
                     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
