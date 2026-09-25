@@ -115,22 +115,81 @@
             font-weight: 700 !important;
         }
         @media print {
-            .no-print {
+            .no-print,
+            header.no-print,
+            header,
+            #mainTabNav,
+            #statusBanner,
+            .weekly-export-card,
+            #weeklyDbSaveBtn,
+            #offListDbSaveBtn,
+            .export-card,
+            .action-btn {
                 display: none !important;
             }
             .print-only {
                 display: block !important;
             }
-            body {
-                background: white;
-                color: black;
+            html, body {
+                background: white !important;
+                color: black !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
             }
-            .printable-area {
+            main {
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 8px !important;
+            }
+            .printable-area,
+            #exportableArea {
                 box-shadow: none !important;
                 border: none !important;
                 padding: 0 !important;
                 margin: 0 !important;
                 width: 100% !important;
+                max-width: 100% !important;
+                overflow: visible !important;
+            }
+            /* 숨긴 탭은 인쇄에서도 제외, 활성 탭만 출력 */
+            .tab-content.hidden {
+                display: none !important;
+            }
+            .tab-content:not(.hidden) {
+                display: block !important;
+                overflow: visible !important;
+                width: 100% !important;
+            }
+            /* 가로 스크롤: 인쇄 시에만 보이도록 (화면 레이아웃 변경 없음) */
+            .overflow-x-auto,
+            .overflow-auto,
+            .w-full.overflow-x-auto {
+                overflow: visible !important;
+            }
+            table {
+                page-break-inside: auto !important;
+            }
+            tr, td, th {
+                page-break-inside: avoid !important;
+            }
+            /* sticky 해제 */
+            [class*="sticky"],
+            .sticky {
+                position: static !important;
+                left: auto !important;
+                top: auto !important;
+            }
+            /* 모달만 숨김 (화면 fixed 레이아웃 요소 전체 숨김 금지) */
+            #customModal,
+            [id$="Modal"] {
+                display: none !important;
+            }
+            /* 인쇄 시 배경색 유지 */
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
             }
         }
         #view-weekly table td {
@@ -141,12 +200,26 @@
             height: 32px !important;
             font-size: 0.75rem !important; /* text-xs = 매트릭스와 동일 */
         }
+        #view-weekly table tr.weekly-offday-row td,
+        #view-weekly table td.weekly-offday-name {
+            height: auto !important;
+            min-height: 64px !important;
+            padding: 10px 8px !important;
+            overflow: visible !important;
+        }
         #view-weekly table td div {
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
             width: 100% !important;
             height: 100% !important;
+        }
+        #view-weekly table td.weekly-offday-name div,
+        #view-weekly table tr.weekly-offday-row td div {
+            display: block !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
         }
         #view-monthlyOff table tr,
         #view-drivers table tr {
@@ -496,37 +569,56 @@ header .max-w-7xl>div:nth-child(2)>div .action-btn{flex:1 1 0!important;width:0!
 </style>
 
 <style id="weekly-offday-name-style">
-/* 주별 통합 하단 휴무자: 배차기사와 같은 글자크기, colspan 열 정렬, 넘치면 줄바꿈 */
+/* 주별 통합 하단 휴무자: 여백 확대 (화면/이미지 공통) */
+.weekly-offday-name,
 #view-weekly .weekly-offday-name {
     color: #15803d !important;
     text-align: center !important;
     vertical-align: middle !important;
     font-weight: 800 !important;
     font-size: 0.75rem !important;
-    padding: 2px 2px !important;
+    padding: 10px 8px !important;
     height: auto !important;
-    min-height: 32px !important;
-    line-height: 1.25 !important;
+    min-height: 64px !important;
+    max-height: none !important;
+    line-height: 1.45 !important;
+    overflow: visible !important;
 }
+.weekly-offday-name .weekly-offday-inner,
+.weekly-offday-name > div,
 #view-weekly .weekly-offday-name .weekly-offday-inner,
 #view-weekly .weekly-offday-name > div {
     display: block !important;
     white-space: normal !important;
     overflow-wrap: anywhere !important;
     word-break: keep-all !important;
-    line-height: 1.25 !important;
+    line-height: 1.45 !important;
     font-size: 0.75rem !important;
     font-weight: 700 !important;
     text-align: center !important;
     width: 100% !important;
     height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
     box-sizing: border-box !important;
+    padding: 2px 0 !important;
 }
-/* 휴무자 행 전체: 고정 height 32px 해제 → 줄바꿈 시 높이 자동 */
+tr:has(.weekly-offday-name) td,
 #view-weekly table tr:has(.weekly-offday-name) td {
     height: auto !important;
-    min-height: 32px !important;
+    min-height: 64px !important;
+    max-height: none !important;
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
     vertical-align: middle !important;
+    overflow: visible !important;
+}
+tr:has(.weekly-offday-name) td div,
+#view-weekly table tr:has(.weekly-offday-name) td div {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
 }
 </style>
 
@@ -846,7 +938,7 @@ header.bg-brand-900 button[onclick="openTxtDeleteWindow()"]{
 /* 상단 3개 핵심 버튼 */
 header.bg-brand-900 button[onclick="exportToImage()"],
 header.bg-brand-900 button[onclick="exportToExcelAllTabs()"],
-header.bg-brand-900 button[onclick="window.print()"]{
+header.bg-brand-900 button[onclick="prepareAndPrint()"]{
   min-height:48px;
   padding:0 17px !important;
   border-radius:14px !important;
@@ -863,13 +955,13 @@ header.bg-brand-900 button[onclick="exportToImage()"]{
 header.bg-brand-900 button[onclick="exportToExcelAllTabs()"]{
   background:linear-gradient(135deg,#0d8b69,#08755a) !important;
 }
-header.bg-brand-900 button[onclick="window.print()"]{
+header.bg-brand-900 button[onclick="prepareAndPrint()"]{
   background:linear-gradient(135deg,#cbd5e1,#94a3b8) !important;
   color:#1e293b !important;
 }
 header.bg-brand-900 button[onclick="exportToImage()"]:hover,
 header.bg-brand-900 button[onclick="exportToExcelAllTabs()"]:hover,
-header.bg-brand-900 button[onclick="window.print()"]:hover{
+header.bg-brand-900 button[onclick="prepareAndPrint()"]:hover{
   filter:brightness(1.08);
   transform:translateY(-1px);
   box-shadow:0 7px 16px rgba(0,0,0,.18) !important;
@@ -907,12 +999,19 @@ header.bg-brand-900 button[onclick="window.print()"]:hover{
   border-color:#e0e7f0 !important;
   color:#172f55 !important;
 }
+#tabContainer .tab-btn.active-tab,
 #tabContainer .tab-btn.bg-brand-50,
 #tabContainer .tab-btn[class*="bg-brand-50"]{
-  background:linear-gradient(180deg,#f7fbff 0%,#edf5ff 100%) !important;
-  border-color:#bdd2eb !important;
-  color:#183b6a !important;
-  box-shadow:0 2px 8px rgba(39,88,160,.08) !important;
+  background:linear-gradient(135deg,#1b3762 0%,#2758a0 48%,#1e3c6d 100%) !important;
+  border-color:#c9a227 !important;
+  color:#fff8e7 !important;
+  box-shadow:0 6px 18px rgba(23,47,85,.28), inset 0 1px 0 rgba(255,255,255,.12) !important;
+  font-weight:800 !important;
+}
+#tabContainer .tab-btn.active-tab svg,
+#tabContainer .tab-btn.bg-brand-50 svg{
+  color:#f5b51b !important;
+  stroke:#f5b51b !important;
 }
 #tabContainer .tab-btn svg{
   width:20px !important;
@@ -960,7 +1059,7 @@ main{padding-top:18px !important;}
   }
   header.bg-brand-900 button[onclick="exportToImage()"],
   header.bg-brand-900 button[onclick="exportToExcelAllTabs()"],
-  header.bg-brand-900 button[onclick="window.print()"]{
+  header.bg-brand-900 button[onclick="prepareAndPrint()"]{
     height:48px;
     min-height:48px;
     flex:0 0 auto;
@@ -1012,10 +1111,17 @@ main{padding-top:18px !important;}
 }
 .premium-tab svg{width:20px;height:20px;stroke-width:2.2}
 .premium-tab:hover{transform:translateY(-1px);border-color:#a9c2e2;box-shadow:0 6px 15px rgba(30,60,109,.10)}
-.premium-tab.active-tab,.premium-tab.bg-brand-50{
-  background:linear-gradient(135deg,#eef5ff 0%,#e7f0fc 100%) !important;
-  border-color:#9dbce2 !important; color:#173d70 !important;
-  box-shadow:0 5px 16px rgba(39,88,160,.12);
+.premium-tab.active-tab,
+.premium-tab.bg-brand-50{
+  background:linear-gradient(135deg,#1b3762 0%,#2758a0 48%,#1e3c6d 100%) !important;
+  border-color:#c9a227 !important;
+  color:#fff8e7 !important;
+  box-shadow:0 6px 18px rgba(23,47,85,.28), inset 0 1px 0 rgba(255,255,255,.12) !important;
+}
+.premium-tab.active-tab svg,
+.premium-tab.bg-brand-50 svg{
+  color:#f5b51b !important;
+  stroke:#f5b51b !important;
 }
 /* 상단 내보내기 영역을 카드형 버튼으로 정리 */
 .export-card{
@@ -2363,7 +2469,7 @@ main{padding-top:18px !important;}
                         <span>전체탭<br>액셀<br>저장</span>
                     </button>
 
-                    <button onclick="window.print()" class="export-card bg-slate-300 hover:bg-slate-400 text-slate-800 font-semibold rounded-lg flex items-center gap-1 transition-all shadow-sm whitespace-nowrap flex-shrink-0 action-btn">
+                    <button onclick="prepareAndPrint()" class="export-card bg-slate-300 hover:bg-slate-400 text-slate-800 font-semibold rounded-lg flex items-center gap-1 transition-all shadow-sm whitespace-nowrap flex-shrink-0 action-btn">
                         <span>인쇄</span>
                     </button>
                 </div>
@@ -3449,11 +3555,13 @@ main{padding-top:18px !important;}
                         const targetView = document.getElementById('view-' + tab);
                         if (targetView) targetView.classList.remove('hidden');
                         document.querySelectorAll('.tab-btn').forEach(btn => {
-                            btn.className = 'tab-btn px-3 py-2 rounded-lg font-bold text-sm sm:text-base flex items-center gap-2 whitespace-nowrap text-slate-800 hover:bg-slate-100 hover:text-slate-950 transition-colors';
+                            btn.classList.remove('active-tab', 'bg-brand-50');
+                            if (!btn.classList.contains('premium-tab')) btn.classList.add('premium-tab');
                         });
                         const activeBtn = document.getElementById('tab-' + tab);
                         if (activeBtn) {
-                            activeBtn.className = 'tab-btn px-3 py-2 rounded-lg font-extrabold text-sm sm:text-base flex items-center gap-2 whitespace-nowrap bg-brand-50 text-brand-800 border border-brand-200 shadow-xs';
+                            if (!activeBtn.classList.contains('premium-tab')) activeBtn.classList.add('premium-tab');
+                            activeBtn.classList.add('active-tab');
                         }
                         currentTab = tab;
                         if (typeof updateWeeklyDbSaveButton === 'function') updateWeeklyDbSaveButton();
@@ -3849,13 +3957,28 @@ main{padding-top:18px !important;}
             lucide.createIcons();
         }
 
-        function showModal(title, msg, isError = false) {
+        let _modalAutoCloseTimer = null;
+        function showModal(title, msg, isError = false, autoCloseMs = 0) {
             document.getElementById('modalTitle').innerText = title;
             document.getElementById('modalMessage').innerText = msg;
             document.getElementById('customModal').classList.remove('hidden');
+            if (_modalAutoCloseTimer) {
+                clearTimeout(_modalAutoCloseTimer);
+                _modalAutoCloseTimer = null;
+            }
+            if (autoCloseMs > 0) {
+                _modalAutoCloseTimer = setTimeout(function () {
+                    closeModal();
+                    _modalAutoCloseTimer = null;
+                }, autoCloseMs);
+            }
         }
 
         function closeModal() {
+            if (_modalAutoCloseTimer) {
+                clearTimeout(_modalAutoCloseTimer);
+                _modalAutoCloseTimer = null;
+            }
             document.getElementById('customModal').classList.add('hidden');
         }
 
@@ -4882,10 +5005,14 @@ function getMonthlyOffAllDriverNames(){
             if (targetView) targetView.classList.remove('hidden');
 
             document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.className = "tab-btn px-3 py-2 rounded-lg font-bold text-sm sm:text-base flex items-center gap-2 whitespace-nowrap text-slate-800 hover:bg-slate-100 hover:text-slate-950 transition-colors";
+                btn.classList.remove('active-tab', 'bg-brand-50');
+                if (!btn.classList.contains('premium-tab')) btn.classList.add('premium-tab');
             });
             const activeBtn = document.getElementById(`tab-${tabId}`);
-            if (activeBtn) activeBtn.className = "tab-btn px-3 py-2 rounded-lg font-extrabold text-sm sm:text-base flex items-center gap-2 whitespace-nowrap bg-brand-50 text-brand-800 border border-brand-200 shadow-xs";
+            if (activeBtn) {
+                if (!activeBtn.classList.contains('premium-tab')) activeBtn.classList.add('premium-tab');
+                activeBtn.classList.add('active-tab');
+            }
             
             // 휴무자명단 탭: 서버에서 휴무일자(년·월) 기본값을 가져와 테이블에 표시
             if (tabId === 'monthlyOffList') {
@@ -6173,8 +6300,8 @@ function getMonthlyOffAllDriverNames(){
 
                 // 노선·차량 행의 제일 아래에 날짜별 휴무자를 표시합니다.
                 // 매트릭스와 동일 규칙: text-xs, 오전+오후 colspan 정렬, 넘치면 줄바꿈 (폭 강제 금지 → 열 정렬 유지)
-                let offRowHtml = `<tr class="border-b border-slate-300 bg-emerald-50/70">
-                    <td style="width: ${colWidthLabel}px; min-width: ${colWidthLabel}px; left: 0; padding:2px 4px !important; font-size:0.75rem !important;" class="text-xs text-center bg-emerald-100 border-r border-slate-300 align-middle sticky z-10 font-extrabold text-emerald-800 shadow-xs">
+                let offRowHtml = `<tr class="border-b border-slate-300 bg-emerald-50/70 weekly-offday-row">
+                    <td style="width: ${colWidthLabel}px; min-width: ${colWidthLabel}px; left: 0; padding:10px 6px !important; font-size:0.75rem !important; height:auto !important; min-height:64px !important;" class="text-xs text-center bg-emerald-100 border-r border-slate-300 align-middle sticky z-10 font-extrabold text-emerald-800 shadow-xs">
                         휴무자
                     </td>`;
                 for (let d = weekInfo.start; d <= weekInfo.end; d++) {
@@ -6185,9 +6312,8 @@ function getMonthlyOffAllDriverNames(){
                         .filter(Boolean)
                         .filter((name, index, arr) => arr.indexOf(name) === index);
                     const offText = offNames.length ? offNames.join(', ') : '-';
-                    // colspan=2 로 오전·오후 배차 td와 열을 정확히 맞춤 (width 강제 없음)
-                    offRowHtml += `<td colspan="2" style="min-width: ${dayColWidth * 2}px; padding:2px 2px !important; font-size:0.75rem !important; color:#15803d !important; vertical-align:middle; text-align:center;" class="weekly-offday-name text-xs align-middle border-r border-slate-300 font-bold">` +
-                        `<div class="weekly-offday-inner" style="white-space:normal; overflow-wrap:anywhere; word-break:keep-all; line-height:1.25; font-size:0.75rem; font-weight:700; text-align:center;" title="${offText}">${offText}</div></td>`;
+                    offRowHtml += `<td colspan="2" style="min-width: ${dayColWidth * 2}px; padding:10px 8px !important; font-size:0.75rem !important; color:#15803d !important; vertical-align:middle; text-align:center; height:auto !important; min-height:64px !important; overflow:visible !important;" class="weekly-offday-name text-xs align-middle border-r border-slate-300 font-bold">` +
+                        `<div class="weekly-offday-inner" style="display:block;white-space:normal;overflow-wrap:anywhere;word-break:keep-all;line-height:1.45;font-size:0.75rem;font-weight:700;text-align:center;height:auto;overflow:visible;padding:2px 0;" title="${offText}">${offText}</div></td>`;
                 }
                 offRowHtml += `</tr>`;
                 tbodyHtml += offRowHtml;
@@ -6328,7 +6454,7 @@ function getMonthlyOffAllDriverNames(){
 
             let totalDays = getDaysInMonth(currentYear, currentMonth);
             let headerHtml = `<tr class="bg-slate-100 border-b border-slate-200 text-center">
-                <th class="px-1 py-0.5 sticky left-0 bg-slate-100 z-10 font-bold text-[10px] w-1 whitespace-nowrap align-middle text-center">기사명</th>
+                <th class="px-2 py-0.5 sticky left-0 bg-slate-100 z-10 font-bold text-[10px] min-w-[64px] whitespace-nowrap align-middle text-center">기사명</th>
                 <th class="px-1 py-0.5 font-bold text-[10px] w-8 bg-rose-50 text-rose-800 border-r border-slate-200 align-middle text-center">휴무</th>`;
 
             for (let d = 1; d <= totalDays; d++) {
@@ -6365,7 +6491,7 @@ function getMonthlyOffAllDriverNames(){
                     }
                 }
                 
-                let nameStyleClass = "px-1 py-0 font-bold text-slate-950 sticky left-0 bg-white text-center whitespace-nowrap w-1 align-middle";
+                let nameStyleClass = "px-2 py-0.5 font-bold text-slate-950 sticky left-0 bg-white text-center whitespace-nowrap min-w-[64px] align-middle";
 
                 bodyHtml += `<tr class="hover:bg-slate-50 border-b border-slate-100 text-[10px] text-center">
                     <td class="${nameStyleClass}">${displayName}</td>
@@ -6861,6 +6987,21 @@ function getMonthlyOffAllDriverNames(){
             return true;
         }
 
+        function prepareAndPrint() {
+            // 화면 DOM은 건드리지 않음. 브라우저 인쇄 미리보기만 연다.
+            try {
+                const active = document.querySelector('.tab-content:not(.hidden)');
+                if (!active) {
+                    if (typeof showModal === 'function') showModal('인쇄', '인쇄할 탭을 먼저 선택해 주세요.', true, 3000);
+                    return;
+                }
+                window.print();
+            } catch (e) {
+                console.error('인쇄 오류:', e);
+                if (typeof showModal === 'function') showModal('인쇄 오류', '인쇄를 시작할 수 없습니다.', true, 3000);
+            }
+        }
+
         async function downloadFile(blob, fileName) {
             // 이미지 저장 위치 통일:
             // Android → 브라우저 기본 다운로드(Downloads) 폴더
@@ -6873,10 +7014,7 @@ function getMonthlyOffAllDriverNames(){
                 try {
                     const file = new File([blob], fileName, { type: blob.type || 'image/png' });
                     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-                        await navigator.share({
-                            files: [file],
-                            title: fileName
-                        });
+                        await navigator.share({ files: [file] });
                         return;
                     }
                 } catch (err) {
@@ -7279,7 +7417,7 @@ function getMonthlyOffAllDriverNames(){
 
             const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
             const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-            downloadFile(blob, `대호교통_전체배차및휴무통계_${currentYear}년_${currentMonth}월.xlsx`);
+            downloadFile(blob, `엑셀저장_배차및휴무통계_${currentYear}년_${currentMonth}월.xlsx`);
         }
 
         // 이미지 저장용 대한민국 공휴일 판별 (2026년 월력요항 기준)
@@ -7410,6 +7548,25 @@ function getMonthlyOffAllDriverNames(){
                         el.style.width = 'max-content';
                         el.style.maxWidth = 'none';
                     });
+                    clone.style.overflow = 'visible';
+                    clone.querySelectorAll('.overflow-hidden').forEach(el => { el.style.overflow = 'visible'; });
+                    clone.querySelectorAll('.weekly-offday-name, .weekly-offday-row td, tr:has(.weekly-offday-name) td').forEach(el => {
+                        el.style.setProperty('height', 'auto', 'important');
+                        el.style.setProperty('min-height', '72px', 'important');
+                        el.style.setProperty('padding', '12px 10px', 'important');
+                        el.style.setProperty('overflow', 'visible', 'important');
+                        el.style.setProperty('line-height', '1.5', 'important');
+                        el.style.setProperty('vertical-align', 'middle', 'important');
+                    });
+                    clone.querySelectorAll('.weekly-offday-inner, .weekly-offday-name > div, .weekly-offday-row td div').forEach(el => {
+                        el.style.setProperty('display', 'block', 'important');
+                        el.style.setProperty('height', 'auto', 'important');
+                        el.style.setProperty('overflow', 'visible', 'important');
+                        el.style.setProperty('white-space', 'normal', 'important');
+                        el.style.setProperty('overflow-wrap', 'anywhere', 'important');
+                        el.style.setProperty('word-break', 'keep-all', 'important');
+                        el.style.setProperty('line-height', '1.5', 'important');
+                    });
 
                     const wrap = document.createElement('div');
                     wrap.style.position = 'fixed';
@@ -7419,6 +7576,7 @@ function getMonthlyOffAllDriverNames(){
                     wrap.style.background = '#ffffff';
                     wrap.style.zIndex = '-1';
                     wrap.style.pointerEvents = 'none';
+                    wrap.style.overflow = 'visible';
                     wrap.appendChild(clone);
                     document.body.appendChild(wrap);
 
@@ -7465,7 +7623,7 @@ function getMonthlyOffAllDriverNames(){
                     });
 
                     const safeWeek = String(i + 1).padStart(2, '0');
-                    const weekFileName = `대호교통_${currentYear}_${String(currentMonth).padStart(2,'0')}_${safeWeek}주차_배차표.png`;
+                    const weekFileName = `주간배차표_${currentYear}_${String(currentMonth).padStart(2,'0')}_${safeWeek}주차.png`;
                     weeklyImageFiles.push({ blob, fileName: weekFileName });
                     savedCount++;
 
@@ -7481,7 +7639,7 @@ function getMonthlyOffAllDriverNames(){
                 if (isIOS && weeklyImageFiles.length) {
                     const files = weeklyImageFiles.map(x => new File([x.blob], x.fileName, { type: 'image/png' }));
                     if (navigator.share && navigator.canShare && navigator.canShare({ files })) {
-                        await navigator.share({ files, title: `${currentYear}년 ${String(currentMonth).padStart(2,'0')}월 주별 배차표` });
+                        await navigator.share({ files });
                     } else {
                         // 여러 파일 공유를 지원하지 않는 iOS 환경에서는 한 번에 ZIP으로 전달
                         if (typeof JSZip !== 'undefined') {
@@ -7511,11 +7669,16 @@ function getMonthlyOffAllDriverNames(){
         async function exportToImage() {
             const active = document.querySelector('.tab-content:not(.hidden)');
             if (!active) {
-                showModal("오류", "활성화된 탭 영역을 찾을 수 없습니다.", true);
+                showModal("오류", "활성화된 탭 영역을 찾을 수 없습니다.", true, 3000);
+                return;
+            }
+            // 휴무자명단작성 탭: 이미지로 저장할 배차/달력 영역이 없음
+            if (active.id === 'view-monthlyOffList') {
+                showModal("안내", "저장할 이미지 파일이 없습니다.", false, 3000);
                 return;
             }
             if (typeof html2canvas === 'undefined') {
-                showModal("오류", "이미지 저장 모듈(html2canvas)을 불러오지 못했습니다.", true);
+                showModal("오류", "이미지 저장 모듈(html2canvas)을 불러오지 못했습니다.", true, 3000);
                 return;
             }
 
@@ -7589,49 +7752,47 @@ function getMonthlyOffAllDriverNames(){
                     calendarClone.style.background = '#ffffff';
                     calendarClone.style.display = 'block';
                     imageTarget.appendChild(calendarClone);
+                    /* 고급 기본 톤: 박스(테두리/그림자/둥근모서리) 제거 */
                     calendarClone.style.background = '#ffffff';
-                    calendarClone.style.padding = '0 8px 8px';
-                    calendarClone.style.border = '1px solid #cbd5e1';
-                    calendarClone.style.borderTop = '0';
-                    calendarClone.style.borderRadius = '0 0 18px 18px';
-                    calendarClone.querySelectorAll('#calendarGrid > div').forEach(cell => {
-                        cell.style.minHeight = '118px';
-                        cell.style.padding = '9px 7px';
-                        cell.style.borderRadius = '11px';
-                        cell.style.boxShadow = '0 2px 8px rgba(15,23,42,.08)';
+                    calendarClone.style.padding = '0 4px 12px';
+                    calendarClone.style.border = 'none';
+                    calendarClone.style.borderRadius = '0';
+                    calendarClone.style.boxShadow = 'none';
+
+                    const gridEl = calendarClone.querySelector('#calendarGrid') || calendarClone.querySelector('[class*="grid"]');
+                    if (gridEl) {
+                        gridEl.style.gap = '0';
+                        gridEl.style.padding = '0';
+                        gridEl.style.background = '#ffffff';
+                        gridEl.style.border = 'none';
+                        gridEl.style.borderRadius = '0';
+                        gridEl.style.boxShadow = 'none';
+                    }
+                    calendarClone.querySelectorAll('#calendarGrid > div, .grid > div').forEach(cell => {
+                        cell.style.minHeight = '110px';
+                        cell.style.padding = '10px 8px';
+                        cell.style.borderRadius = '0';
+                        cell.style.boxShadow = 'none';
+                        cell.style.border = '1px solid #e8eef5';
+                        cell.style.background = '#ffffff';
+                        cell.style.overflow = 'visible';
                     });
-                    /* 휴무자 이름을 이미지에서 확실히 구분되도록 사람별 배지로 표시합니다. */
-                    const namePalette = [
-                        ['#eff6ff','#1d4ed8','#bfdbfe'],
-                        ['#fef2f2','#b91c1c','#fecaca'],
-                        ['#f0fdf4','#15803d','#bbf7d0'],
-                        ['#fffbeb','#b45309','#fde68a'],
-                        ['#faf5ff','#7e22ce','#e9d5ff'],
-                        ['#f0fdfa','#0f766e','#99f6e4'],
-                        ['#fff7ed','#c2410c','#fed7aa'],
-                        ['#fdf2f8','#be185d','#fbcfe8']
-                    ];
-                    const nameColorIndex = new Map();
-                    let nextNameColor = 0;
-                    calendarClone.querySelectorAll('#calendarGrid > div > div:last-child span').forEach(span => {
+                    /* 휴무자 이름: 단정한 기본 텍스트 (컬러 박스 배지 제거) */
+                    calendarClone.querySelectorAll('#calendarGrid > div > div:last-child span, .grid > div > div:last-child span').forEach(span => {
                         const name = span.textContent.trim();
                         if (!name || name === '-') return;
-                        if (!nameColorIndex.has(name)) {
-                            nameColorIndex.set(name, nextNameColor++ % namePalette.length);
-                        }
-                        const [bg, fg, border] = namePalette[nameColorIndex.get(name)];
                         span.style.display = 'block';
                         span.style.boxSizing = 'border-box';
-                        span.style.width = 'calc(100% - 4px)';
-                        span.style.margin = '1px 2px';
-                        span.style.padding = '3px 5px';
-                        span.style.borderRadius = '6px';
-                        span.style.background = bg;
-                        span.style.color = fg;
-                        span.style.border = '1px solid ' + border;
-                        span.style.fontWeight = '900';
+                        span.style.width = '100%';
+                        span.style.margin = '1px 0';
+                        span.style.padding = '1px 0';
+                        span.style.borderRadius = '0';
+                        span.style.background = 'transparent';
+                        span.style.color = '#334155';
+                        span.style.border = 'none';
+                        span.style.fontWeight = '700';
                         span.style.fontSize = '12px';
-                        span.style.lineHeight = '1.2';
+                        span.style.lineHeight = '1.35';
                         span.style.textAlign = 'center';
                         span.style.whiteSpace = 'normal';
                         span.style.overflow = 'visible';
@@ -7639,24 +7800,35 @@ function getMonthlyOffAllDriverNames(){
                         span.style.overflowWrap = 'anywhere';
                     });
 
-                    /* 날짜별 휴무자 수를 더 눈에 띄게 표시합니다. */
-                    calendarClone.querySelectorAll('#calendarGrid > div > div:first-child span:last-child').forEach(count => {
-                        count.style.background = '#e0f2fe';
-                        count.style.color = '#0369a1';
-                        count.style.border = '1px solid #bae6fd';
-                        count.style.fontWeight = '900';
-                        count.style.padding = '3px 7px';
+                    /* 날짜 숫자·인원수: 심플 톤 */
+                    calendarClone.querySelectorAll('#calendarGrid > div > div:first-child span:last-child, .grid > div > div:first-child span:last-child').forEach(count => {
+                        count.style.background = 'transparent';
+                        count.style.color = '#64748b';
+                        count.style.border = 'none';
+                        count.style.fontWeight = '700';
+                        count.style.padding = '0';
+                        count.style.fontSize = '11px';
                     });
 
                     // 원본 ID 중복을 피합니다.
                     calendarClone.querySelectorAll('#calendarGrid').forEach(grid => {
                         grid.removeAttribute('id');
-                        grid.style.borderRadius = '0 0 10px 10px';
+                        grid.style.borderRadius = '0';
+                        grid.style.border = 'none';
+                        grid.style.background = '#ffffff';
                     });
                     const dayHeader = calendarClone.querySelector('.grid.grid-cols-7');
                     if (dayHeader) {
                         dayHeader.style.borderRadius = '0';
+                        dayHeader.style.border = 'none';
+                        dayHeader.style.background = '#f8fafc';
                     }
+                    /* 타이틀 영역도 박스 없이 심플하게 */
+                    title.style.border = 'none';
+                    title.style.borderRadius = '0';
+                    title.style.background = '#ffffff';
+                    subtitle.style.background = '#ffffff';
+                    subtitle.style.border = 'none';
 
                 } else if (active.id === 'view-weekly') {
                     // 월간 배차현황(주별통합) → 고급 달력형 이미지 (셀 중앙정렬)
@@ -7675,7 +7847,7 @@ function getMonthlyOffAllDriverNames(){
                     const title = document.createElement('div');
                     title.innerHTML = `
                         <div style="text-align:center;margin-bottom:6px;">
-                            <div style="display:inline-block;padding:6px 16px;border-radius:999px;background:linear-gradient(135deg,#1e3a5f,#2758a0);color:#fbbf24;font-size:12px;font-weight:800;letter-spacing:0.06em;">DAEHO · SCHEDULE</div>
+                            <div style="display:inline-block;padding:6px 16px;border-radius:999px;background:linear-gradient(135deg,#1e3a5f,#2758a0);color:#fbbf24;font-size:12px;font-weight:800;letter-spacing:0.06em;">WEEK-SCHEDULE</div>
                         </div>
                         <div style="font-size:36px;font-weight:900;text-align:center;color:#0f172a;letter-spacing:-0.03em;line-height:1.2;">${currentYear}년 ${currentMonth}월 월간 배차현황</div>
                         <div style="font-size:16px;font-weight:700;text-align:center;color:#64748b;margin:8px 0 20px;">주별통합 · 날짜별 달력</div>`;
@@ -7888,6 +8060,76 @@ function getMonthlyOffAllDriverNames(){
 
                     imageTarget = driverImage;
                     targetWidth = sourceTableWidth + 40;
+                } else if (active.id === 'view-monthlyOff') {
+                    /* 월간 휴무 현황표: 기사명 열 확대 + 표 전체 폭 확보 */
+                    const sourceTable = active.querySelector('#monthlyOffTableHeader')?.closest('table')
+                        || active.querySelector('table');
+                    if (!sourceTable) throw new Error('월간 휴무 현황표를 찾을 수 없습니다.');
+
+                    const wrap = document.createElement('div');
+                    wrap.style.background = '#ffffff';
+                    wrap.style.padding = '20px 16px';
+                    wrap.style.boxSizing = 'border-box';
+                    wrap.style.fontFamily = 'Noto Sans KR, Arial, sans-serif';
+
+                    const tTitle = document.createElement('div');
+                    tTitle.textContent = `${currentYear}년 ${currentMonth}월 월간 휴무 현황표`;
+                    tTitle.style.cssText = 'font-size:24px;font-weight:900;text-align:center;color:#0f172a;padding:0 0 14px;';
+                    wrap.appendChild(tTitle);
+
+                    const tableClone = sourceTable.cloneNode(true);
+                    tableClone.removeAttribute('id');
+                    tableClone.style.borderCollapse = 'collapse';
+                    tableClone.style.tableLayout = 'auto';
+                    tableClone.style.width = 'auto';
+                    tableClone.style.minWidth = '100%';
+                    tableClone.querySelectorAll('th, td').forEach(cell => {
+                        cell.style.overflow = 'visible';
+                        cell.style.textOverflow = 'clip';
+                        cell.style.whiteSpace = 'nowrap';
+                        cell.style.padding = '4px 6px';
+                        cell.style.fontSize = '12px';
+                        cell.style.lineHeight = '1.3';
+                        cell.style.height = 'auto';
+                        cell.style.minHeight = '22px';
+                    });
+                    /* 기사명 열(첫 열) 폭 확보 */
+                    tableClone.querySelectorAll('tr').forEach(tr => {
+                        const first = tr.children[0];
+                        if (first) {
+                            first.style.minWidth = '72px';
+                            first.style.width = '72px';
+                            first.style.maxWidth = 'none';
+                            first.style.whiteSpace = 'nowrap';
+                            first.style.overflow = 'visible';
+                            first.style.padding = '4px 10px';
+                            first.style.fontSize = '13px';
+                            first.style.fontWeight = '800';
+                        }
+                        const second = tr.children[1];
+                        if (second) {
+                            second.style.minWidth = '40px';
+                            second.style.padding = '4px 6px';
+                        }
+                    });
+                    tableClone.querySelectorAll('th').forEach(th => {
+                        th.style.minWidth = '28px';
+                        th.style.padding = '5px 4px';
+                        th.style.fontSize = '11px';
+                    });
+                    tableClone.querySelectorAll('th:first-child').forEach(th => {
+                        th.style.minWidth = '72px';
+                        th.style.fontSize = '12px';
+                    });
+                    wrap.appendChild(tableClone);
+
+                    imageTarget = wrap;
+                    targetWidth = Math.max(
+                        1100,
+                        Math.ceil(sourceTable.scrollWidth || 0) + 80,
+                        72 + 40 + (getDaysInMonth(currentYear, currentMonth) * 28) + 40
+                    );
+                    wrap.style.width = targetWidth + 'px';
                 } else {
                     imageTarget = active;
                     targetWidth = Math.max(
@@ -8024,7 +8266,8 @@ function getMonthlyOffAllDriverNames(){
                     'view-offdays': '월간휴무대장',
                     'view-drivers': '기사별근무통계',
                     'view-driverGraph': '기사별근무일수그래프',
-                    'view-info': '노선차량스페어정보'
+                    'view-info': '정규/스페어정보',
+                    'view-monthlyOffList': '휴무자명단작성'
                 };
                 const tabName = tabNameMap[active.id] || '배차현황';
                 const filePrefix = `이미지_${tabName}`;
