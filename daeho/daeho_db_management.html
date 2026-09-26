@@ -4778,7 +4778,7 @@ main{padding-top:18px !important;}
 
         function monthlyOffListOptions(names, selected=''){
             const sorted = [...new Set((names || []).filter(Boolean).map(String))].sort((a,b)=>b.localeCompare(a,'ko'));
-            const arr = [''].concat(sorted);
+            const arr = sorted.slice();  // 빈 칸 없음 — 이름만
             return arr.map(name => {
                 const safe = String(name).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
                 const selectedAttr = (String(name) === String(selected)) ? ' selected' : '';
