@@ -863,6 +863,19 @@ tr:has(.weekly-offday-name) td div,
   background: #e0f2fe !important;
   background-image: none !important;
 }
+
+/* weekly-pm-th green force */
+#allWeeklyTablesContainer thead th.weekly-pm-th {
+  color: #16a34a !important;
+  background: #f0fdf4 !important;
+  background-image: none !important;
+}
+
+#allWeeklyTablesContainer .weekly-schedule-card thead th.weekly-pm-th,
+#view-weekly thead th.weekly-pm-th {
+  color: #16a34a !important;
+}
+
 .weekly-image-compact-cell { padding:1px !important; line-height:1.05 !important; vertical-align:middle !important; box-sizing:border-box !important; }
 </style>
 
@@ -6492,27 +6505,30 @@ function getMonthlyOffAllDriverNames(){
             let allHtml = '';
             ranges.forEach(weekInfo => {
                 const dayCount = weekInfo.end - weekInfo.start + 1;
-                const colWidthLabel = 75; 
-                const dayColWidth = 50;
+                const colWidthLabel = 88; 
+                const dayColWidth = 62;
 
-                let topHeader = `<tr class="border-b border-slate-300 text-center bg-sky-100 text-slate-900">
-                    <th rowspan="2" style="width: ${colWidthLabel}px; min-width: ${colWidthLabel}px; left: 0; background:#e0f2fe !important;" class="px-1 py-1.5 text-center bg-sky-100 text-slate-900 border-r border-slate-300 font-bold text-xs align-middle sticky z-20 shadow-xs">
-                        <span style="display:flex;align-items:center;justify-content:center;text-align:center;width:100%;height:100%;line-height:1.05;white-space:nowrap;">노선<br>차량</span>
+                let topHeader = `<tr class="border-b border-slate-300 text-center bg-sky-100 text-slate-900" style="height:40px;">
+                    <th rowspan="2" style="width: ${colWidthLabel}px; min-width: ${colWidthLabel}px; left: 0; background:#e0f2fe !important; height:40px;" class="px-1 py-1 text-center bg-sky-100 text-slate-900 border-r border-slate-300 font-bold text-sm align-middle sticky z-20 shadow-xs">
+                        <span style="display:flex;align-items:center;justify-content:center;text-align:center;width:100%;height:100%;line-height:1.1;white-space:nowrap;">노선<br>차량</span>
                     </th>`;
-                let subHeader = `<tr class="border-b border-slate-300 bg-sky-50 text-center text-[10px] text-slate-800 font-bold">`;
+                let subHeader = `<tr class="border-b border-slate-300 bg-sky-50 text-center text-[12px] text-slate-800 font-bold" style="height:20px;">`;
 
                 let dayIndex = 0;
                 for (let d = weekInfo.start; d <= weekInfo.end; d++) {
                     const dow = getDayOfWeekStr(currentYear, currentMonth, d);
-                    let dowColor = (dow === '일') ? 'text-rose-600 font-bold' : ((dow === '토') ? 'text-blue-600 font-bold' : 'text-slate-900 font-bold');
+                    const isHoliday = (typeof isKoreanPublicHoliday === 'function') && isKoreanPublicHoliday(currentYear, currentMonth, d);
+                    // 평일 검정 / 토 파랑 / 일·공휴 빨강
+                    let dateColor = (dow === '일' || isHoliday) ? 'text-rose-600' : ((dow === '토') ? 'text-blue-600' : 'text-slate-900');
 
-                    topHeader += `<th colspan="2" style="min-width: ${dayColWidth * 2}px;" class="px-1 py-1.5 text-center border-r border-slate-300 align-middle bg-sky-100 text-slate-900">
-                        <div class="flex items-center justify-center w-full">
-                            <span class="text-[14px] font-black text-slate-950">${currentMonth}.${d}</span><span class="text-[14px] font-black ${dowColor}">(${dow})</span>
+                    topHeader += `<th colspan="2" style="min-width: ${dayColWidth * 2}px; height:40px;" class="px-1 py-1 text-center border-r border-slate-300 align-middle bg-sky-100">
+                        <div class="flex items-center justify-center w-full gap-0.5">
+                            <span class="text-[15px] font-black ${dateColor}">${currentMonth}.${d}</span><span class="text-[15px] font-black ${dateColor}">(${dow})</span>
                         </div>
                     </th>`;
-                    subHeader += `<th style="min-width: ${dayColWidth}px;" class="px-0 py-1 font-extrabold text-[10px] border-r border-slate-200 align-middle text-center bg-sky-50 ">오전</th>
-                                  <th style="min-width: ${dayColWidth}px;" class="px-0 py-1 font-extrabold text-[10px] border-r border-slate-300 align-middle text-center bg-sky-50 text-red-700">오후</th>`;
+                    // 오후: inline color !important 로 테마/공통 thead 색 덮어쓰기 방지
+                    subHeader += `<th style="min-width: ${dayColWidth}px; height:20px;" class="px-0.5 py-0.5 font-extrabold text-[12px] border-r border-slate-200 align-middle text-center bg-sky-50 text-slate-800">오전</th>
+                                  <th style="min-width: ${dayColWidth}px; height:20px; color:#16a34a !important;" class="weekly-pm-th px-0.5 py-0.5 font-extrabold text-[12px] border-r border-slate-300 align-middle text-center bg-sky-50">오후</th>`;
                     dayIndex++;
                 }
                 topHeader += `</tr>`; subHeader += `</tr>`;
