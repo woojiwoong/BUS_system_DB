@@ -447,6 +447,22 @@
             padding: 0 2px !important;
             vertical-align: middle !important;
         }
+        /* 월간휴무현황표: 기사명 + 휴무 열 sticky */
+        #view-monthlyOff .overflow-x-auto {
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch;
+        }
+        #view-monthlyOff table th.sticky,
+        #view-monthlyOff table td.sticky {
+            position: sticky !important;
+            background-clip: padding-box !important;
+        }
+        #view-monthlyOff table thead th.sticky {
+            z-index: 30 !important;
+        }
+        #view-monthlyOff table tbody td.sticky {
+            z-index: 10 !important;
+        }
 
         /* 기사별 근무일수 그래프 - 정렬형 고급 디자인 */
         .driver-work-graph{min-width:980px;height:430px;display:grid;grid-template-columns:52px 1fr;gap:8px;background:linear-gradient(180deg,#fff 0%,#f8fafc 100%);border:1px solid #e2e8f0;border-radius:16px;padding:16px 14px 10px;box-shadow:0 8px 24px rgba(15,23,42,.06);box-sizing:border-box}
@@ -842,6 +858,11 @@ tr:has(.weekly-offday-name) td div,
 #allWeeklyTablesContainer table th *, #allWeeklyTablesContainer table td * { background-image:none !important; }
 #allWeeklyTablesContainer .weekly-schedule-card table { border-collapse:collapse !important; table-layout:auto !important; width:max-content !important; max-width:none !important; }
 #allWeeklyTablesContainer .weekly-schedule-card th, #allWeeklyTablesContainer .weekly-schedule-card td { padding:1px 2px !important; line-height:1.08 !important; vertical-align:middle !important; box-sizing:border-box !important; }
+#allWeeklyTablesContainer .weekly-schedule-card thead th.sticky,
+#allWeeklyTablesContainer .weekly-schedule-card thead th[rowspan="2"] {
+  background: #e0f2fe !important;
+  background-image: none !important;
+}
 .weekly-image-compact-cell { padding:1px !important; line-height:1.05 !important; vertical-align:middle !important; box-sizing:border-box !important; }
 </style>
 
@@ -1383,9 +1404,36 @@ main{padding-top:18px !important;}
 
 <style id="monthly-off-list-spare-underline">
 /* 휴무자명단작성 탭의 스페어 입력 이름에만 밑줄 적용 */
-#view-monthlyOffList .monthly-off-spare-input {
+#view-monthlyOffList .monthly-off-spare-input,
+#view-info .monthly-off-spare-input {
+  color: #2563eb !important;
+  font-weight: 800 !important;
   text-decoration: underline !important;
+  text-decoration-color: #2563eb !important;
   text-underline-offset: 3px !important;
+  background: #eff6ff !important;
+  border: 1.5px solid #93c5fd !important;
+  border-radius: 10px !important;
+  padding: 8px 12px !important;
+  min-height: 40px !important;
+  box-shadow: inset 0 1px 2px rgba(37,99,235,.06) !important;
+}
+#view-info .monthly-off-spare-input::placeholder,
+#view-monthlyOffList .monthly-off-spare-input::placeholder {
+  color: #60a5fa !important;
+  font-weight: 600 !important;
+  text-decoration: none !important;
+}
+#view-info .monthly-off-list-spare,
+#view-monthlyOffList .monthly-off-list-spare {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#view-info .monthly-off-list-spare .monthly-off-spare-input,
+#view-monthlyOffList .monthly-off-list-spare .monthly-off-spare-input {
+  flex: 1 1 140px;
+  min-width: 120px;
 }
 /* 휴무자명단작성 표(휴무기사명)의 스페어 기사명 밑줄 */
 #view-monthlyOffList .off-day-names-cell .off-day-spare-name {
@@ -1669,6 +1717,29 @@ main{padding-top:18px !important;}
     return window.appData;
   }
 
+  /** offDays / 날짜키 맵을 해당 년·월 키만 남깁니다. (yy-mm-dd, yyyy-mm-dd 모두 지원) */
+  function filterMapByYearMonth(src, y, m) {
+    const out = {};
+    if (!src || typeof src !== 'object') return out;
+    const yy = String(y).slice(-2);
+    const yyyy = String(Number(y));
+    const mm = String(Number(m)).padStart(2, '0');
+    const pfxShort = yy + '-' + mm + '-';
+    const pfxFull = yyyy + '-' + mm + '-';
+    Object.keys(src).forEach(k => {
+      const s = String(k || '').trim();
+      if (!s) return;
+      if (/^\d{2}-\d{2}-\d{2}$/.test(s)) {
+        if (s.startsWith(pfxShort)) out[k] = src[k];
+      } else if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+        if (s.startsWith(pfxFull)) out[k] = src[k];
+      }
+    });
+    return out;
+  }
+  window.filterMapByYearMonth = filterMapByYearMonth;
+
+
   function clearAllScheduleState() {
     const ad = getAppDataRef();
     ad.routes = {};
@@ -1736,10 +1807,18 @@ main{padding-top:18px !important;}
       // 해당 월 문서에 있는 필드만 적용 (없으면 빈 값 유지)
       ad.routes = (data.routes && typeof data.routes === 'object') ? data.routes : {};
       ad.spares = Array.isArray(data.spares) ? data.spares : [];
-      ad.offDays = (data.offDays && typeof data.offDays === 'object') ? JSON.parse(JSON.stringify(data.offDays)) : {};
+      // 해당 월(y,m) 날짜 키만 로드 — 다른 월 offDays 혼입 방지
+      ad.offDays = filterMapByYearMonth(
+        (data.offDays && typeof data.offDays === 'object') ? data.offDays : {},
+        y, m
+      );
       window.manualOverrides = (data.manualOverrides && typeof data.manualOverrides === 'object') ? data.manualOverrides : {};
-      window.manualOffDisplayOverrides = (data.manualOffDisplayOverrides && typeof data.manualOffDisplayOverrides === 'object')
-        ? JSON.parse(JSON.stringify(data.manualOffDisplayOverrides)) : {};
+      // 표시 오버라이드도 해당 월 키만 유지
+      window.manualOffDisplayOverrides = filterMapByYearMonth(
+        (data.manualOffDisplayOverrides && typeof data.manualOffDisplayOverrides === 'object')
+          ? data.manualOffDisplayOverrides : {},
+        y, m
+      );
       // ★ 휴무자명단 테이블 → 휴무 표시 동기화
       // 중요: monthlyOffDayEntries 에 '이 문서 년·월' 날짜가 실제로 있을 때만 기준으로 사용.
       // (배차월 저장 시 다음달 휴무일자가 같은 필드에 들어가 있어도, 해당 월 날짜가 없으면
@@ -1819,14 +1898,11 @@ main{padding-top:18px !important;}
       if (typeof captureTxtBaselineFromAppData === 'function') {
         try { captureTxtBaselineFromAppData(); } catch (e) {}
       }
-      // 휴무자명단: 현재 월 문서에 '다음 달' 날짜 휴무일자가 실제로 있을 때만 즉시 적용.
-      // (없으면 빈 표로 덮지 않음 → hardRefresh가 다음 달 문서를 로드)
-      const _hasNextMonthOff = Array.isArray(window.monthlyOffDayEntries) && window.monthlyOffDayEntries.length > 0;
-      if (typeof window.applyMonthlyOffFromDB === 'function' && (_offSel || _hasNextMonthOff)) {
-        window.applyMonthlyOffFromDB(
-          _offSel || window.monthlyOffListSelections || {},
-          _hasNextMonthOff ? window.monthlyOffDayEntries : []
-        );
+      // 휴무자명단 테이블은 hardRefresh → loadMonthlyOffListFromDB 가
+      // 휴무일자 월 문서의 offDays 만으로 채움 (monthlyOffDayEntries로 표를 채우지 않음)
+      // 정규·스페어 선택값만 여기서 선반영
+      if (typeof window.applyMonthlyOffFromDB === 'function' && _offSel) {
+        window.applyMonthlyOffFromDB(_offSel, null);
       }
 
       // ========== 앱 실행/데이타호출 공통: Overrides → 각 탭 화면 ==========
@@ -2003,14 +2079,16 @@ main{padding-top:18px !important;}
       const pad = String(m).padStart(2, '0');
       const monthlyKey = `${y}_${pad}`;
       // 기사변경 오버라이드가 있으면 해당 날짜 offDays에도 반영해 저장 (재로드 시 일치)
-      const offDaysSave = JSON.parse(JSON.stringify((ad || getAppDataRef()).offDays || {}));
-      const offOvSave = window.manualOffDisplayOverrides || {};
+      // ★ 해당 월(y,m) 키만 저장 — 다른 월 휴무가 문서에 섞이지 않도록 필터
+      let offDaysSave = filterMapByYearMonth((ad || getAppDataRef()).offDays || {}, y, m);
+      const offOvSave = filterMapByYearMonth(window.manualOffDisplayOverrides || {}, y, m);
       Object.keys(offOvSave).forEach(k => {
         if (!Array.isArray(offOvSave[k])) return;
         offDaysSave[k] = offOvSave[k]
           .map(n => String(n || '').replace('(S)', '').trim())
           .filter(n => n && n !== '운행종료');
       });
+      offDaysSave = filterMapByYearMonth(offDaysSave, y, m);
       // 휴무자명단 엔트리: 다음 달 날짜만 저장 (이 달 날짜로 오인되어 로드 시 휴무를 비우지 않도록)
       let ny = y, nm = m + 1;
       if (nm > 12) { nm = 1; ny += 1; }
@@ -2032,7 +2110,7 @@ main{padding-top:18px !important;}
         spares: (ad || getAppDataRef()).spares || [],
         offDays: offDaysSave,
         manualOverrides: window.manualOverrides || {},
-        manualOffDisplayOverrides: window.manualOffDisplayOverrides || {},
+        manualOffDisplayOverrides: filterMapByYearMonth(window.manualOffDisplayOverrides || {}, y, m),
         monthlyOffListSelections: window.monthlyOffListSelections || {},
         monthlyOffDayEntries: dayEntriesSave,
         savedAt: serverTimestamp()
@@ -2184,8 +2262,9 @@ main{padding-top:18px !important;}
         monthlyOffListSelections: window.monthlyOffListSelections || {},
         monthlyOffDayEntries: tableEntries,
         monthlyOffFullSchedule: fullSchedule,
-        offDays: ad.offDays || {},
-        manualOffDisplayOverrides: window.manualOffDisplayOverrides || {},
+        // 대상 월 키만 저장 (다른 월 offDays 혼입 방지)
+        offDays: filterMapByYearMonth(ad.offDays || {}, y, m),
+        manualOffDisplayOverrides: filterMapByYearMonth(window.manualOffDisplayOverrides || {}, y, m),
         offListSavedAt: serverTimestamp()
       };
       await withTimeout(setDoc(doc(db, 'daehoSchedules', monthlyKey), payload, { merge: true }));
@@ -2286,31 +2365,14 @@ main{padding-top:18px !important;}
           .sort((a, b) => a.localeCompare(b, 'ko'));
       }
       function collectAllOffDayEntries(src) {
+        // ★ 휴무자명단 테이블: 휴무일자 월 문서의 offDays 필드만 사용
+        //    (monthlyOffDayEntries / manualOffDisplayOverrides 는 테이블 로드에 사용하지 않음)
         const tmp = {};
         if (!src || typeof src !== 'object') return [];
-        // a) offDays (키 형식 다양: 26-11-03, 2026-11-3, 26-11-3)
         Object.keys(src.offDays || {}).forEach(key => {
           const iso = normDate(key);
           if (!iso || !iso.startsWith(prefix)) return;
           const drivers = cleanDrivers(src.offDays[key]);
-          if (drivers.length) tmp[iso] = drivers;
-        });
-        // b) manualOffDisplayOverrides
-        Object.keys(src.manualOffDisplayOverrides || {}).forEach(key => {
-          const iso = normDate(key);
-          if (!iso || !iso.startsWith(prefix)) return;
-          const raw = src.manualOffDisplayOverrides[key];
-          if (!Array.isArray(raw) && typeof raw !== 'string') return;
-          const drivers = cleanDrivers(raw);
-          if (drivers.length) tmp[iso] = drivers;
-          else if (Array.isArray(raw)) delete tmp[iso];
-        });
-        // c) monthlyOffDayEntries (명단 탭 저장값 — 최종 우선)
-        const raw = Array.isArray(src.monthlyOffDayEntries) ? src.monthlyOffDayEntries : [];
-        raw.forEach(e => {
-          const iso = normDate(e && e.date);
-          if (!iso || !iso.startsWith(prefix)) return;
-          const drivers = cleanDrivers(e && e.drivers);
           if (drivers.length) tmp[iso] = drivers;
         });
         return Object.keys(tmp).sort().map(date => ({ date, drivers: tmp[date] }));
@@ -2327,26 +2389,13 @@ main{padding-top:18px !important;}
       let selections = (data && data.monthlyOffListSelections && typeof data.monthlyOffListSelections === 'object')
         ? data.monthlyOffListSelections : {};
 
-      // 휴무자명단 테이블 기준:
-      // - 대상 월 문서에 monthlyOffDayEntries(배열) 또는 offListSavedAt 이 있으면
-      //   그 엔트리만 유일한 기준 (제거한 11/2 등이 offDays/이전달에서 다시 붙지 않음)
-      // - 아직 명단 저장이 한 번도 없으면 offDays+오버라이드+엔트리 병합 + 이전달 보완
-      const offListAuthoritative = !!(data && (
-        data.offListSavedAt != null ||
-        Object.prototype.hasOwnProperty.call(data, 'monthlyOffDayEntries')
-      ));
-      let dayEntries;
-      if (offListAuthoritative) {
-        dayEntries = extractDayEntries(data);
-        console.log('[휴무명단] 대상월 엔트리 기준(권위):', dayEntries.length, '건', dayEntries.map(e => e.date).join(', '));
-      } else {
-        dayEntries = data ? collectAllOffDayEntries(data) : [];
-        console.log('[휴무명단] 대상월 문서 병합 결과:', dayEntries.length, '건', dayEntries.map(e => e.date).join(', '));
-      }
+      // ★ 휴무자명단 테이블: 휴무일자 월(y,m) 문서의 offDays 만 로드
+      //    monthlyOffDayEntries / 오버라이드 / 이전달 문서 일자 병합 사용 안 함
+      let dayEntries = data ? collectAllOffDayEntries(data) : [];
+      console.log('[휴무명단] 대상월 offDays만:', dayEntries.length, '건', dayEntries.map(e => e.date).join(', '));
 
-      // 이전달(10월) 문서: 명단이 아직 권위 저장되지 않았을 때만 다음달 엔트리 보완
-      // (권위 저장 후 제거한 날짜가 이전달 잔여값으로 되살아나는 것 방지)
-      {
+      // 정규기사·스페어 선택값만 이전달 문서에서 보완 (일자 테이블은 건드리지 않음)
+      if (!Object.keys(selections).length) {
         let py = y, pm = m - 1;
         if (pm < 1) { pm = 12; py -= 1; }
         try {
@@ -2360,29 +2409,13 @@ main{padding-top:18px !important;}
             const prevSnap = await withTimeout(getDoc(doc(db, 'daehoSchedules', prevKey)), silent ? 5000 : 7000);
             if (prevSnap.exists()) prevData = prevSnap.data() || {};
           }
-          if (prevData) {
-            if (!offListAuthoritative) {
-              const fromPrev = collectAllOffDayEntries(prevData);
-              if (fromPrev.length) {
-                const map = {};
-                dayEntries.forEach(e => { map[e.date] = e.drivers; });
-                fromPrev.forEach(e => {
-                  if (!map[e.date] || !map[e.date].length) map[e.date] = e.drivers;
-                });
-                dayEntries = Object.keys(map).sort().map(date => ({ date, drivers: map[date] }));
-                console.log('[휴무명단] 이전달 병합 후:', dayEntries.length, '건');
-              }
-            } else {
-              console.log('[휴무명단] 권위 엔트리 있음 → 이전달 일자 병합 생략');
-            }
-            if (!Object.keys(selections).length && prevData.monthlyOffListSelections && typeof prevData.monthlyOffListSelections === 'object') {
-              selections = prevData.monthlyOffListSelections;
-              console.log('[휴무명단] 이전달 문서에서 선택값 복원');
-            }
-            if (!data) data = prevData;
+          if (prevData && prevData.monthlyOffListSelections && typeof prevData.monthlyOffListSelections === 'object') {
+            selections = prevData.monthlyOffListSelections;
+            console.log('[휴무명단] 이전달 문서에서 선택값만 복원');
           }
+          if (!data && prevData) data = prevData;
         } catch (pe) {
-          console.warn('[휴무명단] 이전달 폴백 실패:', pe && pe.message);
+          console.warn('[휴무명단] 이전달 선택값 폴백 실패:', pe && pe.message);
         }
       }
 
@@ -3038,8 +3071,8 @@ main{padding-top:18px !important;}
                                 <tr>
                                     <th>노선</th>
                                     <th>차량</th>
-                                    <th>오전</th>
-                                    <th>오후</th>
+                                    <th>정규기사1</th>
+                                    <th>정규기사2</th>
                                 </tr>
                             </thead>
                             <tbody id="monthlyOffListBody"></tbody>
@@ -4382,27 +4415,16 @@ main{padding-top:18px !important;}
                     .filter(n => n && n !== '운행종료'))];
             }
 
-            // 1) 원래 필드(appData.offDays)
+            // ★ 휴무자명단 테이블: appData.offDays (대상 월 키)만 사용
             const map = {};
-            Object.entries(appData.offDays || {}).forEach(([key, list]) => {
+            const srcOff = (appData && appData.offDays) ? appData.offDays
+              : ((window.appData && window.appData.offDays) ? window.appData.offDays : {});
+            Object.entries(srcOff || {}).forEach(([key, list]) => {
                 const iso = toIsoDateKey(key);
                 if (!iso) return;
                 const drivers = cleanDrivers(list);
                 if (!drivers.length) return;
                 map[iso] = drivers;
-            });
-
-            // 2) 오버라이딩 필드가 있으면 해당 날짜는 오버라이드 값으로 교체
-            const offMap = (typeof manualOffDisplayOverrides === 'object' && manualOffDisplayOverrides)
-                ? manualOffDisplayOverrides
-                : ((window.manualOffDisplayOverrides && typeof window.manualOffDisplayOverrides === 'object')
-                    ? window.manualOffDisplayOverrides : {});
-            Object.keys(offMap).forEach((key) => {
-                if (!Object.prototype.hasOwnProperty.call(offMap, key)) return;
-                if (!Array.isArray(offMap[key])) return;
-                const iso = toIsoDateKey(key);
-                if (!iso) return;
-                map[iso] = cleanDrivers(offMap[key]);
             });
 
             return Object.keys(map).sort().map(date => ({
@@ -4451,9 +4473,8 @@ main{padding-top:18px !important;}
                 }
             } catch (e) {}
 
-            // 2) 휴무자 테이블 데이터:
-            //    오버라이딩 휴무자 필드가 있으면 그 값, 없으면 원래 필드(offDays).
-            //    둘 다 없으면 dayEntries(monthlyOffDayEntries) 사용.
+            // 2) 휴무자 테이블 데이터: 휴무일자 월의 offDays 만 사용
+            //    dayEntries 인자는 loadMonthlyOffListFromDB 가 offDays에서 만든 목록
             const { y: _ty, m: _tm } = getOffListTargetYearMonth();
             const _prefix = `${_ty}-${String(_tm).padStart(2, '0')}-`;
             const _norm = (raw) => {
@@ -4465,22 +4486,20 @@ main{padding-top:18px !important;}
                 }
                 return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : '';
             };
-            // 테이블: dayEntries(서버 monthlyOffDayEntries)가 있으면 그것이 기준 (제거·저장 반영)
-            // dayEntries 인자가 없을 때만 로컬 오버라이드/offDays 폴백
             let mappedDayEntries = [];
-            if (Array.isArray(dayEntries)) {
+            if (Array.isArray(dayEntries) && dayEntries.length > 0) {
                 mappedDayEntries = dayEntries.map(e => ({
                     date: _norm(e && e.date),
                     drivers: [...new Set((e.drivers || []).map(n => String(n || '').replace('(S)', '').trim()).filter(Boolean))]
                       .sort((a, b) => a.localeCompare(b, 'ko'))
                 })).filter(e => e.date && e.date.startsWith(_prefix) && e.drivers.length);
-                // dayEntries가 빈 배열이면 테이블을 비움 (제거 후 저장 반영)
                 monthlyOffDayEntries = mappedDayEntries;
             } else {
-                const fromOverrideOrOffDays = (typeof buildMonthlyOffDayEntriesFromOffDays === 'function')
+                // dayEntries 없거나 빈 배열 → 로컬 appData.offDays(대상 월)만으로 구성
+                const fromOffDays = (typeof buildMonthlyOffDayEntriesFromOffDays === 'function')
                     ? buildMonthlyOffDayEntriesFromOffDays()
                     : [];
-                monthlyOffDayEntries = fromOverrideOrOffDays.length ? fromOverrideOrOffDays : [];
+                monthlyOffDayEntries = fromOffDays.length ? fromOffDays : [];
             }
             window.monthlyOffDayEntries = monthlyOffDayEntries;
             console.log('[휴무명단] 테이블 적용:', _prefix, (monthlyOffDayEntries || []).length, '건');
@@ -6477,7 +6496,7 @@ function getMonthlyOffAllDriverNames(){
                 const dayColWidth = 50;
 
                 let topHeader = `<tr class="border-b border-slate-300 text-center bg-sky-100 text-slate-900">
-                    <th rowspan="2" style="width: ${colWidthLabel}px; min-width: ${colWidthLabel}px; left: 0; background:#ffffff;" class="px-1 py-1.5 text-center bg-white text-slate-900 border-r border-slate-300 font-bold text-xs align-middle sticky z-20 shadow-xs">
+                    <th rowspan="2" style="width: ${colWidthLabel}px; min-width: ${colWidthLabel}px; left: 0; background:#e0f2fe !important;" class="px-1 py-1.5 text-center bg-sky-100 text-slate-900 border-r border-slate-300 font-bold text-xs align-middle sticky z-20 shadow-xs">
                         <span style="display:flex;align-items:center;justify-content:center;text-align:center;width:100%;height:100%;line-height:1.05;white-space:nowrap;">노선<br>차량</span>
                     </th>`;
                 let subHeader = `<tr class="border-b border-slate-300 bg-sky-50 text-center text-[10px] text-slate-800 font-bold">`;
@@ -6709,8 +6728,8 @@ function getMonthlyOffAllDriverNames(){
 
             let totalDays = getDaysInMonth(currentYear, currentMonth);
             let headerHtml = `<tr class="bg-slate-100 border-b border-slate-200 text-center">
-                <th class="px-2 py-0.5 sticky left-0 bg-slate-100 z-10 font-bold text-[10px] min-w-[64px] whitespace-nowrap align-middle text-center">기사명</th>
-                <th class="px-1 py-0.5 font-bold text-[10px] w-8 bg-rose-50 text-rose-800 border-r border-slate-200 align-middle text-center">휴무</th>`;
+                <th class="px-2 py-0.5 sticky left-0 bg-slate-100 z-20 font-bold text-[10px] min-w-[72px] w-[72px] whitespace-nowrap align-middle text-center">기사명</th>
+                <th class="px-1 py-0.5 sticky z-20 font-bold text-[10px] min-w-[36px] w-[36px] bg-rose-50 text-rose-800 border-r border-slate-200 align-middle text-center" style="left:72px;">휴무</th>`;
 
             for (let d = 1; d <= totalDays; d++) {
                 const dow = getDayOfWeekStr(currentYear, currentMonth, d);
@@ -6746,11 +6765,11 @@ function getMonthlyOffAllDriverNames(){
                     }
                 }
                 
-                let nameStyleClass = "px-2 py-0.5 font-bold text-slate-950 sticky left-0 bg-white text-center whitespace-nowrap min-w-[64px] align-middle";
+                let nameStyleClass = "px-2 py-0.5 font-bold text-slate-950 sticky left-0 z-10 bg-white text-center whitespace-nowrap min-w-[72px] w-[72px] align-middle";
 
                 bodyHtml += `<tr class="hover:bg-slate-50 border-b border-slate-100 text-[10px] text-center">
                     <td class="${nameStyleClass}">${displayName}</td>
-                    <td class="px-1 py-0 text-center font-bold text-rose-700 bg-rose-50/50 border-r border-slate-200 align-middle">${offCount}</td>
+                    <td class="px-1 py-0 text-center font-bold text-rose-700 bg-rose-50 border-r border-slate-200 align-middle sticky z-10 min-w-[36px] w-[36px]" style="left:72px;">${offCount}</td>
                     ${cells}
                 </tr>`;
             });
@@ -7293,7 +7312,7 @@ function getMonthlyOffAllDriverNames(){
             const title = document.createElement('div');
             title.innerHTML = `
                 <div style="text-align:center;margin:0 0 4px;">
-                    <div style="display:inline-block;padding:4px 12px;border-radius:999px;background:linear-gradient(135deg,#1e3a5f,#2758a0);color:#ffffff;font-size:11px;font-weight:800;letter-spacing:0.06em;">WEEK-SCHEDULE</div>
+                    <div style="display:inline-block;padding:4px 12px;border-radius:999px;background:linear-gradient(135deg,#1e3a5f,#2758a0);color:#ffffff;font-size:11px;font-weight:800;letter-spacing:0.06em;">WEEKLY-SCHEDULE</div>
                 </div>
                 <div style="font-size:15px;font-weight:900;text-align:center;color:#0f172a;letter-spacing:-0.03em;line-height:1.15;">${currentYear}년 ${currentMonth}월 월간 배차현황</div>
                 <div style="font-size:12px;font-weight:700;text-align:center;color:#64748b;margin:2px 0 6px;">주별통합 · 날짜별 달력</div>`;
@@ -8413,7 +8432,7 @@ function getMonthlyOffAllDriverNames(){
             const title = document.createElement('div');
             title.innerHTML = `
                 <div style="text-align:center;margin-bottom:6px;">
-                    <div style="display:inline-block;padding:6px 16px;border-radius:999px;background:linear-gradient(135deg,#1e3a5f,#2758a0);color:#ffffff;font-size:12px;font-weight:800;letter-spacing:0.06em;">DAEHO · WEEKLY</div>
+                    <div style="display:inline-block;padding:6px 16px;border-radius:999px;background:linear-gradient(135deg,#1e3a5f,#2758a0);color:#ffffff;font-size:12px;font-weight:800;letter-spacing:0.06em;">WEEKLY-SCHEDULE</div>
                 </div>
                 <div style="font-size:36px;font-weight:900;text-align:center;color:#0f172a;letter-spacing:-0.03em;line-height:1.2;">${currentYear}년 ${currentMonth}월 ${esc(weekTitle)}</div>
                 <div style="font-size:16px;font-weight:700;text-align:center;color:#64748b;margin:8px 0 20px;">${weekStart}일 ~ ${weekEnd}일 · 일자별 배차 카드</div>`;
@@ -8469,9 +8488,9 @@ function getMonthlyOffAllDriverNames(){
                     <table style="width:100%;border-collapse:collapse;table-layout:fixed;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;">
                         <thead>
                             <tr>
-                                <th style="width:28%;text-align:center;vertical-align:middle;font-size:10px;font-weight:900;color:#334155;padding:7px 2px;border:1px solid #cbd5e1;background:#f8fafc;">노선</th>
-                                <th style="width:36%;text-align:center;vertical-align:middle;font-size:10px;font-weight:900;color:#b45309;padding:7px 2px;border:1px solid #cbd5e1;background:#fffbeb;">오전</th>
-                                <th style="width:36%;text-align:center;vertical-align:middle;font-size:10px;font-weight:900;color:#c2410c;padding:7px 2px;border:1px solid #cbd5e1;background:#fef2f2;">오후</th>
+                                <th style="width:28%;text-align:center;vertical-align:middle;font-size:14px;font-weight:900;color:#334155;padding:6px 2px;border:1px solid #cbd5e1;background:#f8fafc;line-height:1.15;">노선</th>
+                                <th style="width:36%;text-align:center;vertical-align:middle;font-size:14px;font-weight:900;color:#b45309;padding:6px 2px;border:1px solid #cbd5e1;background:#fffbeb;line-height:1.15;">오전</th>
+                                <th style="width:36%;text-align:center;vertical-align:middle;font-size:14px;font-weight:900;color:#c2410c;padding:6px 2px;border:1px solid #cbd5e1;background:#fef2f2;line-height:1.15;">오후</th>
                             </tr>
                         </thead>
                         <tbody>`;
@@ -8486,9 +8505,9 @@ function getMonthlyOffAllDriverNames(){
                     const mColor = m === '운행종료' ? '#dc2626' : (mSpare ? '#2563eb' : '#0f172a');
                     const aColor = a === '운행종료' ? '#dc2626' : (aSpare ? '#2563eb' : '#0f172a');
                     html += `<tr>
-                        <td style="text-align:center;vertical-align:middle;font-size:11px;font-weight:900;color:${lineColor};line-height:1.25;padding:6px 2px;border:1px solid #e2e8f0;background:#ffffff;">${esc(bus.line.replace('번', ''))}·${esc(bus.busNo)}</td>
-                        <td style="text-align:center;vertical-align:middle;font-size:12px;font-weight:800;color:${mColor};line-height:1.25;padding:6px 2px;border:1px solid #e2e8f0;background:#ffffff;">${esc(m)}</td>
-                        <td style="text-align:center;vertical-align:middle;font-size:12px;font-weight:800;color:${aColor};line-height:1.25;padding:6px 2px;border:1px solid #e2e8f0;background:#ffffff;">${esc(a)}</td>
+                        <td style="text-align:center;vertical-align:middle;font-size:14px;font-weight:900;color:${lineColor};line-height:1.2;padding:5px 1px;border:1px solid #e2e8f0;background:#ffffff;word-break:keep-all;">${esc(bus.line.replace('번', ''))}·${esc(bus.busNo)}</td>
+                        <td style="text-align:center;vertical-align:middle;font-size:15px;font-weight:800;color:${mColor};line-height:1.2;padding:5px 1px;border:1px solid #e2e8f0;background:#ffffff;word-break:keep-all;">${esc(m)}</td>
+                        <td style="text-align:center;vertical-align:middle;font-size:15px;font-weight:800;color:${aColor};line-height:1.2;padding:5px 1px;border:1px solid #e2e8f0;background:#ffffff;word-break:keep-all;">${esc(a)}</td>
                     </tr>`;
                 });
                 html += `</tbody></table></div>`;
@@ -8917,7 +8936,7 @@ function getMonthlyOffAllDriverNames(){
                     const title = document.createElement('div');
                     title.innerHTML = `
                         <div style="text-align:center;margin-bottom:6px;">
-                            <div style="display:inline-block;padding:6px 16px;border-radius:999px;background:linear-gradient(135deg,#1e3a5f,#2758a0);color:#ffffff;font-size:12px;font-weight:800;letter-spacing:0.06em;">WEEK-SCHEDULE</div>
+                            <div style="display:inline-block;padding:6px 16px;border-radius:999px;background:linear-gradient(135deg,#1e3a5f,#2758a0);color:#ffffff;font-size:12px;font-weight:800;letter-spacing:0.06em;">WEEKLY-SCHEDULE</div>
                         </div>
                         <div style="font-size:36px;font-weight:900;text-align:center;color:#0f172a;letter-spacing:-0.03em;line-height:1.2;">${currentYear}년 ${currentMonth}월 월간 배차현황</div>
                         <div style="font-size:16px;font-weight:700;text-align:center;color:#64748b;margin:8px 0 20px;">주별통합 · 날짜별 달력</div>`;
@@ -8990,9 +9009,9 @@ function getMonthlyOffAllDriverNames(){
                             <table style="width:100%;border-collapse:collapse;table-layout:fixed;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;">
                                 <thead>
                                     <tr>
-                                        <th style="width:28%;text-align:center;vertical-align:middle;font-size:10px;font-weight:900;color:#334155;padding:7px 2px;border:1px solid #cbd5e1;background:#f8fafc;">노선</th>
-                                        <th style="width:36%;text-align:center;vertical-align:middle;font-size:10px;font-weight:900;color:#b45309;padding:7px 2px;border:1px solid #cbd5e1;background:#fffbeb;">오전</th>
-                                        <th style="width:36%;text-align:center;vertical-align:middle;font-size:10px;font-weight:900;color:#c2410c;padding:7px 2px;border:1px solid #cbd5e1;background:#fef2f2;">오후</th>
+                                        <th style="width:28%;text-align:center;vertical-align:middle;font-size:14px;font-weight:900;color:#334155;padding:6px 2px;border:1px solid #cbd5e1;background:#f8fafc;line-height:1.15;">노선</th>
+                                        <th style="width:36%;text-align:center;vertical-align:middle;font-size:14px;font-weight:900;color:#b45309;padding:6px 2px;border:1px solid #cbd5e1;background:#fffbeb;line-height:1.15;">오전</th>
+                                        <th style="width:36%;text-align:center;vertical-align:middle;font-size:14px;font-weight:900;color:#c2410c;padding:6px 2px;border:1px solid #cbd5e1;background:#fef2f2;line-height:1.15;">오후</th>
                                     </tr>
                                 </thead>
                                 <tbody>`;
@@ -9007,9 +9026,9 @@ function getMonthlyOffAllDriverNames(){
                             const mColor = m === '운행종료' ? '#dc2626' : (mSpare ? '#2563eb' : '#0f172a');
                             const aColor = a === '운행종료' ? '#dc2626' : (aSpare ? '#2563eb' : '#0f172a');
                             html += `<tr>
-                                <td style="text-align:center;vertical-align:middle;font-size:11px;font-weight:900;color:${lineColor};line-height:1.25;padding:6px 2px;border:1px solid #e2e8f0;background:#ffffff;">${esc(bus.line.replace('번',''))}·${esc(bus.busNo)}</td>
-                                <td style="text-align:center;vertical-align:middle;font-size:12px;font-weight:800;color:${mColor};line-height:1.25;padding:6px 2px;border:1px solid #e2e8f0;background:#ffffff;">${esc(m)}</td>
-                                <td style="text-align:center;vertical-align:middle;font-size:12px;font-weight:800;color:${aColor};line-height:1.25;padding:6px 2px;border:1px solid #e2e8f0;background:#ffffff;">${esc(a)}</td>
+                                <td style="text-align:center;vertical-align:middle;font-size:14px;font-weight:900;color:${lineColor};line-height:1.2;padding:5px 1px;border:1px solid #e2e8f0;background:#ffffff;word-break:keep-all;">${esc(bus.line.replace('번',''))}·${esc(bus.busNo)}</td>
+                                <td style="text-align:center;vertical-align:middle;font-size:15px;font-weight:800;color:${mColor};line-height:1.2;padding:5px 1px;border:1px solid #e2e8f0;background:#ffffff;word-break:keep-all;">${esc(m)}</td>
+                                <td style="text-align:center;vertical-align:middle;font-size:15px;font-weight:800;color:${aColor};line-height:1.2;padding:5px 1px;border:1px solid #e2e8f0;background:#ffffff;word-break:keep-all;">${esc(a)}</td>
                             </tr>`;
                         });
                         html += `</tbody></table></div>`;
