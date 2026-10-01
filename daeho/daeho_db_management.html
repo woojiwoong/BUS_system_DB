@@ -8440,7 +8440,7 @@ function getMonthlyOffAllDriverNames(){
             const isHol = (y, m, d) => (typeof isKoreanPublicHoliday === 'function' && isKoreanPublicHoliday(y, m, d));
             const dowLabels = ['일', '월', '화', '수', '목', '금', '토'];
 
-            const targetWidth = Math.max(900, dayCount * 230 + (dayCount - 1) * 10 + 48);
+            const targetWidth = Math.max(900, dayCount * 300 + (dayCount - 1) * 10 + 48);
 
             const imageTarget = document.createElement('div');
             imageTarget.style.width = targetWidth + 'px';
@@ -8454,17 +8454,17 @@ function getMonthlyOffAllDriverNames(){
             const now = new Date();
             const pad2 = n => String(n).padStart(2, '0');
             savedAt.textContent = `이미지 저장일: ${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
-            savedAt.style.cssText = 'font-size:11px;font-weight:600;color:#64748b;text-align:right;white-space:nowrap;margin:0 0 4px;width:100%;box-sizing:border-box;';
+            savedAt.style.cssText = 'font-size:16px;font-weight:600;color:#64748b;text-align:right;white-space:nowrap;margin:0 0 4px;width:100%;box-sizing:border-box;';
             imageTarget.appendChild(savedAt);
 
             // 상단 배지 + 타이틀 + 부제
             const title = document.createElement('div');
             title.innerHTML = `
                 <div style="text-align:center;margin-bottom:6px;">
-                    <div style="display:inline-block;padding:6px 16px;border-radius:999px;background:linear-gradient(135deg,#1e3a5f,#2758a0);color:#ffffff;font-size:12px;font-weight:800;letter-spacing:0.06em;">WEEKLY-SCHEDULE</div>
+                    <div style="display:inline-block;padding:6px 16px;border-radius:999px;background:linear-gradient(135deg,#1e3a5f,#2758a0);color:#ffffff;font-size:17px;font-weight:800;letter-spacing:0.06em;">WEEKLY-SCHEDULE</div>
                 </div>
-                <div style="font-size:36px;font-weight:900;text-align:center;color:#0f172a;letter-spacing:-0.03em;line-height:1.2;">${currentYear}년 ${currentMonth}월 ${esc(weekTitle)}</div>
-                <div style="font-size:16px;font-weight:700;text-align:center;color:#64748b;margin:8px 0 20px;">${weekStart}일 ~ ${weekEnd}일 · 일자별 배차 카드</div>`;
+                <div style="font-size:41px;font-weight:900;text-align:center;color:#0f172a;letter-spacing:-0.03em;line-height:1.2;">${currentYear}년 ${currentMonth}월 ${esc(weekTitle)}</div>
+                <div style="font-size:21px;font-weight:700;text-align:center;color:#64748b;margin:8px 0 20px;">${weekStart}일 ~ ${weekEnd}일 · 일자별 배차 카드</div>`;
             imageTarget.appendChild(title);
 
             // 요일별 일자 카드를 가로로 나열
@@ -8493,7 +8493,7 @@ function getMonthlyOffAllDriverNames(){
                 const avail = Math.max(10, colWidth - 8);
                 return Math.max(minPx, Math.min(maxPx, Math.floor(avail / units)));
             };
-            const ROW_H = 58; // 셀 행 높이(간격) 확대
+            const ROW_H = 68; // 셀 행 높이(간격) 확대
 
             for (let d = weekStart; d <= weekEnd; d++) {
                 const dateKey = `${String(currentYear).substring(2)}-${String(currentMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -8516,14 +8516,14 @@ function getMonthlyOffAllDriverNames(){
 
                 // 날짜 헤더
                 let html = `<div style="padding:10px 8px 8px;background:${headBg};border-bottom:1px solid ${cellBorder};text-align:center;">
-                    <div style="font-weight:900;font-size:24px;color:${dateColor};letter-spacing:-0.02em;line-height:1.2;">${currentMonth}월 ${d}일</div>
-                    <div style="margin-top:3px;font-size:17px;font-weight:800;color:${dateColor};opacity:.9;">(${dowLabels[dow]})</div>
+                    <div style="font-weight:900;font-size:29px;color:${dateColor};letter-spacing:-0.02em;line-height:1.2;">${currentMonth}월 ${d}일</div>
+                    <div style="margin-top:3px;font-size:22px;font-weight:800;color:${dateColor};opacity:.9;">(${dowLabels[dow]})</div>
                 </div>`;
 
                 // 휴무 목록
                 html += `<div style="padding:7px 8px;background:#f0fdf4;border-bottom:1px solid #bbf7d0;text-align:center !important;">
-                    <div style="font-size:15px;font-weight:900;color:#15803d;letter-spacing:0.02em;margin-bottom:3px;text-align:center;">휴무</div>
-                    <div style="font-size:17px;font-weight:700;color:#16a34a;line-height:1.35;word-break:keep-all;text-align:center;">${esc(offText)}</div>
+                    <div style="font-size:20px;font-weight:900;color:#15803d;letter-spacing:0.02em;margin-bottom:3px;text-align:center;">휴무</div>
+                    <div style="font-size:22px;font-weight:700;color:#16a34a;line-height:1.35;word-break:keep-all;text-align:center;">${esc(offText)}</div>
                 </div>`;
 
                 // 노선 / 오전 / 오후 배차 표
@@ -8531,9 +8531,9 @@ function getMonthlyOffAllDriverNames(){
                     <table style="width:100%;border-collapse:collapse;table-layout:fixed;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;">
                         <thead>
                             <tr>
-                                <th style="width:26%;text-align:center;vertical-align:middle;font-size:19px;font-weight:900;color:#334155;padding:8px 2px;border:1px solid #cbd5e1;background:#f8fafc;line-height:1.15;">노선</th>
-                                <th style="width:37%;text-align:center;vertical-align:middle;font-size:19px;font-weight:900;color:#b45309;padding:8px 2px;border:1px solid #cbd5e1;background:#fffbeb;line-height:1.15;">오전</th>
-                                <th style="width:37%;text-align:center;vertical-align:middle;font-size:19px;font-weight:900;color:#c2410c;padding:8px 2px;border:1px solid #cbd5e1;background:#fef2f2;line-height:1.15;">오후</th>
+                                <th style="width:26%;text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#334155;padding:8px 2px;border:1px solid #cbd5e1;background:#f8fafc;line-height:1.15;">노선</th>
+                                <th style="width:37%;text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#b45309;padding:8px 2px;border:1px solid #cbd5e1;background:#fffbeb;line-height:1.15;">오전</th>
+                                <th style="width:37%;text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#c2410c;padding:8px 2px;border:1px solid #cbd5e1;background:#fef2f2;line-height:1.15;">오후</th>
                             </tr>
                         </thead>
                         <tbody>`;
@@ -8550,9 +8550,9 @@ function getMonthlyOffAllDriverNames(){
                     const lineText = `${bus.line.replace('번', '')}·${bus.busNo}`;
                     const cellBase = `height:${ROW_H}px;text-align:center;vertical-align:middle;padding:0 2px;border:1px solid #e2e8f0;background:#ffffff;white-space:nowrap;overflow:hidden;box-sizing:border-box;line-height:1;`;
                     html += `<tr style="height:${ROW_H}px;">
-                        <td style="${cellBase}font-size:${fitFont(lineText, colPx.line, 23, 13)}px;font-weight:900;color:${lineColor};">${esc(lineText)}</td>
-                        <td style="${cellBase}font-size:${fitFont(m, colPx.shift, 26, 14)}px;font-weight:800;color:${mColor};">${esc(m)}</td>
-                        <td style="${cellBase}font-size:${fitFont(a, colPx.shift, 26, 14)}px;font-weight:800;color:${aColor};">${esc(a)}</td>
+                        <td style="${cellBase}font-size:${fitFont(lineText, colPx.line, 28, 16)}px;font-weight:900;color:${lineColor};">${esc(lineText)}</td>
+                        <td style="${cellBase}font-size:${fitFont(m, colPx.shift, 31, 17)}px;font-weight:800;color:${mColor};">${esc(m)}</td>
+                        <td style="${cellBase}font-size:${fitFont(a, colPx.shift, 31, 17)}px;font-weight:800;color:${aColor};">${esc(a)}</td>
                     </tr>`;
                 });
                 html += `</tbody></table></div>`;
@@ -8564,7 +8564,7 @@ function getMonthlyOffAllDriverNames(){
 
             // 하단 범례
             const legend = document.createElement('div');
-            legend.innerHTML = `<div style="margin-top:16px;text-align:center;font-size:13px;font-weight:700;color:#475569;line-height:1.6;">
+            legend.innerHTML = `<div style="margin-top:16px;text-align:center;font-size:18px;font-weight:700;color:#475569;line-height:1.6;">
                 <span style="display:inline-block;margin:0 10px;">🟧 오전 · 🟥 오후</span>
                 <span style="display:inline-block;margin:0 10px;color:#2563eb;">파란 글자 = 스페어 대체기사</span>
                 <span style="display:inline-block;margin:0 10px;color:#dc2626;">빨강 날짜 = 일요일/공휴일</span>
