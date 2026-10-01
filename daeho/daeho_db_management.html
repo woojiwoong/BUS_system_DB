@@ -8481,6 +8481,20 @@ function getMonthlyOffAllDriverNames(){
             let allBuses = [];
             getOrderedBusList(appData.routes).forEach(b => allBuses.push({ line: b.line, busNo: b.busNo }));
 
+            // 셀 폭에 맞춰 글자 크기를 자동 조절 (한 줄 표시, 셀 밖으로 넘치지 않게)
+            const cardPx = (targetWidth - 48 - 28 - (dayCount - 1) * 10) / dayCount;
+            const tablePx = cardPx - 12 - 2;
+            const colPx = { line: tablePx * 0.26, shift: tablePx * 0.37 };
+            const fitFont = (text, colWidth, maxPx, minPx) => {
+                const t = String(text || '');
+                let units = 0;
+                for (const ch of t) units += /[\u3131-\uD79D]/.test(ch) ? 1.0 : (/[0-9A-Za-z]/.test(ch) ? 0.58 : 0.45);
+                if (!units) return maxPx;
+                const avail = Math.max(10, colWidth - 8);
+                return Math.max(minPx, Math.min(maxPx, Math.floor(avail / units)));
+            };
+            const ROW_H = 58; // 셀 행 높이(간격) 확대
+
             for (let d = weekStart; d <= weekEnd; d++) {
                 const dateKey = `${String(currentYear).substring(2)}-${String(currentMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                 const dayData = getDailyAssignment(dateKey);
@@ -8502,24 +8516,24 @@ function getMonthlyOffAllDriverNames(){
 
                 // 날짜 헤더
                 let html = `<div style="padding:10px 8px 8px;background:${headBg};border-bottom:1px solid ${cellBorder};text-align:center;">
-                    <div style="font-weight:900;font-size:18px;color:${dateColor};letter-spacing:-0.02em;line-height:1.2;">${currentMonth}월 ${d}일</div>
-                    <div style="margin-top:3px;font-size:12px;font-weight:800;color:${dateColor};opacity:.9;">(${dowLabels[dow]})</div>
+                    <div style="font-weight:900;font-size:24px;color:${dateColor};letter-spacing:-0.02em;line-height:1.2;">${currentMonth}월 ${d}일</div>
+                    <div style="margin-top:3px;font-size:17px;font-weight:800;color:${dateColor};opacity:.9;">(${dowLabels[dow]})</div>
                 </div>`;
 
                 // 휴무 목록
                 html += `<div style="padding:7px 8px;background:#f0fdf4;border-bottom:1px solid #bbf7d0;text-align:center !important;">
-                    <div style="font-size:11px;font-weight:900;color:#15803d;letter-spacing:0.02em;margin-bottom:3px;text-align:center;">휴무</div>
-                    <div style="font-size:12px;font-weight:700;color:#16a34a;line-height:1.35;word-break:keep-all;text-align:center;">${esc(offText)}</div>
+                    <div style="font-size:15px;font-weight:900;color:#15803d;letter-spacing:0.02em;margin-bottom:3px;text-align:center;">휴무</div>
+                    <div style="font-size:17px;font-weight:700;color:#16a34a;line-height:1.35;word-break:keep-all;text-align:center;">${esc(offText)}</div>
                 </div>`;
 
                 // 노선 / 오전 / 오후 배차 표
-                html += `<div style="padding:6px;flex:1;box-sizing:border-box;">
+                html += `<div style="padding:8px 6px;flex:1;box-sizing:border-box;">
                     <table style="width:100%;border-collapse:collapse;table-layout:fixed;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;">
                         <thead>
                             <tr>
-                                <th style="width:28%;text-align:center;vertical-align:middle;font-size:14px;font-weight:900;color:#334155;padding:6px 2px;border:1px solid #cbd5e1;background:#f8fafc;line-height:1.15;">노선</th>
-                                <th style="width:36%;text-align:center;vertical-align:middle;font-size:14px;font-weight:900;color:#b45309;padding:6px 2px;border:1px solid #cbd5e1;background:#fffbeb;line-height:1.15;">오전</th>
-                                <th style="width:36%;text-align:center;vertical-align:middle;font-size:14px;font-weight:900;color:#c2410c;padding:6px 2px;border:1px solid #cbd5e1;background:#fef2f2;line-height:1.15;">오후</th>
+                                <th style="width:26%;text-align:center;vertical-align:middle;font-size:19px;font-weight:900;color:#334155;padding:8px 2px;border:1px solid #cbd5e1;background:#f8fafc;line-height:1.15;">노선</th>
+                                <th style="width:37%;text-align:center;vertical-align:middle;font-size:19px;font-weight:900;color:#b45309;padding:8px 2px;border:1px solid #cbd5e1;background:#fffbeb;line-height:1.15;">오전</th>
+                                <th style="width:37%;text-align:center;vertical-align:middle;font-size:19px;font-weight:900;color:#c2410c;padding:8px 2px;border:1px solid #cbd5e1;background:#fef2f2;line-height:1.15;">오후</th>
                             </tr>
                         </thead>
                         <tbody>`;
@@ -8533,10 +8547,12 @@ function getMonthlyOffAllDriverNames(){
                     const lineColor = bus.line.includes('15') ? '#dc2626' : '#2563eb';
                     const mColor = m === '운행종료' ? '#dc2626' : (mSpare ? '#2563eb' : '#0f172a');
                     const aColor = a === '운행종료' ? '#dc2626' : (aSpare ? '#2563eb' : '#0f172a');
-                    html += `<tr>
-                        <td style="text-align:center;vertical-align:middle;font-size:14px;font-weight:900;color:${lineColor};line-height:1.2;padding:5px 1px;border:1px solid #e2e8f0;background:#ffffff;word-break:keep-all;">${esc(bus.line.replace('번', ''))}·${esc(bus.busNo)}</td>
-                        <td style="text-align:center;vertical-align:middle;font-size:15px;font-weight:800;color:${mColor};line-height:1.2;padding:5px 1px;border:1px solid #e2e8f0;background:#ffffff;word-break:keep-all;">${esc(m)}</td>
-                        <td style="text-align:center;vertical-align:middle;font-size:15px;font-weight:800;color:${aColor};line-height:1.2;padding:5px 1px;border:1px solid #e2e8f0;background:#ffffff;word-break:keep-all;">${esc(a)}</td>
+                    const lineText = `${bus.line.replace('번', '')}·${bus.busNo}`;
+                    const cellBase = `height:${ROW_H}px;text-align:center;vertical-align:middle;padding:0 2px;border:1px solid #e2e8f0;background:#ffffff;white-space:nowrap;overflow:hidden;box-sizing:border-box;line-height:1;`;
+                    html += `<tr style="height:${ROW_H}px;">
+                        <td style="${cellBase}font-size:${fitFont(lineText, colPx.line, 23, 13)}px;font-weight:900;color:${lineColor};">${esc(lineText)}</td>
+                        <td style="${cellBase}font-size:${fitFont(m, colPx.shift, 26, 14)}px;font-weight:800;color:${mColor};">${esc(m)}</td>
+                        <td style="${cellBase}font-size:${fitFont(a, colPx.shift, 26, 14)}px;font-weight:800;color:${aColor};">${esc(a)}</td>
                     </tr>`;
                 });
                 html += `</tbody></table></div>`;
