@@ -6615,8 +6615,15 @@ function getMonthlyOffAllDriverNames(){
                         .filter(Boolean)
                         .filter((name, index, arr) => arr.indexOf(name) === index);
                     const offText = offNames.length ? offNames.join(', ') : '-';
+                    // 휴무자를 3명씩 한 줄로 묶어 줄바꿈
+                    let offLinesHtml = '-';
+                    if (offNames.length) {
+                        const _lines = [];
+                        for (let i = 0; i < offNames.length; i += 3) _lines.push(offNames.slice(i, i + 3).join(', '));
+                        offLinesHtml = _lines.map(l => `<div style="white-space:nowrap;">${l}</div>`).join('');
+                    }
                     offRowHtml += `<td colspan="2" style="min-width: ${dayColWidth * 2}px; padding:10px 8px !important; font-size:0.75rem !important; color:#15803d !important; vertical-align:middle; text-align:center; height:auto !important; min-height:64px !important; overflow:visible !important;" class="weekly-offday-name text-xs align-middle border-r border-slate-300 font-bold">` +
-                        `<div class="weekly-offday-inner" style="display:block;white-space:normal;overflow-wrap:anywhere;word-break:keep-all;line-height:1.45;font-size:0.75rem;font-weight:700;text-align:center;height:auto;overflow:visible;padding:2px 0;" title="${offText}">${offText}</div></td>`;
+                        `<div class="weekly-offday-inner" style="display:block;white-space:normal;overflow-wrap:anywhere;word-break:keep-all;line-height:1.45;font-size:0.75rem;font-weight:700;text-align:center;height:auto;overflow:visible;padding:2px 0;" title="${offText}">${offLinesHtml}</div></td>`;
                 }
                 offRowHtml += `</tr>`;
                 tbodyHtml += offRowHtml;
@@ -6772,9 +6779,17 @@ function getMonthlyOffAllDriverNames(){
             }
             el.innerHTML = headerHtml + `</tr>`;
 
+            // 정규기사: 가나다순 / 스페어: 순번순(스페어 목록 순서)
+            const _spareNames = (appData.spares || []).map(x => String(x || '').replace('(S)','').trim());
+            const _regNames = [];
+            getOrderedRouteEntries(appData.routes).forEach(([r, buses]) => buses.forEach(b => (b.drivers || []).forEach(d => {
+                const c = String(d || '').replace('(S)','').trim();
+                if (c && !_spareNames.includes(c) && !_regNames.includes(c)) _regNames.push(c);
+            })));
+            _regNames.sort((a, b) => a.localeCompare(b, 'ko'));
             let drivers = [];
-            getOrderedRouteEntries(appData.routes).forEach(([r, buses]) => buses.forEach(b => (b.drivers || []).forEach(d => drivers.push({ name: d, role: `${r} ${b.busNo}` }))));
-            appData.spares.forEach(s => drivers.push({ name: s, role: '스페어' }));
+            _regNames.forEach(n => drivers.push({ name: n, role: '정규' }));
+            _spareNames.forEach(n => { if (n) drivers.push({ name: n, role: '스페어' }); });
 
             let bodyHtml = '';
             drivers.forEach(drv => {
