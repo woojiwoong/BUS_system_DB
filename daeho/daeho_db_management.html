@@ -10,7 +10,7 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>대호교통 배차 및 휴무 관리 시스템</title>
+    <title>태진여객 배차 및 휴무 관리 시스템 - DB Ver 2.11</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
@@ -4610,7 +4610,7 @@ main{padding-top:18px !important;}
             //  - 휴무 직전 마지막 근무(연속 휴무면 전전날 등) 오전 → 복귀일 오후 우선
             //  - 휴무 직전 마지막 근무 오후 → 복귀일 오전 우선
             //  - 선호 교대 빈자리 없고 반대 교대 빈자리 있으면 반대 교대로 배차
-            //  - 연속 근무: 오후 → 다음날 오전 불가 / 오전 → 다음날 오후 가능
+            //  - 연속 근무: 전날 오후 → 당일 오전도 가능 (제한 없음)
             //  - 같은 날 동일 스페어 중복 배정 불가
             const { y, m } = getOffListTargetYearMonth();
             const mm = String(m).padStart(2, '0');
@@ -4684,12 +4684,8 @@ main{padding-top:18px !important;}
                                         const need = (last.shiftLabel === '오전') ? '오후' : '오전';
                                         if (shiftLabel !== need) continue; // 1차: 선호 교대만
                                     }
-                                } else {
-                                    // 연속 근무: 오후 → 다음날 오전 불가
-                                    if (shiftLabel === '오전' && last && last.day === d - 1 && last.shiftLabel === '오후') {
-                                        continue;
-                                    }
                                 }
+                                // (규칙 제거) 전날 오후 → 당일 오전 배차 제한 없음
                                 substitute = cand;
                                 break;
                             }
@@ -5775,7 +5771,7 @@ function getMonthlyOffAllDriverNames(){
             //  2) 휴무 직전 마지막 근무가 오후 → 복귀일 오전 우선
             //     (연속 휴무면 전날이 아니라 전전날·그 이전 실제 근무일 기준)
             //  3) 선호 교대 빈자리 없고 반대 교대 빈자리 있으면 → 반대 교대로 배차 (무조건 배차)
-            //  4) 연속 근무(휴무 없음): 오후 → 다음날 오전 불가 / 오전 → 다음날 오후 가능
+            //  4) 연속 근무(휴무 없음): 전날 오후 → 당일 오전도 가능 (제한 없음)
             //  5) 같은 날 동일 스페어 중복 배정 불가
             const spareLastWork = {}; // { [name]: { day, shift: '오전'|'오후' } }
             const spareWasOffYesterday = {}; // { [name]: true/false }
@@ -5819,9 +5815,7 @@ function getMonthlyOffAllDriverNames(){
                     if (Object.prototype.hasOwnProperty.call(preferredAfterOff, name)) {
                         return true; // 복귀 스페어: 오전·오후 모두 가능
                     }
-                    // 연속 근무: 전날 오후 → 당일 오전 불가
-                    const last = spareLastWork[name];
-                    if (last && last.day === d - 1 && last.shift === '오후') return false;
+                    // (규칙 제거) 전날 오후 → 당일 오전 배차 제한 없음
                     return true;
                 });
                 const afternoonEligible = (appData.spares || []).filter(s => {
@@ -6102,9 +6096,7 @@ function getMonthlyOffAllDriverNames(){
                 // 같은 교대 중복만 불가
                 const blockedDup = sameShiftAssigned.has(cleanName);
                 // 스페어: 전날 오후 근무 → 당일 오전 배차 불가
-                const blockedSpareRest = isSpare && shift === 'morning'
-                    && typeof spareWorkedAfternoonPreviousDay === 'function'
-                    && spareWorkedAfternoonPreviousDay(cleanName, dateKey);
+                const blockedSpareRest = false; // (규칙 제거) 전날 오후 → 오전 제한 없음
                 const blocked = blockedOff || blockedDup || blockedSpareRest;
 
                 let statusText = isOff ? "휴무" : "근무중";
@@ -6170,10 +6162,7 @@ function getMonthlyOffAllDriverNames(){
             }
 
             // 스페어: 오후 근무 다음날 오전 배차 불가
-            if (shift === 'morning' && cleanSelectedName && cleanSelectedName !== '운행종료'
-                && isSpareName(cleanSelectedName)
-                && typeof spareWorkedAfternoonPreviousDay === 'function'
-                && spareWorkedAfternoonPreviousDay(cleanSelectedName, dateKey)) {
+            if (false) { // (규칙 제거) 전날 오후 → 오전 제한 없음
                 showModal('스페어 교대 제한',
                     `${cleanSelectedName} 스페어는 전날 오후 근무가 있어
 다음날 오전 배차가 불가합니다.
@@ -6536,6 +6525,24 @@ function getMonthlyOffAllDriverNames(){
                 let tbodyHtml = '', allBuses = [];
                 getOrderedBusList(appData.routes).forEach(b => allBuses.push({ line: b.line, busNo: b.busNo }));
 
+                // ★ 주별통합 전용 중복근무 제거
+                // 같은 날짜의 같은 교대(오전 또는 오후)에 동일 기사가 여러 차량에
+                // 배정되어 있으면 노선/차량 정렬상 먼저 나오는 1건만 표시합니다.
+                // 원본 배차 데이터와 다른 탭의 통계는 변경하지 않습니다.
+                const weeklyShiftSeen = {};
+                const getWeeklyDisplayDriver = (dateKey, shift, rawAssignment) => {
+                    if (!rawAssignment) return rawAssignment;
+                    const clean = String(rawAssignment).replace('(S)', '').trim();
+                    if (!clean || clean === '운행종료' || clean === '미정') return rawAssignment;
+
+                    if (!weeklyShiftSeen[dateKey]) {
+                        weeklyShiftSeen[dateKey] = { morning: new Set(), afternoon: new Set() };
+                    }
+                    if (weeklyShiftSeen[dateKey][shift].has(clean)) return '운행종료';
+                    weeklyShiftSeen[dateKey][shift].add(clean);
+                    return rawAssignment;
+                };
+
                 allBuses.forEach((busItem, idx) => {
                     let lineTextColor = busItem.line.includes('15') ? 'text-red-600' : 'text-blue-600';
                     let rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40';
@@ -6552,7 +6559,13 @@ function getMonthlyOffAllDriverNames(){
                     let colIndex = 0;
                     for (let d = weekInfo.start; d <= weekInfo.end; d++) {
                         const dateKey = `${String(currentYear).substring(2)}-${currentMonth < 10 ? '0'+currentMonth : currentMonth}-${d < 10 ? '0'+d : d}`;
-                        const bMatch = getDailyAssignment(dateKey).busAssignments.find(b => b.line === busItem.line && b.busNo === busItem.busNo);
+                        const dayAssignment = getDailyAssignment(dateKey);
+                        const foundMatch = dayAssignment.busAssignments.find(b => b.line === busItem.line && b.busNo === busItem.busNo);
+                        const bMatch = foundMatch ? {
+                            ...foundMatch,
+                            morningAssigned: getWeeklyDisplayDriver(dateKey, 'morning', foundMatch.morningAssigned),
+                            afternoonAssigned: getWeeklyDisplayDriver(dateKey, 'afternoon', foundMatch.afternoonAssigned)
+                        } : null;
                         
                         let isGrayBg = (colIndex % 2 === 0);
                         let zigzagBg = isGrayBg ? 'bg-slate-100 text-slate-900' : 'bg-white text-slate-900';
