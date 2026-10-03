@@ -1631,9 +1631,20 @@ main{padding-top:18px !important;}
       let changed = 0;
       Object.keys(ov).forEach(key => {
         // key format: YY-MM-DD_노선_차량
-        // key = "YY-MM-DD_노선_차량" (노선에 _ 없을 가정, 있으면 중간 join)
         const parts = String(key).split('_');
         if (parts.length < 3) return;
+        // 일요일 교차만 제거 — 조휴무 다음날 교차근무 패턴은 유지
+        const datePart = parts[0]; // YY-MM-DD
+        const dp = String(datePart || '').split('-');
+        if (dp.length === 3) {
+          const y = 2000 + parseInt(dp[0], 10);
+          const m = parseInt(dp[1], 10);
+          const d = parseInt(dp[2], 10);
+          if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+            const dow = new Date(y, m - 1, d).getDay();
+            if (dow !== 0) return; // 일요일 아닌 교차는 패턴용으로 유지
+          }
+        }
         const busNo = parts[parts.length - 1];
         const routeName = parts.slice(1, -1).join('_');
         const buses = routes[routeName];
@@ -1647,7 +1658,6 @@ main{padding-top:18px !important;}
         if (!entry || typeof entry !== 'object') return;
         const cm = String(entry.morning || '').replace('(S)','').trim();
         const ca = String(entry.afternoon || '').replace('(S)','').trim();
-        // v2_37: 쌍 뒤바뀜뿐 아니라 한쪽만 교차된 저장값도 제거
         if (cm === n2) { delete entry.morning; changed++; }
         if (ca === n1) { delete entry.afternoon; changed++; }
       });
@@ -3299,7 +3309,7 @@ main{padding-top:18px !important;}
                             <thead>
                                 <tr>
                                     <th>노선<br><span class="th-sub">차량수</span></th>
-                                    <th>조별</th>
+                                    <th>조별<br><span class="th-sub">콤보 선택</span></th>
                                     <th>차량</th>
                                     <th>정규기사1</th>
                                     <th>정규기사2</th>
@@ -3596,12 +3606,10 @@ main{padding-top:18px !important;}
             return list;
         }
 
-        // 주별통합 행 정렬용 조 순번: 1-1 → 2-1 → 3-1 → … → 5-1 → 1-2 …
+        // 주별통합 행 정렬용 조 순번: 1-1 → 2-1 → 3-1 → … → 6-1 → 1-2 …
         // 즉 조 코드의 두 번째 번호를 먼저, 첫 번째 번호를 다음으로 정렬합니다.
         function getWeeklyJoSortKey(line, busNo) {
-            const key = `${line}|${busNo}|조`;
-            const raw = String((typeof monthlyOffListSelections !== 'undefined' && monthlyOffListSelections)
-                ? (monthlyOffListSelections[key] || '') : '').trim();
+            const raw = String(getJoCodeForBus(line, busNo) || '').trim();
             const m = raw.match(/^(\d+)\s*-\s*(\d+)$/);
             if (!m) return [9999, 9999, 9999, String(line || ''), String(busNo || '')];
             const group = Number(m[1]);
@@ -3679,6 +3687,221 @@ main{padding-top:18px !important;}
         window.getVehicleFlowPlate = getVehicleFlowPlate;
         window.rotateRight = rotateRight;
 
+        // ===== 정규기사 조 휴무 패턴 (6일 주기, 월 경계와 무관하게 연속) =====
+        // 기준일 2026-10-01: 1조 휴무, 10/2: 2조 … 10/5: 5조, 10/6: 휴무조 없음, 10/7: 1조 …
+        // 조휴무 다음 블록(5일)마다 오전↔오후 교차가 번갈아 적용 (12일 순환)
+        // ===== 조코드 고정 부여 (조선택 제거) =====
+        // 정규/스페어 정보 표시 순서(노선 → 차량번호)대로 5대씩 1조~6조:
+        // 1-1~1-5, 2-1~2-5, … 5-1~5-5, 6-1~6-4 (총 29대)
+        const JO_GROUP_COUNT = 6;
+        const JO_PER_GROUP = 5;
+        function joCodeFromIndex(i) {
+            if (!(i >= 0) || i >= 29) return ''; // 6-4까지(29대)
+            const g = Math.floor(i / JO_PER_GROUP) + 1;
+            const n = (i % JO_PER_GROUP) + 1;
+            return g > JO_GROUP_COUNT ? '' : (g + '-' + n);
+        }
+        let __joCodeMapSig = '';
+        let __joCodeMap = {};
+        const JO_CODE_LIST = (function () {
+            const arr = [];
+            for (let g = 1; g <= JO_GROUP_COUNT; g++) {
+                const max = (g === JO_GROUP_COUNT) ? 4 : JO_PER_GROUP;
+                for (let n = 1; n <= max; n++) arr.push(g + '-' + n);
+            }
+            return arr;
+        })();
+        function __joSelections() {
+            try {
+                if (typeof monthlyOffListSelections === 'object' && monthlyOffListSelections) return monthlyOffListSelections;
+            } catch (e) {}
+            return window.monthlyOffListSelections || {};
+        }
+        function getJoCodeMap() {
+            const routes = (typeof appData !== 'undefined' && appData && appData.routes) ? appData.routes : {};
+            const list = (typeof getOrderedBusList === 'function') ? getOrderedBusList(routes) : [];
+            const sel = __joSelections();
+            const valid = new Set(JO_CODE_LIST);
+            const sig = list.map(function (b) {
+                return b.line + '|' + b.busNo + '=' + String(sel[b.line + '|' + b.busNo + '|조'] || '');
+            }).join(',');
+            if (sig !== __joCodeMapSig) {
+                const map = {};
+                const used = new Set();
+                // 1) 콤보로 선택된 조코드 우선 (유효하고 중복 아닌 것만)
+                list.forEach(function (b) {
+                    const id = b.line + '|' + b.busNo;
+                    const v = String(sel[id + '|조'] || '').trim();
+                    if (valid.has(v) && !used.has(v)) { map[id] = v; used.add(v); }
+                });
+                // 2) 미선택 차량은 비어 있는 조코드를 차량 순서대로 채움 (선택이 없으면 1-1, 1-2, … 순서)
+                const free = JO_CODE_LIST.filter(function (c) { return !used.has(c); });
+                let fi = 0;
+                list.forEach(function (b) {
+                    const id = b.line + '|' + b.busNo;
+                    if (!map[id]) map[id] = (fi < free.length) ? free[fi++] : '';
+                });
+                __joCodeMap = map;
+                __joCodeMapSig = sig;
+            }
+            return __joCodeMap;
+        }
+        function getJoCodeForBus(line, busNo) {
+            return getJoCodeMap()[line + '|' + busNo] || '';
+        }
+        function getJoGroupForBus(line, busNo) {
+            const m = String(getJoCodeForBus(line, busNo) || '').match(/^(\d+)\s*-\s*(\d+)$/);
+            return m ? Number(m[1]) : 0;
+        }
+        window.joCodeFromIndex = joCodeFromIndex;
+        window.getJoCodeForBus = getJoCodeForBus;
+
+        /**
+         * 조 패턴 (월 경계와 무관하게 이어지는 연속 주기)
+         * - 기준일 2026-10-01 = 패턴 1일차(n=0). 달력 월과 상관없이 날짜 차이로만 계산합니다.
+         * - 6일 주기: 조휴무 1일 → 5일 근무 블록 → 조휴무 1일 → 5일 근무 블록 …
+         * - 조는 6개(1~6조). g조 휴무일: n = (g-1) + 6k  (1조 10/1, 2조 10/2 … 6조 10/6, 이후 6일마다)
+         *   → 매일 정확히 1개 조가 휴무
+         * - 교차근무: 근무 블록마다 오전↔오후가 번갈아 바뀜 (교차 블록 → 원래 블록 → 교차 블록 …)
+         *   → 같은 조의 완전한 순환 주기 = 12일
+         *   → 블록 번호 b = floor((n-(g-1))/6): b가 짝수면 교차(오전↔오후 맞바꿈), 홀수면 원래 근무
+         *   → 기준일 이전(b<0)도 같은 규칙으로 확장됨 (예: 2조 10/1 = 원래 근무)
+         */
+        const JO_PATTERN_EPOCH_UTC = Date.UTC(2026, 9, 1); // 2026-10-01
+        function __joResolveYM(year, month) {
+            let y = Number(year), m = Number(month);
+            if (!y) y = (typeof currentYear !== 'undefined' && currentYear) ? currentYear : 2026;
+            if (!m) m = (typeof currentMonth !== 'undefined' && currentMonth) ? currentMonth : 10;
+            return { y: y, m: m };
+        }
+        /** 기준일(2026-10-01)로부터의 일수 n (월이 바뀌어도 연속) */
+        function getJoPatternDayIndex(dayOfMonth, year, month) {
+            const ym = __joResolveYM(year, month);
+            const d = Number(dayOfMonth) || 1;
+            return Math.round((Date.UTC(ym.y, ym.m - 1, d) - JO_PATTERN_EPOCH_UTC) / 86400000);
+        }
+        /** g조의 해당일 위치: phase(0=휴무, 1..5=근무), block(근무 블록 번호) */
+        function getJoPatternPos(n, g) {
+            const t = n - (g - 1);
+            return { phase: ((t % 6) + 6) % 6, block: Math.floor(t / 6) };
+        }
+        function getPatternOffGroup(dayOfMonth, year, month) {
+            const n = getJoPatternDayIndex(dayOfMonth, year, month);
+            for (let g = 1; g <= JO_GROUP_COUNT; g++) {
+                if (getJoPatternPos(n, g).phase === 0) return g;
+            }
+            return 0;
+        }
+        /** 오늘 g조가 오전↔오후 교차(맞바꿈) 상태인지 — 블록마다 번갈아 */
+        function isPatternCrossDayForGroup(dayOfMonth, groupNum, year, month) {
+            const g = Number(groupNum) || 0;
+            if (!g || g < 1 || g > JO_GROUP_COUNT) return false;
+            const n = getJoPatternDayIndex(dayOfMonth, year, month);
+            const pos = getJoPatternPos(n, g);
+            if (pos.phase === 0) return false; // 휴무일
+            return (((pos.block % 2) + 2) % 2) === 0;
+        }
+        function getPatternCrossGroups(dayOfMonth, year, month) {
+            const list = [];
+            for (let g = 1; g <= JO_GROUP_COUNT; g++) {
+                if (isPatternCrossDayForGroup(dayOfMonth, g, year, month)) list.push(g);
+            }
+            return list;
+        }
+        function getPatternCrossGroup(dayOfMonth, year, month) {
+            // 표시/검증용: 오늘 교차인 조들 중 대표(여러 조 가능)
+            const list = getPatternCrossGroups(dayOfMonth, year, month);
+            return list.length ? list[0] : 0;
+        }
+        /** 해당 조에 속한 정규기사 이름 목록 */
+        function getRegularDriversInJoGroup(groupNum, routesObj) {
+            const names = [];
+            const routes = routesObj || (appData && appData.routes) || {};
+            Object.keys(routes).forEach(routeName => {
+                (routes[routeName] || []).forEach(bus => {
+                    if (getJoGroupForBus(routeName, bus.busNo) !== groupNum) return;
+                    const d0 = String((bus.drivers && bus.drivers[0]) || '').replace('(S)','').trim();
+                    const d1 = String((bus.drivers && bus.drivers[1]) || '').replace('(S)','').trim();
+                    if (d0 && d0 !== '미정' && !names.includes(d0)) names.push(d0);
+                    if (d1 && d1 !== '미정' && !names.includes(d1)) names.push(d1);
+                    // 권위 소스도 포함
+                    if (typeof getAuthoritativeDriverForVehicle === 'function') {
+                        const a0 = String(getAuthoritativeDriverForVehicle(routeName, bus.busNo, 'morning') || '').replace('(S)','').trim();
+                        const a1 = String(getAuthoritativeDriverForVehicle(routeName, bus.busNo, 'afternoon') || '').replace('(S)','').trim();
+                        if (a0 && a0 !== '미정' && !names.includes(a0)) names.push(a0);
+                        if (a1 && a1 !== '미정' && !names.includes(a1)) names.push(a1);
+                    }
+                });
+            });
+            return names;
+        }
+        window.getJoGroupForBus = getJoGroupForBus;
+        window.getPatternOffGroup = getPatternOffGroup;
+        window.getJoPatternDayIndex = getJoPatternDayIndex;
+        window.getPatternCrossGroup = getPatternCrossGroup;
+        window.isPatternCrossDayForGroup = isPatternCrossDayForGroup;
+        window.getPatternCrossGroups = getPatternCrossGroups;
+        /** 조휴무/교차 패턴 전체 일자 검증 (콘솔) — 월 경계 연속성 포함 */
+        function verifyJoOffCrossPattern(year, month) {
+            const y = year || currentYear;
+            const m = month || currentMonth;
+            const total = getDaysInMonth(y, m);
+            const rows = [];
+            for (let d = 1; d <= total; d++) {
+                const offG = getPatternOffGroup(d, y, m);
+                const crossGs = getPatternCrossGroups(d, y, m);
+                rows.push({
+                    date: y + '-' + String(m).padStart(2,'0') + '-' + String(d).padStart(2,'0'),
+                    day: d,
+                    dow: getDayOfWeekStr(y, m, d),
+                    offGroup: offG ? (offG + '조 휴무') : '-',
+                    crossGroups: crossGs.length ? crossGs.join(',') + '조 교차' : '-'
+                });
+            }
+            console.table(rows);
+            // 연속성 검증: 2026-10 ~ 2027-03 모든 조의 휴무 간격이 정확히 6일인지
+            let allOk = true;
+            for (let g = 1; g <= JO_GROUP_COUNT; g++) {
+                let last = null;
+                for (let k = 0; k < 190; k++) {
+                    const dt = new Date(Date.UTC(2026, 9, 1 + k));
+                    const yy = dt.getUTCFullYear(), mm = dt.getUTCMonth() + 1, dd = dt.getUTCDate();
+                    if (getPatternOffGroup(dd, yy, mm) === g) {
+                        if (last !== null && (k - last) !== 6) { allOk = false; console.warn('[검증 FAIL] ' + g + '조 휴무 간격', k - last, yy + '-' + mm + '-' + dd); }
+                        last = k;
+                    }
+                }
+            }
+            let dailyOk = true;
+            for (let k = 0; k < 190; k++) {
+                const dt = new Date(Date.UTC(2026, 9, 1 + k));
+                if (!getPatternOffGroup(dt.getUTCDate(), dt.getUTCFullYear(), dt.getUTCMonth() + 1)) { dailyOk = false; console.warn('[검증 FAIL] 휴무 조 없는 날', dt.toISOString().slice(0,10)); }
+            }
+            console.log('[검증 월경계 연속(6일 간격)]', allOk ? 'ALL OK' : 'HAS FAIL', '/ 매일 1개 조 휴무', dailyOk ? 'OK' : 'FAIL');
+            // 블록별 교차/원래 번갈아 검증 (1조: 10/2~6 교차, 10/8~12 원래, 10/14~18 교차)
+            const exp = [[2,true],[6,true],[7,null],[8,false],[12,false],[13,null],[14,true],[18,true]];
+            let ok2 = true;
+            exp.forEach(([d, e]) => {
+                const off = getPatternOffGroup(d, 2026, 10) === 1;
+                const got = off ? null : isPatternCrossDayForGroup(d, 1, 2026, 10);
+                if (got !== e) { ok2 = false; console.warn('[검증 FAIL] 1조 10/' + d, got, '기대', e); }
+            });
+            console.log('[검증 1조 교차 번갈아]', ok2 ? 'ALL OK' : 'HAS FAIL');
+            // 실데이터: 1조 차량 수
+            try {
+                let g1 = 0, totalB = 0;
+                getOrderedBusList(appData.routes || {}).forEach(b => {
+                    totalB++;
+                    if (getJoGroupForBus(b.line, b.busNo) === 1) g1++;
+                });
+                console.log('[검증] 전체차량', totalB, '/ 1조 판정', g1, g1 ? 'OK' : 'WARN: 1조 차량 0대 — 조 코드 확인 필요');
+            } catch (e) {}
+            return rows;
+        }
+        window.verifyJoOffCrossPattern = verifyJoOffCrossPattern;
+
+        window.getRegularDriversInJoGroup = getRegularDriversInJoGroup;
+
         // ===== 10/4(일) 패턴 검증 (개발 확인용) =====
         // 2026-10-01 목 shift0 → 10/4 일 shift19, 첫 차량 부산70자4706
         (function verifyVehicleFlowPatternOct4() {
@@ -3689,6 +3912,15 @@ main{padding-top:18px !important;}
                 console.log('[배차흐름 패턴 검증 10/4]', ok ? 'OK' : 'FAIL', { idx, first: order.slice(0, 3) });
             } catch (e) { console.warn('[배차흐름 패턴 검증]', e); }
         })();
+        // 조휴무 패턴 검증 (10월 전체)
+        setTimeout(function() {
+            try {
+                if (typeof verifyJoOffCrossPattern === 'function') {
+                    console.log('=== 조휴무/교차 패턴 검증 2026-10 ===');
+                    verifyJoOffCrossPattern(2026, 10);
+                }
+            } catch (e) { console.warn(e); }
+        }, 500);
 
         function getDayOfWeekStr(year, month, dayNum) {
             const days = ['일', '월', '화', '수', '목', '금', '토'];
@@ -5122,23 +5354,20 @@ main{padding-top:18px !important;}
             return String(busNo || '').replace(/\s*호\s*$/g, '').trim();
         }
 
-        // 조별 콤보 옵션: 1-1~1-6, 2-1~2-6, … 5-1~5-6
-
+        // 조별 항목: 1-1~1-5, 2-1~2-5, … 5-1~5-5, 6-1~6-4 (고정 표시, 선택 불가)
         function getJoGroupOptions() {
             const opts = [];
-            for (let g = 1; g <= 5; g++) {
-                for (let n = 1; n <= 6; n++) opts.push(g + '-' + n);
+            for (let g = 1; g <= 6; g++) {
+                const max = (g === 6) ? 4 : 5;
+                for (let n = 1; n <= max; n++) opts.push(g + '-' + n);
             }
             return opts;
         }
         function monthlyOffJoOptions(selected) {
-            // 1-1 ~ 1-6, 2-1 ~ 2-6, … 5-1 ~ 5-6 전체 표시 (예: 1-3 그대로)
-            const opts = getJoGroupOptions();
             const sel = String(selected || '').trim();
-            let html = '<option value="">조선택</option>';
-            opts.forEach(function (v) {
-                const safe = String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-                html += '<option value="' + safe + '"' + (v === sel ? ' selected' : '') + '>' + safe + '</option>';
+            let html = '';
+            getJoGroupOptions().forEach(function (v) {
+                html += '<option value="' + v + '"' + (v === sel ? ' selected' : '') + '>' + v + '</option>';
             });
             return html;
         }
@@ -5343,6 +5572,20 @@ main{padding-top:18px !important;}
         }
 
         function updateMonthlyOffListSelection(key, value){
+            // 조별 콤보: 이미 다른 차량이 쓰는 조코드를 고르면 서로 맞교환 (조코드는 차량마다 고유)
+            if (String(key).endsWith('|조')) {
+                const id = String(key).slice(0, -2);
+                const map = getJoCodeMap();
+                const prevCode = map[id] || '';
+                const nextCode = String(value || '').trim();
+                if (!nextCode || nextCode === prevCode) { renderMonthlyOffListView(); return; }
+                const otherId = Object.keys(map).find(function (k) { return k !== id && map[k] === nextCode; });
+                monthlyOffListSelections[key] = nextCode;
+                if (otherId && prevCode) monthlyOffListSelections[otherId + '|조'] = prevCode;
+                try { window.monthlyOffListDirty = true; } catch (e) {}
+                renderMonthlyOffListView();
+                return;
+            }
             const el = document.querySelector(`select[data-monthly-off-key="${CSS.escape(key)}"]`);
             const nextValue = value || '';
             const previousValue = monthlyOffListSelections[key] || '';
@@ -5720,7 +5963,7 @@ function getMonthlyOffAllDriverNames(){
                 }
                 return {
                     date: d,
-                    drivers: [...new Set((e && e.drivers || []).map(n => String(n || '').replace('(S)','').trim()).filter(Boolean))]
+                    drivers: expandOffListToDriverNames((e && e.drivers) || [])
                 };
             }).filter(e => e.date && /^\d{4}-\d{2}-\d{2}$/.test(e.date) && e.drivers.length);
 
@@ -5873,23 +6116,23 @@ function getMonthlyOffAllDriverNames(){
                 ? getOrderedRouteEntries(displayRoutes || {})
                 : Object.entries(displayRoutes || {}).sort((a, b) => routeOrderRank(a[0]) - routeOrderRank(b[0]));
 
+            let __joRowIdx = -1;
             orderedRouteEntries.forEach(([routeName, buses]) => {
                 (buses || []).forEach((bus, idx) => {
+                    __joRowIdx++;
                     const key1 = `${routeName}|${bus.busNo}|1`;
                     const key2 = `${routeName}|${bus.busNo}|2`;
                     if (!dbSelectionsAuthoritative) {
                         if (!(key1 in monthlyOffListSelections)) monthlyOffListSelections[key1] = '';
                         if (!(key2 in monthlyOffListSelections)) monthlyOffListSelections[key2] = '';
                     }
-                    const keyJo = `${routeName}|${bus.busNo}|조`;
-                    if (!dbSelectionsAuthoritative && !(keyJo in monthlyOffListSelections)) monthlyOffListSelections[keyJo] = '';
                     const routeLabel = formatRouteDisplay(routeName);
                     const busLabel = formatBusDisplay(bus.busNo);
                     const busCount = (buses || []).length;
                     const routeCls = (String(routeName).includes('15') ? 'route15' : String(routeName).includes('19') ? 'route19' : '');
                     rows.push(`<tr>
                         ${idx===0 ? `<td class="route-cell ${routeCls}" rowspan="${buses.length}"><div class="route-num">${esc(routeLabel)}</div><div class="route-bus-count">${busCount}대</div></td>` : ''}
-                        <td><select class="monthly-off-jo-select" data-monthly-off-key="${esc(keyJo)}" onchange="updateMonthlyOffListSelection('${esc(keyJo)}', this.value)">${monthlyOffJoOptions(monthlyOffListSelections[keyJo] || '')}</select></td>
+                        <td><select class="monthly-off-jo-select" style="min-width:64px;width:100%;height:30px;border:1px solid #6366f1;border-radius:8px;background:#fff;color:#4338ca !important;font-weight:800;text-align:center;-webkit-appearance:menulist;appearance:auto;cursor:pointer" data-monthly-off-key="${esc(routeName + '|' + bus.busNo + '|조')}" onchange="updateMonthlyOffListSelection('${esc(routeName + '|' + bus.busNo + '|조')}', this.value)">${monthlyOffJoOptions(getJoCodeForBus(routeName, bus.busNo) || joCodeFromIndex(__joRowIdx))}</select></td>
                         <td class="bus-cell">${esc(busLabel)}</td>
                         <td><select class="monthly-off-driver-select" data-monthly-off-key="${esc(key1)}" onchange="updateMonthlyOffListSelection('${esc(key1)}', this.value)">${monthlyOffListOptions(comboDrivers, monthlyOffListSelections[key1] || '')}</select></td>
                         <td><select class="monthly-off-driver-select" data-monthly-off-key="${esc(key2)}" onchange="updateMonthlyOffListSelection('${esc(key2)}', this.value)">${monthlyOffListOptions(comboDrivers, monthlyOffListSelections[key2] || '')}</select></td>
@@ -6467,11 +6710,18 @@ function getMonthlyOffAllDriverNames(){
             }
             // v2_34: 입력(노선·스페어·휴무·수동배차·휴무표시)이 그대로면 직전 계산 결과 재사용 (성능)
             // 입력이 하나라도 바뀌면 지문이 달라져 자동으로 재계산되므로 예전 값이 남지 않음
+            // 패턴 버전 포함 → 패턴 변경 시 캐시 무효화
             let __simSig = '';
-            try { __simSig = cacheKey + '|' + JSON.stringify([appData.routes, appData.spares, appData.offDays, ovMap, offMap]); } catch (e) { __simSig = ''; }
+            try { __simSig = cacheKey + '|joCycle6v5|' + JSON.stringify([appData.routes, appData.spares, appData.offDays, ovMap, offMap, getJoCodeMap()]); } catch (e) { __simSig = ''; }
+            // 강제 캐시 무시 플래그
+            if (window.__forceResim) {
+                monthlySimulationCache = null;
+                window.__simSigLast = '';
+                window.__forceResim = false;
+            }
             if (__simSig && monthlySimulationCache && window.__simSigLast === __simSig) return monthlySimulationCache;
 
-            // 스페어 교대 패턴 (주별통합 테이블) — 정규기사 일요일 교차근무는 없음:
+            // 스페어 교대 패턴 + 정규 조휴무(6일주기, 월 경계 연속) + 블록마다 번갈아 교차근무:
             //  1) 휴무 직전 마지막 근무가 오전 → 복귀일 오후 우선
             //  2) 휴무 직전 마지막 근무가 오후 → 복귀일 오전 우선
             //     (연속 휴무면 전날이 아니라 전전날·그 이전 실제 근무일 기준)
@@ -6497,6 +6747,17 @@ function getMonthlyOffAllDriverNames(){
                     .map(n => normSpare(n)).filter(Boolean);
                 let offList = [...baseOffList];
                 const isSun = isSunday(dateKey, targetYear);
+
+                // ===== 조 휴무 패턴: 기준일(2026-10-01)부터 연속 6일 주기 =====
+                const __offGrp = (typeof getPatternOffGroup === 'function') ? getPatternOffGroup(d, targetYear, targetMonth) : 0;
+                const __crossGrp = (typeof getPatternCrossGroup === 'function') ? getPatternCrossGroup(d, targetYear, targetMonth) : 0;
+                if (__offGrp && typeof getRegularDriversInJoGroup === 'function') {
+                    const patternOffNames = getRegularDriversInJoGroup(__offGrp, appData.routes);
+                    patternOffNames.forEach(nm => {
+                        const cn = normSpare(nm);
+                        if (cn && !offList.includes(cn) && !offList.includes(nm)) offList.push(cn);
+                    });
+                }
 
                 // 휴무 복귀일 교대 (주별통합 스페어 규칙):
                 //  - spareLastWork = 연속 휴무 직전 '마지막 실제 근무일' (전날·전전날·그 이전 모두 가능)
@@ -6594,24 +6855,44 @@ function getMonthlyOffAllDriverNames(){
                             const d1 = String(bus.drivers[1] || '').replace('(S)','').trim();
                             if (d0 && d1 && d0 !== d1) { base1 = d0; base2 = d1; }
                         }
-                        // ★ v2_32: 교차근무 완전 금지 — 모든 요일 오전=drivers[0], 오후=drivers[1]
+                        // 기본: 오전=drivers[0], 오후=drivers[1]
+                        // 교차 블록(조휴무 사이 5일, 블록마다 번갈아)이면 오전↔오후 교대
                         let mReg = base1;
                         let aReg = base2;
-                        let mOff = offList.includes(mReg) || offList.includes(normSpare(mReg));
-                        let aOff = offList.includes(aReg) || offList.includes(normSpare(aReg));
+                        const __busJo = (typeof getJoGroupForBus === 'function') ? getJoGroupForBus(routeName, bus.busNo) : 0;
+                        const __doCross = (typeof isPatternCrossDayForGroup === 'function')
+                            ? isPatternCrossDayForGroup(d, __busJo, targetYear, targetMonth)
+                            : (__crossGrp && __busJo && __busJo === __crossGrp);
+                        if (__doCross && base1 && base2 && base1 !== base2
+                            && base1 !== '미정' && base2 !== '미정') {
+                            mReg = base2;
+                            aReg = base1;
+                        }
+                        // 조휴무: 해당 조 차량은 오전·오후 모두 휴무 처리
+                        const __isJoOff = (__offGrp && __busJo && __busJo === __offGrp);
+                        let mOff = __isJoOff || offList.includes(mReg) || offList.includes(normSpare(mReg));
+                        let aOff = __isJoOff || offList.includes(aReg) || offList.includes(normSpare(aReg));
                         let mAssigned = "", aAssigned = "";
 
-                        if (mOff && aOff && isSun) {
+                        if (mOff && aOff && (__isJoOff || isSun)) {
+                            // 조휴무(또는 일요일 쌍휴무): 차량 운행종료
                             mAssigned = "운행종료"; aAssigned = "운행종료";
                         } else {
                             mAssigned = !mOff ? mReg : (takeMorningSpare(1) || '');
                             aAssigned = !aOff ? aReg : (takeAfternoonSpare(1) || '');
                         }
-                        pendingRows.push({ routeName, busNo: bus.busNo, mReg, aReg, mOff, aOff, mAssigned, aAssigned });
+                        pendingRows.push({ routeName, busNo: bus.busNo, mReg, aReg, mOff, aOff, mAssigned, aAssigned, joOff: !!__isJoOff, doCross: !!__doCross });
                     });
                 });
                 // 2차: 아직 비어 있는 대체 슬롯에 폴백(반대 교대 선호) 스페어 투입 → 무조건 배차
                 pendingRows.forEach(row => {
+                    // 조휴무 차량: 무조건 운행종료 유지
+                    if (row.joOff) {
+                        row.mAssigned = '운행종료';
+                        row.aAssigned = '운행종료';
+                        return;
+                    }
+                    if (row.mAssigned === '운행종료' && row.aAssigned === '운행종료') return;
                     if (row.mOff && !row.mAssigned) {
                         row.mAssigned = takeMorningSpare(2) || '운행종료';
                     }
@@ -6641,22 +6922,10 @@ function getMonthlyOffAllDriverNames(){
                                 else if (String(ov.afternoon).replace('(S)','').trim() === '운행종료') aAssigned = '운행종료';
                             }
                         }
-
-                        // ★ v2_32: 예전 일요일 교차근무로 저장된 오버라이드 복구
-                        // 같은 차량의 두 정규기사(mReg/aReg)만 오전↔오후로 뒤바뀐 경우 → 원래 조로 되돌림
-                        // (스페어 대체·운행종료·다른 차량 기사 투입은 유지)
-                        {
-                            const n1 = String(mReg || '').replace('(S)', '').trim();
-                            const n2 = String(aReg || '').replace('(S)', '').trim();
-                            const cm = String(mAssigned || '').replace('(S)', '').trim();
-                            const ca = String(aAssigned || '').replace('(S)', '').trim();
-                            const isPair = (n1 && n2 && n1 !== n2 && n1 !== '미정' && n2 !== '미정');
-                            // v2_37: 같은 차량의 오후 정규기사가 오전에, 또는 오전 정규기사가 오후에 들어가는
-                            // 교차 배차는 (한쪽만이어도) 모두 차단하고 오버라이드 적용 전 값으로 되돌림
-                            if (isPair) {
-                                if (cm === n2) mAssigned = __autoM;
-                                if (ca === n1) aAssigned = __autoA;
-                            }
+                        // 조휴무는 오버라이드 후에도 운행종료 강제 (10/1~3 등 표시 누락 방지)
+                        if (row.joOff) {
+                            mAssigned = '운행종료';
+                            aAssigned = '운행종료';
                         }
 
                         // 최종 배차 결과를 기준으로 스페어 투입차량을 기록합니다.
@@ -6676,27 +6945,19 @@ function getMonthlyOffAllDriverNames(){
                             usedSparesToday.add(cleanA);
                         }
 
-                        // 오전/오후가 같은 기사로 남은 경우 복구
-                        {
+                                                // 오전/오후가 같은 기사로 남은 경우만 복구 (의도된 교차·조휴무는 유지)
+                        if (!row.joOff && !row.doCross) {
                             const cm = String(mAssigned || '').replace('(S)', '').trim();
                             const ca = String(aAssigned || '').replace('(S)', '').trim();
                             const n1 = String(mReg || '').replace('(S)', '').trim();
                             const n2 = String(aReg || '').replace('(S)', '').trim();
-                            // 1) 정규 2명이 다른데 동일 이름으로 합쳐짐 → 원래 조로 복구
                             if (cm && ca && cm === ca && n1 && n2 && n1 !== n2
                                 && cm !== '운행종료' && cm !== '미정') {
                                 mAssigned = n1;
                                 aAssigned = n2;
                             }
-                            // 2) 교차로 뒤바뀐 경우 추가 차단 (이미 위에서 처리하나 최종 재확인)
-                            if (n1 && n2 && n1 !== n2) {
-                                if (String(mAssigned||'').replace('(S)','').trim() === n2
-                                    && String(aAssigned||'').replace('(S)','').trim() === n1) {
-                                    mAssigned = n1;
-                                    aAssigned = n2;
-                                }
-                            }
                         }
+
                         busAssignments.push({ line: routeName, busNo: bus.busNo, morningRegular: mReg, afternoonRegular: aReg, morningAssigned: mAssigned, afternoonAssigned: aAssigned, morningIsOff: mOff, afternoonIsOff: aOff });
                 });
                 // 주별통합·전체 탭 휴무자 표시:
@@ -6721,9 +6982,41 @@ function getMonthlyOffAllDriverNames(){
                 });
                 displayOffList = displayOffList.filter(n => {
                     const cn = String(n || '').replace('(S)', '').trim();
-                    return cn && !workingToday.has(cn);
+                    if (!cn || workingToday.has(cn)) return false;
+                    // 조별코드(1-1, 2조 등)는 휴무자 명단에서 제외 → 기사명만
+                    if (typeof isDriverGroupValue === 'function' && isDriverGroupValue(cn)) return false;
+                    return true;
                 });
-                dailySimResults[dateKey] = { offList: displayOffList, busAssignments, assignedSpares };
+                // 조휴무 패턴으로 들어간 이름 표시용 (조 번호 일치 차량의 정규기사)
+                const patternOffSet = new Set();
+                if (__offGrp) {
+                    if (typeof getRegularDriversInJoGroup === 'function') {
+                        getRegularDriversInJoGroup(__offGrp, appData.routes).forEach(nm => {
+                            const cn = normSpare(nm);
+                            if (cn) patternOffSet.add(cn);
+                        });
+                    }
+                    // 배정 결과에서도 조휴무 차량 정규기사 보강
+                    (busAssignments || []).forEach(b => {
+                        const gj = (typeof getJoGroupForBus === 'function') ? getJoGroupForBus(b.line, b.busNo) : 0;
+                        if (gj === __offGrp) {
+                            [b.morningRegular, b.afternoonRegular].forEach(nm => {
+                                const cn = normSpare(nm);
+                                if (cn && cn !== '미정' && cn !== '운행종료') patternOffSet.add(cn);
+                            });
+                        }
+                    });
+                }
+                // 휴무자 목록에 조휴무 기사 반드시 포함
+                patternOffSet.forEach(cn => {
+                    if (cn && !displayOffList.includes(cn)) displayOffList.push(cn);
+                });
+                dailySimResults[dateKey] = {
+                    offList: displayOffList,
+                    busAssignments,
+                    assignedSpares,
+                    patternOffNames: Array.from(patternOffSet)
+                };
 
                 // 다음날 패턴용: 오늘 휴무 여부 기록 (근무한 스페어의 lastWork는 위에서 갱신됨)
                 (appData.spares || []).forEach(s => {
@@ -6746,6 +7039,102 @@ function getMonthlyOffAllDriverNames(){
             const v = String(value || '').replace('(S)','').trim();
             return /^\d+\s*-\s*\d+$/.test(v) || /^\d+\s*조$/.test(v);
         }
+
+        /** 기사명 → 조 코드 (예: 1-1). 없으면 빈 문자열 */
+        function getJoCodeForDriverName(driverName) {
+            const name = String(driverName || '').replace('(S)','').trim();
+            if (!name || isDriverGroupValue(name)) return '';
+            const sel = (typeof monthlyOffListSelections === 'object' && monthlyOffListSelections)
+                ? monthlyOffListSelections : (window.monthlyOffListSelections || {});
+            const routes = (appData && appData.routes) || {};
+            let found = '';
+            Object.keys(routes).forEach(routeName => {
+                if (found) return;
+                (routes[routeName] || []).forEach(bus => {
+                    if (found) return;
+                    const d0 = String((bus.drivers && bus.drivers[0]) || '').replace('(S)','').trim();
+                    const d1 = String((bus.drivers && bus.drivers[1]) || '').replace('(S)','').trim();
+                    let a0 = '', a1 = '';
+                    if (typeof getAuthoritativeDriverForVehicle === 'function') {
+                        a0 = String(getAuthoritativeDriverForVehicle(routeName, bus.busNo, 'morning') || '').replace('(S)','').trim();
+                        a1 = String(getAuthoritativeDriverForVehicle(routeName, bus.busNo, 'afternoon') || '').replace('(S)','').trim();
+                    }
+                    if (name === d0 || name === d1 || name === a0 || name === a1) {
+                        found = String(getJoCodeForBus(routeName, bus.busNo) || '').trim();
+                        if (!found) {
+                            const g = (typeof getJoGroupForBus === 'function') ? getJoGroupForBus(routeName, bus.busNo) : 0;
+                            if (g) found = g + '조';
+                        }
+                    }
+                });
+            });
+            return found;
+        }
+
+        /** 조코드(1-1) 또는 N조 값을 기사이름 목록으로 변환 — 월간휴무대장은 조코드 대신 기사이름만 표시 */
+        function resolveGroupValueToDriverNames(value) {
+            const raw = String(value || '').replace('(S)', '').trim();
+            if (!raw) return [];
+            const clean = function (n) { return String(n || '').replace('(S)', '').trim(); };
+            let m = raw.match(/^(\d+)\s*-\s*(\d+)$/);
+            if (m) {
+                const code = m[1] + '-' + m[2];
+                const map = getJoCodeMap();
+                const id = Object.keys(map).find(function (k) { return map[k] === code; });
+                if (!id) return [];
+                const cut = id.indexOf('|');
+                const line = id.slice(0, cut), bus = id.slice(cut + 1);
+                const out = [];
+                ['morning', 'afternoon'].forEach(function (sh) {
+                    const nm = clean(getAuthoritativeDriverForVehicle(line, bus, sh));
+                    if (nm && !isDriverGroupValue(nm) && nm !== '운행종료' && !out.includes(nm)) out.push(nm);
+                });
+                return out;
+            }
+            m = raw.match(/^(\d+)\s*조$/);
+            if (m) {
+                const names = (typeof getRegularDriversInJoGroup === 'function')
+                    ? getRegularDriversInJoGroup(Number(m[1]), (appData && appData.routes) || {}) : [];
+                return names.map(clean).filter(function (n) { return n && !isDriverGroupValue(n); });
+            }
+            return [raw];
+        }
+        function expandOffListToDriverNames(list) {
+            const out = [];
+            (list || []).forEach(function (v) {
+                resolveGroupValueToDriverNames(v).forEach(function (n) {
+                    const nm = String(n || '').replace('(S)', '').trim();
+                    if (nm && nm !== '운행종료' && !isDriverGroupValue(nm) && !out.includes(nm)) out.push(nm);
+                });
+            });
+            return out;
+        }
+        window.expandOffListToDriverNames = expandOffListToDriverNames;
+
+        /**
+         * 휴무자 표시용: 조별코드 제외, 기사명 + 조코드
+         * 예: "홍길동(1-1)", 조휴무면 "홍길동(1-1)(조휴무)"
+         */
+        function formatOffDisplayName(rawName, isPatternOff) {
+            let n = String(rawName || '').replace('(S)','').trim();
+            if (!n || n === '운행종료') return '';
+            // 조별코드만 있으면 기사명으로 변환 시도
+            if (isDriverGroupValue(n)) {
+                const gMatch = n.match(/^(\d+)/);
+                const g = gMatch ? Number(gMatch[1]) : 0;
+                const names = (g && typeof getRegularDriversInJoGroup === 'function')
+                    ? getRegularDriversInJoGroup(g, (appData && appData.routes) || {}) : [];
+                // 조코드만 있는 항목은 개별 기사로 펼치지 않고 스킵 (기사는 별도 항목으로 옴)
+                return '';
+            }
+            const jo = getJoCodeForDriverName(n);
+            let label = n;
+            if (jo) label += '(' + jo + ')';
+            if (isPatternOff) label += '(조휴무)';
+            return label;
+        }
+        window.getJoCodeForDriverName = getJoCodeForDriverName;
+        window.formatOffDisplayName = formatOffDisplayName;
 
         function getAuthoritativeDriverForVehicle(line, busNo, shift) {
             const key = `${line}|${busNo}|${shift === 'afternoon' || shift === 2 ? 2 : 1}`;
@@ -7499,6 +7888,12 @@ function getMonthlyOffAllDriverNames(){
                                 if (isSpare) {
                                     return `<div class="flex items-center justify-center px-0.5 py-1 text-center text-blue-600 font-black text-sm truncate w-full blue-underline" title="${clean} (스페어)">${clean}</div>`;
                                 }
+                                // 이름 밑에 조코드(예: 1-1) 표시 — 기사 본인의 정규 차량 조코드 기준
+                                let __joCode = '';
+                                try { __joCode = (typeof getJoCodeForDriverName === 'function') ? String(getJoCodeForDriverName(clean) || '').trim() : ''; } catch (e) { __joCode = ''; }
+                                if (__joCode) {
+                                    return `<div class="flex flex-col items-center justify-center px-0.5 py-1 text-center w-full leading-tight" title="${clean} (${__joCode})"><span class="text-slate-950 font-black text-sm truncate w-full">${clean}</span><span class="weekly-jo-code text-[10px] font-bold text-slate-500 leading-none mt-0.5">${__joCode}</span></div>`;
+                                }
                                 return `<div class="flex items-center justify-center px-0.5 py-1 text-center text-slate-950 font-black text-sm truncate w-full" title="${clean}">${clean}</div>`;
                             }
 
@@ -7545,15 +7940,26 @@ function getMonthlyOffAllDriverNames(){
                 for (let d = weekInfo.start; d <= weekInfo.end; d++) {
                     const dateKey = `${String(currentYear).substring(2)}-${currentMonth < 10 ? '0'+currentMonth : currentMonth}-${d < 10 ? '0'+d : d}`;
                     const dayData = getDailyAssignment(dateKey);
+                    const patternOffSet = new Set((dayData.patternOffNames || []).map(n => String(n || '').replace('(S)','').trim()).filter(Boolean));
                     const offNames = (dayData.offList || [])
                         .map(name => String(name || '').replace('(S)', '').trim())
                         .filter(Boolean)
-                        .filter((name, index, arr) => arr.indexOf(name) === index);
+                        .filter((name, index, arr) => arr.indexOf(name) === index)
+                        .filter(name => !(typeof isDriverGroupValue === 'function' && isDriverGroupValue(name)));
+                    const offLabel = (n) => {
+                        if (typeof formatOffDisplayName === 'function') {
+                            return formatOffDisplayName(n, patternOffSet.has(n)) || n;
+                        }
+                        const jo = (typeof getJoCodeForDriverName === 'function') ? getJoCodeForDriverName(n) : '';
+                        let s = n + (jo ? '(' + jo + ')' : '');
+                        if (patternOffSet.has(n)) s += '(조휴무)';
+                        return s;
+                    };
                     const offPairs = [];
                     for (let oi = 0; oi < offNames.length; oi += 2) offPairs.push(offNames.slice(oi, oi + 2));
-                    const offText = offNames.length ? offNames.join(', ') : '-';
+                    const offText = offNames.length ? offNames.map(offLabel).join(', ') : '-';
                     const offHtml = offPairs.length
-                        ? offPairs.map(pair => `<div class="weekly-offday-pair">${pair.map(n => `<span class="weekly-offday-driver-name">${String(n).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>`).join('<span class="weekly-offday-gap">, </span>')}</div>`).join('')
+                        ? offPairs.map(pair => `<div class="weekly-offday-pair">${pair.map(n => `<span class="weekly-offday-driver-name">${String(offLabel(n)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>`).join('<span class="weekly-offday-gap">, </span>')}</div>`).join('')
                         : '<div class="weekly-offday-pair">-</div>';
                     offRowHtml += `<td colspan="3" style="min-width: ${dayColWidth * 3}px; padding:10px 8px !important; font-size:0.75rem !important; color:#15803d !important; vertical-align:middle; text-align:center; height:auto !important; min-height:64px !important; overflow:visible !important;" class="weekly-offday-name text-xs align-middle border-r border-slate-300 font-bold">` +
                         `<div class="weekly-offday-inner" style="display:block;white-space:normal;overflow:visible;line-height:1.45;font-size:0.75rem;font-weight:700;text-align:center;height:auto;padding:2px 0;" title="${offText}">${offHtml}</div></td>`;
@@ -7764,7 +8170,7 @@ function getMonthlyOffAllDriverNames(){
             }
             for (let d = 1; d <= totalDays; d++) {
                 const dateKey = `${String(currentYear).substring(2)}-${currentMonth < 10 ? '0'+currentMonth : currentMonth}-${d < 10 ? '0'+d : d}`;
-                const offList = getDailyAssignment(dateKey).offList.map(n => n.replace('(S)','').trim()).filter(Boolean);
+                const offList = expandOffListToDriverNames(getDailyAssignment(dateKey).offList || []);
                 const dow = new Date(currentYear, currentMonth - 1, d).getDay();
                 // 토=파랑, 일/공휴=빨강, 평일=검정
                 const isHoliday = isKoreanPublicHoliday(currentYear, currentMonth, d);
@@ -7798,7 +8204,7 @@ function getMonthlyOffAllDriverNames(){
                 ledgerDates.push(`${String(currentYear).substring(2)}-${String(currentMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
             }
             if (bodyEl) bodyEl.innerHTML = ledgerDates.map(dk => {
-                const cleanList = (getDailyAssignment(dk).offList || []).map(n => String(n).replace('(S)','').trim()).filter(Boolean);
+                const cleanList = expandOffListToDriverNames(getDailyAssignment(dk).offList || []);
                 let formattedListHtml = cleanList.map(n => {
                     let isS = appData.spares.includes(n);
                     return `<span class="px-2 py-0.5 my-0.5 inline-block rounded ${isS ? 'text-blue-600 font-bold blue-underline' : 'bg-rose-50 text-rose-800 border border-rose-100 font-medium'}">${n}</span>`;
