@@ -3343,7 +3343,10 @@ main{padding-top:18px !important;}
             return new Date(year, month, 0).getDate();
         }
 
-        // 노선: 15번 위 → 19번 아래 → 기타 / 차량: 오름차순
+        // 노선: 15번 위 → 19번 아래 → 기타
+        // 차량: 지정 순서 66 → 52 → 64 → 30 → 65 → 87 → 39 (그 외는 번호 오름차순)
+        // 오름차순 정렬 금지 — 주별통합·정규/스페어정보 공통
+        const BUS_ORDER_PREFERRED = [66, 52, 64, 30, 65, 87, 39];
         function routeOrderRank(routeName) {
             const r = String(routeName || '');
             if (r === '15번' || r.includes('15')) return 0;
@@ -3352,7 +3355,11 @@ main{padding-top:18px !important;}
         }
         function busNoSortKey(busNo) {
             const n = parseInt(String(busNo || '').replace(/\D/g, ''), 10);
-            return Number.isFinite(n) ? n : 0;
+            if (!Number.isFinite(n)) return 9999;
+            const idx = BUS_ORDER_PREFERRED.indexOf(n);
+            if (idx >= 0) return idx;
+            // 지정 목록에 없는 차량은 목록 뒤 + 번호순
+            return BUS_ORDER_PREFERRED.length + n;
         }
         function getOrderedRouteEntries(routesObj) {
             const routes = routesObj || (typeof appData !== 'undefined' ? appData.routes : {}) || {};
@@ -3371,6 +3378,14 @@ main{padding-top:18px !important;}
             const list = [];
             getOrderedRouteEntries(routesObj).forEach(([routeName, buses]) => {
                 buses.forEach(b => list.push({ line: routeName, busNo: b.busNo, drivers: b.drivers, bus: b }));
+            });
+            // 주별통합 등: 노선 구분 없이 지정 차량 순서로 전체 정렬
+            list.sort((a, b) => {
+                const na = busNoSortKey(a && a.busNo), nb = busNoSortKey(b && b.busNo);
+                if (na !== nb) return na - nb;
+                const ra = routeOrderRank(a && a.line), rb = routeOrderRank(b && b.line);
+                if (ra !== rb) return ra - rb;
+                return String((a && a.line) || '').localeCompare(String((b && b.line) || ''), 'ko');
             });
             return list;
         }
