@@ -527,6 +527,14 @@ header .max-w-7xl>div:nth-child(2)>div .action-btn{flex:1 1 0!important;width:0!
 @media (min-width:641px){
   .action-btn{font-size:13px!important;padding:6px 10px!important;height:34px!important;min-height:34px!important}
 }
+
+/* 운행대수 초과 순번: 오전·오후 셀 취소선 (선=진하게 한 줄, 글자=연하게) */
+.weekly-cancel-td { position: relative; }
+.weekly-cancel-td > * { opacity: 0.4; }
+.weekly-cancel-td::after {
+    content: ''; position: absolute; left: 3px; right: 3px; top: 50%;
+    height: 2px; margin-top: -1px; background: #0f172a; pointer-events: none; z-index: 2;
+}
 </style>
 
 <style id="premium-offdays-calendar">
@@ -7789,6 +7797,26 @@ function getMonthlyOffAllDriverNames(){
             });
         }
 
+        /** 해당 날짜에 운행대수 초과로 취소선이 표시되는 차량(line|busNo) 집합 — 주별통합 표와 동일 규칙 */
+        function getCancelledBusKeysForDate(dateKey) {
+            const out = new Set();
+            try {
+                const pr = String(dateKey || '').split('-');
+                if (pr.length !== 3) return out;
+                const y = 2000 + parseInt(pr[0], 10), m = parseInt(pr[1], 10), d = parseInt(pr[2], 10);
+                const all = getOrderedBusList(appData.routes);
+                all.sort(compareWeeklyJoOrder);
+                const base = all.map((b, i) => ({ line: b.line, busNo: b.busNo, slotIndex: i }));
+                const shift = getVehicleFlowShift(getVehicleFlowDayIndex(y, m, d));
+                const rotated = rotateRight(base, shift);
+                const limit = getOperatingVehicleLimitForDate(y, m, d);
+                rotated.forEach((u, idx) => {
+                    if ((idx + 1) > limit) out.add(String(u.line) + '|' + String(u.busNo));
+                });
+            } catch (e) { console.warn('[취소차량 계산 실패]', e); }
+            return out;
+        }
+
         let currentEditingCell = null;
         function openDriverSelectModal(dateKey, line, busNo, shift, currentVal) {
             currentEditingCell = { dateKey, line, busNo, shift };
@@ -7841,61 +7869,124 @@ function getMonthlyOffAllDriverNames(){
             const isPlaceholderDriver = selectedShiftDriver === '운행종료' || selectedShiftDriver === '운행종료';
             const blockOffDrivers = !!currentDriverInOppositeShift && !isPlaceholderDriver;
 
-            allDrivers.sort((a, b) => {
-                let aOff = offList.includes(a) ? 0 : 1;
-                let bOff = offList.includes(b) ? 0 : 1;
-                return aOff - bOff;
-            });
-
             let listHtml = `<button onclick="selectDriverForCell('운행종료')" class="w-full text-left px-3 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-xs flex items-center justify-between mb-1"><span>운행종료 (차량 운휴)</span></button>`;
 
             const normN = (n) => String(n || '').replace('(S)', '').trim().replace(/^대체미정$/, '운행종료');
             const isSpareName = (n) => (appData.spares || []).some(s => normN(s) === normN(n));
+            const patternOffSetModal = new Set((dayData.patternOffNames || []).map(normN).filter(Boolean));
 
-            // 같은 날·같은 교대 이미 배차된 기사 (스페어 포함 — 같은 교대만 중복 금지)
+            // 운행대수 초과(취소선) 차량에 배차된 기사: 교대별로 기록
+            const cancelledKeys = getCancelledBusKeysForDate(dateKey);
+            const cancelledByName = {}; // name -> { morning:bool, afternoon:bool }
+            (dayData.busAssignments || []).forEach(b => {
+                if (!cancelledKeys.has(String(b.line) + '|' + String(b.busNo))) return;
+                ['morning', 'afternoon'].forEach(sh => {
+                    const nm = normN(sh === 'morning' ? b.morningAssigned : b.afternoonAssigned);
+                    if (!nm || nm === '운행종료') return;
+                    if (!cancelledByName[nm]) cancelledByName[nm] = { morning: false, afternoon: false };
+                    cancelledByName[nm][sh] = true;
+                });
+            });
+
+            // 근무중 기사의 당일 근무 교대(취소선 차량 제외)
+            const workedByName = {}; // name -> { morning:bool, afternoon:bool }
+            (dayData.busAssignments || []).forEach(b => {
+                if (cancelledKeys.has(String(b.line) + '|' + String(b.busNo))) return;
+                ['morning', 'afternoon'].forEach(sh => {
+                    const nm = normN(sh === 'morning' ? b.morningAssigned : b.afternoonAssigned);
+                    if (!nm || nm === '운행종료') return;
+                    if (!workedByName[nm]) workedByName[nm] = { morning: false, afternoon: false };
+                    workedByName[nm][sh] = true;
+                });
+            });
+
+            // 같은 날·같은 교대 이미 배차된 기사 (취소선 차량의 배차는 제외 → 쉬는차량으로 선택 가능)
             const sameShiftAssigned = new Set();
             (dayData.busAssignments || []).forEach(b => {
                 if (b.line === line && String(b.busNo) === String(busNo)) return;
+                if (cancelledKeys.has(String(b.line) + '|' + String(b.busNo))) return;
                 const assigned = normN(shift === 'morning' ? b.morningAssigned : b.afternoonAssigned);
                 if (assigned && assigned !== '운행종료') sameShiftAssigned.add(assigned);
             });
 
-            allDrivers.forEach(name => {
+            // 그룹 순서: 0 휴무자 → 1 쉬는차량(오전→오후) → 2 근무중 → 3 근무중(스페어) → 4 같은교대 배차중
+            const items = [];
+            allDrivers.forEach((name, order) => {
                 const cleanName = normN(name);
-                let isOff = offList.includes(name) || offList.includes(cleanName);
-                let isSpare = isSpareName(name);
+                const isOff = offList.includes(name) || offList.includes(cleanName);
+                const isSpare = isSpareName(name);
+                const isJoOff = isOff && patternOffSetModal.has(cleanName);
 
-                // 기존 규칙: 반대교대에도 있으면 휴무자 선택 불가
+                const cancel = cancelledByName[cleanName] || null;
+                // 쉬는차량/취소차량: 편집 교대 기준 우선, 없으면 반대 교대에서 취소선인 경우
+                let restShift = null;      // 'morning' | 'afternoon'
+                let restType = null;       // 'rest' (같은 교대) | 'cancel' (반대 교대)
+                if (!isOff && cancel) {
+                    if (cancel[shift]) { restShift = shift; restType = 'rest'; }
+                    else {
+                        const other = shift === 'morning' ? 'afternoon' : 'morning';
+                        if (cancel[other]) { restShift = other; restType = 'cancel'; }
+                    }
+                }
+
                 const blockedOff = blockOffDrivers && isOff;
-                // 같은 교대 중복만 불가
                 const blockedDup = sameShiftAssigned.has(cleanName);
-                // 스페어: 전날 오후 근무 → 당일 오전 배차 불가
                 const blockedSpareRest = isSpare && shift === 'morning'
                     && typeof spareWorkedAfternoonPreviousDay === 'function'
                     && spareWorkedAfternoonPreviousDay(cleanName, dateKey);
                 const blocked = blockedOff || blockedDup || blockedSpareRest;
 
-                let statusText = isOff ? "휴무" : "근무중";
-                if (isSpare) statusText += " (스페어)";
-                if (blockedDup) statusText = "같은교대 배차중";
-                else if (blockedSpareRest) statusText = "전날오후→오전불가";
-                else if (blockedOff) statusText = "선택불가";
+                let group, statusText, badge, sortSub = 0;
+                if (isOff) {
+                    group = 0;
+                    statusText = isJoOff ? '조휴무' : '휴무';
+                    if (isSpare) statusText += ' (스페어)';
+                    badge = 'bg-rose-100 text-rose-700 font-bold';
+                    sortSub = isJoOff ? 1 : 0;
+                } else if (restType) {
+                    group = 1;
+                    const sl = restShift === 'morning' ? '오전' : '오후';
+                    statusText = sl + '쉬는차량';
+                    if (isSpare) statusText += ' (스페어)';
+                    badge = 'bg-sky-100 text-sky-700 font-bold';
+                    sortSub = (restShift === 'morning' ? 0 : 1);
+                } else if (blockedDup) {
+                    group = 4;
+                    statusText = '같은교대 배차중';
+                    badge = 'bg-slate-200 text-slate-600 font-bold';
+                } else {
+                    group = isSpare ? 3 : 2;
+                    const w = workedByName[cleanName] || null;
+                    let wl = '', ws = 2;
+                    if (w && w.morning && w.afternoon) { wl = '오전·오후'; ws = 2; }
+                    else if (w && w.morning) { wl = '오전'; ws = 0; }
+                    else if (w && w.afternoon) { wl = '오후'; ws = 1; }
+                    sortSub = wl ? ws : 3;
+                    statusText = wl + '근무중' + (isSpare ? ' (스페어)' : '');
+                    badge = 'bg-emerald-100 text-emerald-700';
+                }
+                // 휴무자 외 그룹에서의 선택 불가 사유 표기 (그룹은 유지)
+                if (blockedSpareRest && !blockedDup) { statusText = '전날오후→오전불가'; badge = 'bg-slate-200 text-slate-600 font-bold'; }
+                else if (blockedOff) { statusText = '선택불가'; badge = 'bg-slate-200 text-slate-600 font-bold'; }
 
-                let statusBadgeClass = (blockedDup || blockedOff || blockedSpareRest)
-                    ? "bg-slate-200 text-slate-600 font-bold"
-                    : (isOff ? "bg-rose-100 text-rose-700 font-bold" : "bg-emerald-100 text-emerald-700");
+                items.push({ cleanName, isOff, isSpare, blocked, group, sortSub, statusText, badge, order });
+            });
+            items.sort((a, b) => (a.group - b.group) || (a.sortSub - b.sortSub) || String(a.cleanName).localeCompare(String(b.cleanName), 'ko') || (a.order - b.order));
 
-                if (blocked) {
+            items.forEach(it => {
+                if (it.blocked) {
                     listHtml += `
                     <button type="button" disabled class="w-full text-left px-3 py-2 rounded-lg bg-slate-100 text-slate-400 text-xs flex items-center justify-between cursor-not-allowed opacity-70">
-                        <span class="font-bold">${cleanName}</span>
-                        <span class="px-2 py-0.5 rounded-full text-[10px] ${statusBadgeClass}">${statusText}</span>
+                        <span class="font-bold">${it.cleanName}</span>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] ${it.badge}">${it.statusText}</span>
                     </button>`;
                 } else {
+                    const rowCls = it.isOff ? 'bg-rose-50/50 hover:bg-rose-100/60 border border-rose-100'
+                        : (it.group === 1 ? 'bg-sky-50 hover:bg-sky-100 border border-sky-100' : 'bg-slate-50 hover:bg-slate-100');
                     listHtml += `
-                    <button onclick="selectDriverForCell('${cleanName}')" class="w-full text-left px-3 py-2 rounded-lg ${isOff ? 'bg-rose-50/50 hover:bg-rose-100/60 border border-rose-100' : 'bg-slate-50 hover:bg-slate-100'} text-slate-800 text-xs flex items-center justify-between transition-colors">
-                        <span class="font-bold text-slate-950 ${isSpare ? 'text-blue-600 blue-underline' : ''}">${cleanName}</span>
-                        <span class="px-2 py-0.5 rounded-full text-[10px] ${statusBadgeClass}">${statusText}</span>
+                    <button onclick="selectDriverForCell('${it.cleanName}')" class="w-full text-left px-3 py-2 rounded-lg ${rowCls} text-slate-800 text-xs flex items-center justify-between transition-colors">
+                        <span class="font-bold text-slate-950 ${it.isSpare ? 'text-blue-600 blue-underline' : ''}">${it.cleanName}</span>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] ${it.badge}">${it.statusText}</span>
                     </button>`;
                 }
             });
@@ -7924,8 +8015,10 @@ function getMonthlyOffAllDriverNames(){
 
             // ① 같은 날·같은 교대 중복 배차 금지
             if (cleanSelectedName && cleanSelectedName !== '운행종료') {
+                const __cancelKeys = getCancelledBusKeysForDate(dateKey);
                 const dup = (dayDataBefore.busAssignments || []).find(b => {
                     if (b.line === line && String(b.busNo) === String(busNo)) return false;
+                    if (__cancelKeys.has(String(b.line) + '|' + String(b.busNo))) return false;
                     const assigned = norm(shift === 'morning' ? b.morningAssigned : b.afternoonAssigned);
                     return assigned === cleanSelectedName;
                 });
@@ -8385,7 +8478,7 @@ function getMonthlyOffAllDriverNames(){
                                 let __joCode = '';
                                 try { __joCode = (typeof getJoCodeForDriverName === 'function') ? String(getJoCodeForDriverName(clean) || '').trim() : ''; } catch (e) { __joCode = ''; }
                                 if (__joCode) {
-                                    return `<div class="flex flex-col items-center justify-center px-0.5 py-1 text-center w-full leading-tight" title="${clean} (${__joCode})"><span class="text-slate-950 font-black text-sm truncate w-full">${clean}</span><span class="weekly-jo-code text-[10px] font-bold text-slate-500 leading-none mt-0.5">${__joCode}</span></div>`;
+                                    return `<div class="flex items-center justify-center px-0.5 py-1 text-center w-full leading-tight whitespace-nowrap" title="${clean} (${__joCode})"><span class="text-slate-950 font-black text-sm">${clean}</span><span class="weekly-jo-code text-[10px] font-bold text-slate-500 leading-none ml-0.5">(${__joCode})</span></div>`;
                                 }
                                 return `<div class="flex items-center justify-center px-0.5 py-1 text-center text-slate-950 font-black text-sm truncate w-full" title="${clean}">${clean}</div>`;
                             }
@@ -8408,10 +8501,13 @@ function getMonthlyOffAllDriverNames(){
                             tbodyHtml += `<td style="min-width: ${Math.max(44, dayColWidth - 8)}px;" class="px-0.5 text-center ${shiftBg} align-middle border-r border-slate-200" title="패턴이동 차량 ${__unit.busNo} (슬롯 ${idx+1})">
                                 <div class="flex items-center justify-center w-full h-full"><span class="font-black text-[12px] text-slate-900 leading-tight">${__plateShow}</span></div>
                             </td>`;
-                            tbodyHtml += `<td style="min-width: ${dayColWidth}px;" class="px-0.5 text-center ${shiftBg} align-middle border-r border-slate-200 cursor-pointer" onclick="openDriverSelectModal('${dateKey}', '${__unit.line}', '${__unit.busNo}', 'morning', '${String(__mShow||'').replace('(S)','').trim()}')">
+                            const __hasName = (v) => { const t = String(v == null ? '' : v).trim(); return !!t && t !== '-' && t !== '미정'; };
+                            const __cancelM = (__overLimit && __hasName(__mShow)) ? ' weekly-cancel-td' : '';
+                            const __cancelA = (__overLimit && __hasName(__aShow)) ? ' weekly-cancel-td' : '';
+                            tbodyHtml += `<td style="min-width: ${dayColWidth}px;" class="px-0.5 text-center ${shiftBg}${__cancelM} align-middle border-r border-slate-200 cursor-pointer" onclick="openDriverSelectModal('${dateKey}', '${__unit.line}', '${__unit.busNo}', 'morning', '${String(__mShow||'').replace('(S)','').trim()}')">
                                 ${formatWeeklyCell(__mShow, dateKey, __unit.line, __unit.busNo, 'morning')}
                             </td>`;
-                            tbodyHtml += `<td style="min-width: ${dayColWidth}px;" class="px-0.5 text-center ${shiftBg} align-middle border-r border-slate-300 cursor-pointer" onclick="openDriverSelectModal('${dateKey}', '${__unit.line}', '${__unit.busNo}', 'afternoon', '${String(__aShow||'').replace('(S)','').trim()}')">
+                            tbodyHtml += `<td style="min-width: ${dayColWidth}px;" class="px-0.5 text-center ${shiftBg}${__cancelA} align-middle border-r border-slate-300 cursor-pointer" onclick="openDriverSelectModal('${dateKey}', '${__unit.line}', '${__unit.busNo}', 'afternoon', '${String(__aShow||'').replace('(S)','').trim()}')">
                                 ${formatWeeklyCell(__aShow, dateKey, __unit.line, __unit.busNo, 'afternoon')}
                             </td>`;
                         } else {
