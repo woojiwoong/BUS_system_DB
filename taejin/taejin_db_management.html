@@ -1600,6 +1600,84 @@ main{padding-top:18px !important;}
 
 
 
+
+
+<style id="env-dispatch-time-style">
+.env-time-day-tab { background:#fff; color:#475569; border-color:#cbd5e1; }
+.env-time-day-tab.active {
+  background: linear-gradient(180deg,#fb923c,#ea580c);
+  color:#fff; border-color:#ea580c;
+  box-shadow: 0 2px 6px rgba(234,88,12,.25);
+}
+.env-time-spin {
+  display:inline-flex; align-items:center; border:1.5px solid #fdba74; border-radius:10px; overflow:hidden; background:#fff;
+}
+.env-time-spin button {
+  width:32px; height:34px; border:0; background:#fff7ed; color:#c2410c; font-weight:900; font-size:16px; line-height:1; cursor:pointer;
+}
+.env-time-spin button:hover { background:#ffedd5; }
+.env-time-spin button:active { background:#fed7aa; }
+.env-time-spin .env-time-display {
+  min-width:58px; text-align:center; font-weight:900; font-size:14px; color:#0f172a; font-variant-numeric:tabular-nums;
+  padding:0 4px; border-left:1px solid #fed7aa; border-right:1px solid #fed7aa;
+}
+.env-time-row {
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:6px 10px; min-height:42px;
+}
+.env-time-row:nth-child(even) { background:#f8fafc; }
+.env-time-seq {
+  width:36px; height:28px; border-radius:8px; background:#e2e8f0; color:#334155;
+  display:flex; align-items:center; justify-content:center; font-weight:900; font-size:12px;
+}
+</style>
+
+<style id="env-spinner-style">
+.env-slider-row { width: 100%; margin: 0; padding: 0; }
+.env-progress-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(to right, #f97316 0%, #f97316 var(--env-pct, 0%), #e2e8f0 var(--env-pct, 0%), #e2e8f0 100%);
+  outline: none;
+  cursor: pointer;
+  border: 1px solid #fdba74;
+  box-shadow: inset 0 1px 2px rgba(15,23,42,.06);
+}
+.env-progress-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #fb923c, #ea580c);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(234,88,12,.35);
+  cursor: pointer;
+}
+.env-progress-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #fb923c, #ea580c);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(234,88,12,.35);
+  cursor: pointer;
+}
+.env-progress-slider::-moz-range-track {
+  height: 12px;
+  border-radius: 999px;
+  background: transparent;
+}
+.env-slider-val { min-width: 2.75rem; text-align: right; }
+/* 슬라이더 간 간격 축소 */
+#dispatchEnvSettingsModal .space-y-4 > .env-slider-row + .env-slider-row { margin-top: 0.35rem !important; }
+#dispatchEnvSettingsModal .env-slider-row .mb-1\.5 { margin-bottom: 0.2rem !important; }
+#dispatchEnvSettingsModal .env-slider-row .mt-0\.5 { margin-top: 0 !important; }
+</style>
+
 </head>
 <script>
 /* v2_32: 일요일 교차근무 제거 + DB 교차 오버라이드 자동 복구 */
@@ -2876,6 +2954,98 @@ main{padding-top:18px !important;}
 <button id="weeklyDbSaveBtn" type="button" onclick="saveCurrentDataToDB()"
  style="display:none;position:fixed;bottom:24px;right:24px;z-index:9998;background:#dc2626;color:white;border:1px solid rgba(255,255,255,.25);border-radius:50px;padding:12px 22px;font-size:15px;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,.18);cursor:pointer;font-family:'Noto Sans KR',sans-serif;">데이타저장</button>
 
+
+<!-- 배차기본환경설정 모달 -->
+<div id="dispatchEnvSettingsModal" class="fixed inset-0 bg-slate-900/60 z-[10050] flex items-center justify-center hidden p-3 sm:p-4 backdrop-blur-xs no-print">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
+        <div class="px-5 py-4 bg-gradient-to-r from-brand-800 to-brand-600 text-white flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <i data-lucide="settings" class="w-5 h-5 text-amber-300"></i>
+                <h3 class="text-base sm:text-lg font-black tracking-tight">배차기본환경설정</h3>
+            </div>
+            <button type="button" onclick="closeDispatchEnvSettingsModal()" class="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center text-white text-xl font-bold leading-none">&times;</button>
+        </div>
+        <div class="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div class="text-sm font-black text-slate-800 mb-3 flex items-center gap-2">
+                    <span class="inline-block w-1.5 h-4 rounded bg-brand-600"></span>
+                    운행차량대수설정
+                </div>
+                                <div class="space-y-1 env-vehicle-sliders">
+                    <div class="env-slider-row">
+                        <div class="flex items-center justify-between gap-2 mb-1.5">
+                            <label for="envVehicleWeekday" class="text-sm font-bold text-slate-700">평일</label>
+                            <span id="envVehicleWeekdayVal" class="env-slider-val text-sm font-black text-orange-600 tabular-nums">29<span class="text-xs font-bold text-slate-400 ml-0.5">대</span></span>
+                        </div>
+                        <input type="range" id="envVehicleWeekday" min="1" max="30" step="1" value="29"
+                            class="env-progress-slider w-full"
+                            style="--env-pct:96.55%;"
+                            oninput="onEnvVehicleSliderInput(this)" />
+                        <div class="flex justify-between text-[10px] font-semibold text-slate-400 mt-0.5 px-0.5"><span>1</span><span>30</span></div>
+                    </div>
+                    <div class="env-slider-row">
+                        <div class="flex items-center justify-between gap-2 mb-1.5">
+                            <label for="envVehicleSaturday" class="text-sm font-bold text-slate-700">토요일</label>
+                            <span id="envVehicleSaturdayVal" class="env-slider-val text-sm font-black text-orange-600 tabular-nums">27<span class="text-xs font-bold text-slate-400 ml-0.5">대</span></span>
+                        </div>
+                        <input type="range" id="envVehicleSaturday" min="1" max="30" step="1" value="27"
+                            class="env-progress-slider w-full"
+                            style="--env-pct:89.66%;"
+                            oninput="onEnvVehicleSliderInput(this)" />
+                        <div class="flex justify-between text-[10px] font-semibold text-slate-400 mt-0.5 px-0.5"><span>1</span><span>30</span></div>
+                    </div>
+                    <div class="env-slider-row">
+                        <div class="flex items-center justify-between gap-2 mb-1.5">
+                            <label for="envVehicleSundayHoliday" class="text-sm font-bold text-slate-700">일/공휴일</label>
+                            <span id="envVehicleSundayHolidayVal" class="env-slider-val text-sm font-black text-orange-600 tabular-nums">26<span class="text-xs font-bold text-slate-400 ml-0.5">대</span></span>
+                        </div>
+                        <input type="range" id="envVehicleSundayHoliday" min="1" max="30" step="1" value="26"
+                            class="env-progress-slider w-full"
+                            style="--env-pct:86.21%;"
+                            oninput="onEnvVehicleSliderInput(this)" />
+                        <div class="flex justify-between text-[10px] font-semibold text-slate-400 mt-0.5 px-0.5"><span>1</span><span>30</span></div>
+                    </div>
+                    <div class="env-slider-row">
+                        <div class="flex items-center justify-between gap-2 mb-1.5">
+                            <label for="envVehicleVacation" class="text-sm font-bold text-slate-700">방학</label>
+                            <span id="envVehicleVacationVal" class="env-slider-val text-sm font-black text-orange-600 tabular-nums">26<span class="text-xs font-bold text-slate-400 ml-0.5">대</span></span>
+                        </div>
+                        <input type="range" id="envVehicleVacation" min="1" max="30" step="1" value="26"
+                            class="env-progress-slider w-full"
+                            style="--env-pct:86.21%;"
+                            oninput="onEnvVehicleSliderInput(this)" />
+                        <div class="flex justify-between text-[10px] font-semibold text-slate-400 mt-0.5 px-0.5"><span>1</span><span>30</span></div>
+                    </div>
+                </div>
+                <p class="mt-3 text-[11px] font-semibold text-slate-500 leading-relaxed">슬라이더를 좌우로 조절합니다. 각 항목 최대 30대까지 설정할 수 있습니다.</p>
+            </div>
+
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div class="text-sm font-black text-slate-800 mb-2 flex items-center gap-2">
+                    <span class="inline-block w-1.5 h-4 rounded bg-orange-500"></span>
+                    배차시간설정
+                </div>
+                <p class="text-[11px] font-semibold text-slate-500 mb-3 leading-relaxed">기본: 4:45 시작 · 6분 간격 · 순번 1~29 (수정 가능)</p>
+                <div class="flex flex-wrap gap-1.5 mb-3" id="envDispatchTimeDayTabs">
+                    <button type="button" data-day="weekday" onclick="switchEnvDispatchTimeDay('weekday')" class="env-time-day-tab px-2.5 py-1.5 rounded-lg text-xs font-extrabold border transition">평일</button>
+                    <button type="button" data-day="saturday" onclick="switchEnvDispatchTimeDay('saturday')" class="env-time-day-tab px-2.5 py-1.5 rounded-lg text-xs font-extrabold border transition">토요일</button>
+                    <button type="button" data-day="sundayHoliday" onclick="switchEnvDispatchTimeDay('sundayHoliday')" class="env-time-day-tab px-2.5 py-1.5 rounded-lg text-xs font-extrabold border transition">일/공휴일</button>
+                    <button type="button" data-day="vacation" onclick="switchEnvDispatchTimeDay('vacation')" class="env-time-day-tab px-2.5 py-1.5 rounded-lg text-xs font-extrabold border transition">방학</button>
+                </div>
+                <div class="flex items-center justify-between text-[11px] font-bold text-slate-500 px-1 mb-1">
+                    <span>순번</span>
+                    <span>배차시각 (− / + 1분)</span>
+                </div>
+                <div id="envDispatchTimeList" class="max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white divide-y divide-slate-100"></div>
+            </div>
+            <div class="flex gap-2 pt-1 sticky bottom-0 bg-white pb-1">
+                <button type="button" onclick="closeDispatchEnvSettingsModal()" class="flex-1 py-3 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-bold transition">취소</button>
+                <button type="button" onclick="saveDispatchEnvSettings()" class="flex-1 py-3 rounded-xl bg-brand-700 hover:bg-brand-600 text-white text-sm font-black shadow-sm transition">저장</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 휴무자명단작성 전용 DB저장 버튼 (주별통합 데이타저장 버튼과 동일한 위치/스타일) -->
 <button id="offListDbSaveBtn" type="button" onclick="commitMonthlyOffListSelections()"
  style="display:none;position:fixed;bottom:24px;right:24px;z-index:9998;background:#dc2626;color:white;border:1px solid rgba(255,255,255,.25);border-radius:50px;padding:12px 22px;font-size:15px;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,.18);cursor:pointer;font-family:'Noto Sans KR',sans-serif;">저장</button>
@@ -2956,7 +3126,9 @@ main{padding-top:18px !important;}
                     <!-- DB 불러오기 / 저장: Firebase Firestore 월별 문서(taejinSchedules/YYYY_MM) -->
                     <button type="button" onclick="openDbLoadMonthModal()" class="cursor-pointer  hover: text-white font-extrabold rounded-lg flex items-center gap-1 transition-all shadow-sm border /50 whitespace-nowrap flex-shrink-0 action-btn"><span>데이타<br>호출</span>
                     </button>
-                    <button type="button" onclick="saveCurrentDataToDB()" class="cursor-pointer bg-sky-400 hover:bg-sky-500 text-white font-extrabold rounded-lg flex items-center gap-1 transition-all shadow-sm border border-sky-300/50 whitespace-nowrap flex-shrink-0 action-btn"><span>데이타<br>저장</span>
+                    <!-- 상단 데이타저장 버튼 제거 (주별통합 우측하단 버튼 사용) -->
+                    <button type="button" onclick="saveCurrentDataToDB()" id="headerDbSaveBtn" class="hidden" style="display:none !important;" aria-hidden="true"><span>데이타<br>저장</span></button>
+                    <button type="button" onclick="openDispatchEnvSettingsModal()" class="cursor-pointer bg-orange-500 hover:bg-orange-400 text-white font-extrabold rounded-lg flex items-center gap-1 transition-all shadow-sm border border-orange-300/50 whitespace-nowrap flex-shrink-0 action-btn"><span>환경<br>설정</span>
                     </button>
                     <button type="button" onclick="openDbDeleteMonthModal()" class="cursor-pointer bg-red-600 hover:bg-red-500 text-white font-extrabold rounded-lg flex items-center gap-1 transition-all shadow-sm border border-red-400/50 whitespace-nowrap flex-shrink-0 action-btn"><span>데이타<br>삭제</span>
                     </button>
@@ -6202,6 +6374,290 @@ function getMonthlyOffAllDriverNames(){
             return !!(modal && !modal.classList.contains('hidden'));
         }
 
+
+
+        // ===== 배차시간설정 (4:45 시작, 6분 간격, 순번 1~29) =====
+        const DISPATCH_TIME_STORAGE_KEY = 'taejin_dispatch_env_times';
+        const DISPATCH_TIME_SEQ_MAX = 29;
+        const DISPATCH_TIME_DAY_KEYS = ['weekday', 'saturday', 'sundayHoliday', 'vacation'];
+        let __envDispatchTimeDay = 'weekday';
+        let __envDispatchTimeDraft = null;
+
+        function defaultDispatchTimeMinutes(seq) {
+            // 순번 1 = 4:45, 이후 +6분
+            const s = Math.max(1, Math.min(DISPATCH_TIME_SEQ_MAX, Number(seq) || 1));
+            return (4 * 60 + 45) + (s - 1) * 6;
+        }
+
+        function formatMinutesToHHMM(totalMin) {
+            let t = ((Number(totalMin) % (24 * 60)) + (24 * 60)) % (24 * 60);
+            const h = Math.floor(t / 60);
+            const m = t % 60;
+            return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+        }
+
+        function parseHHMMToMinutes(str) {
+            const s = String(str || '').trim();
+            const m = s.match(/^(\d{1,2}):(\d{2})$/);
+            if (!m) return null;
+            const h = parseInt(m[1], 10);
+            const min = parseInt(m[2], 10);
+            if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+            return h * 60 + min;
+        }
+
+        function buildDefaultDispatchTimes() {
+            const arr = [];
+            for (let i = 1; i <= DISPATCH_TIME_SEQ_MAX; i++) {
+                arr.push(formatMinutesToHHMM(defaultDispatchTimeMinutes(i)));
+            }
+            return arr;
+        }
+
+        function getDispatchEnvTimes() {
+            const defaults = {
+                weekday: buildDefaultDispatchTimes(),
+                saturday: buildDefaultDispatchTimes(),
+                sundayHoliday: buildDefaultDispatchTimes(),
+                vacation: buildDefaultDispatchTimes()
+            };
+            try {
+                const raw = localStorage.getItem(DISPATCH_TIME_STORAGE_KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && typeof parsed === 'object') {
+                        DISPATCH_TIME_DAY_KEYS.forEach(k => {
+                            if (Array.isArray(parsed[k]) && parsed[k].length) {
+                                const arr = [];
+                                for (let i = 0; i < DISPATCH_TIME_SEQ_MAX; i++) {
+                                    const v = parsed[k][i];
+                                    const mins = parseHHMMToMinutes(v);
+                                    arr.push(mins != null ? formatMinutesToHHMM(mins) : formatMinutesToHHMM(defaultDispatchTimeMinutes(i + 1)));
+                                }
+                                defaults[k] = arr;
+                            }
+                        });
+                    }
+                }
+            } catch (e) {}
+            window.__dispatchEnvTimes = defaults;
+            return defaults;
+        }
+
+        function ensureEnvDispatchTimeDraft() {
+            if (!__envDispatchTimeDraft) {
+                const src = getDispatchEnvTimes();
+                __envDispatchTimeDraft = {
+                    weekday: src.weekday.slice(),
+                    saturday: src.saturday.slice(),
+                    sundayHoliday: src.sundayHoliday.slice(),
+                    vacation: src.vacation.slice()
+                };
+            }
+            return __envDispatchTimeDraft;
+        }
+
+        function switchEnvDispatchTimeDay(day) {
+            if (!DISPATCH_TIME_DAY_KEYS.includes(day)) return;
+            __envDispatchTimeDay = day;
+            document.querySelectorAll('#envDispatchTimeDayTabs .env-time-day-tab').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-day') === day);
+            });
+            renderEnvDispatchTimeList();
+        }
+
+        function stepEnvDispatchTime(seq, deltaMin) {
+            const draft = ensureEnvDispatchTimeDraft();
+            const day = __envDispatchTimeDay;
+            const idx = Number(seq) - 1;
+            if (idx < 0 || idx >= DISPATCH_TIME_SEQ_MAX) return;
+            let mins = parseHHMMToMinutes(draft[day][idx]);
+            if (mins == null) mins = defaultDispatchTimeMinutes(seq);
+            mins = mins + Number(deltaMin || 0);
+            // 허용 범위: 03:00 ~ 12:00 (새벽~오전 배차)
+            if (mins < 3 * 60) mins = 3 * 60;
+            if (mins > 12 * 60) mins = 12 * 60;
+            draft[day][idx] = formatMinutesToHHMM(mins);
+            const disp = document.getElementById('envTimeDisp_' + seq);
+            if (disp) disp.textContent = draft[day][idx];
+        }
+
+        function renderEnvDispatchTimeList() {
+            const list = document.getElementById('envDispatchTimeList');
+            if (!list) return;
+            const draft = ensureEnvDispatchTimeDraft();
+            const day = __envDispatchTimeDay;
+            const times = draft[day] || buildDefaultDispatchTimes();
+            let html = '';
+            for (let seq = 1; seq <= DISPATCH_TIME_SEQ_MAX; seq++) {
+                const t = times[seq - 1] || formatMinutesToHHMM(defaultDispatchTimeMinutes(seq));
+                html += '<div class="env-time-row">' +
+                    '<span class="env-time-seq">' + seq + '</span>' +
+                    '<div class="env-time-spin">' +
+                    '<button type="button" onclick="stepEnvDispatchTime(' + seq + ', -1)" aria-label="1분 감소">−</button>' +
+                    '<span class="env-time-display" id="envTimeDisp_' + seq + '">' + t + '</span>' +
+                    '<button type="button" onclick="stepEnvDispatchTime(' + seq + ', 1)" aria-label="1분 증가">+</button>' +
+                    '</div></div>';
+            }
+            list.innerHTML = html;
+        }
+
+        window.getDispatchEnvTimes = getDispatchEnvTimes;
+        window.switchEnvDispatchTimeDay = switchEnvDispatchTimeDay;
+        window.stepEnvDispatchTime = stepEnvDispatchTime;
+        window.renderEnvDispatchTimeList = renderEnvDispatchTimeList;
+
+        // ===== 배차기본환경설정 (운행차량대수) =====
+        const DISPATCH_ENV_DEFAULTS = { weekday: 29, saturday: 27, sundayHoliday: 26, vacation: 26 };
+        const DISPATCH_ENV_STORAGE_KEY = 'taejin_dispatch_env_vehicle_counts';
+
+        function clampEnvVehicleCount(v) {
+            let n = parseInt(v, 10);
+            if (!Number.isFinite(n)) n = 1;
+            if (n < 1) n = 1;
+            if (n > 30) n = 30;
+            return n;
+        }
+
+        function getDispatchEnvVehicleCounts() {
+            const out = { ...DISPATCH_ENV_DEFAULTS };
+            try {
+                const raw = localStorage.getItem(DISPATCH_ENV_STORAGE_KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && typeof parsed === 'object') {
+                        out.weekday = clampEnvVehicleCount(parsed.weekday != null ? parsed.weekday : out.weekday);
+                        out.saturday = clampEnvVehicleCount(parsed.saturday != null ? parsed.saturday : out.saturday);
+                        out.sundayHoliday = clampEnvVehicleCount(parsed.sundayHoliday != null ? parsed.sundayHoliday : out.sundayHoliday);
+                        out.vacation = clampEnvVehicleCount(parsed.vacation != null ? parsed.vacation : out.vacation);
+                    }
+                }
+            } catch (e) {}
+            window.__dispatchEnvVehicleCounts = out;
+            return out;
+        }
+
+        /** 해당 날짜의 운행차량대수 상한 (환경설정) — 초과 순번은 주별통합에서 하늘색 */
+        function getOperatingVehicleLimitForDate(year, month, day) {
+            const counts = (typeof getDispatchEnvVehicleCounts === 'function')
+                ? getDispatchEnvVehicleCounts()
+                : { weekday: 29, saturday: 27, sundayHoliday: 26, vacation: 26 };
+            const y = Number(year), m = Number(month), d = Number(day);
+            // 방학 판별(선택): window.isVacationDay 또는 localStorage 기간
+            try {
+                if (typeof window.isVacationDay === 'function' && window.isVacationDay(y, m, d)) {
+                    return clampEnvVehicleCount(counts.vacation);
+                }
+            } catch (e) {}
+            const dow = new Date(y, m - 1, d).getDay();
+            const isHol = (typeof isKoreanPublicHoliday === 'function') && isKoreanPublicHoliday(y, m, d);
+            if (dow === 0 || isHol) return clampEnvVehicleCount(counts.sundayHoliday);
+            if (dow === 6) return clampEnvVehicleCount(counts.saturday);
+            return clampEnvVehicleCount(counts.weekday);
+        }
+        window.getOperatingVehicleLimitForDate = getOperatingVehicleLimitForDate;
+
+
+
+        function stepEnvVehicleCount(inputId, delta) {
+            const el = document.getElementById(inputId);
+            if (!el) return;
+            const next = clampEnvVehicleCount((parseInt(el.value, 10) || 0) + Number(delta || 0));
+            el.value = next;
+        }
+        window.stepEnvVehicleCount = stepEnvVehicleCount;
+
+        function onEnvVehicleSliderInput(el) {
+            if (!el) return;
+            const v = clampEnvVehicleCount(el.value);
+            el.value = v;
+            const pct = ((v - 1) / 29) * 100;
+            el.style.setProperty('--env-pct', pct + '%');
+            const valEl = document.getElementById(el.id + 'Val');
+            if (valEl) valEl.innerHTML = v + '<span class="text-xs font-bold text-slate-400 ml-0.5">대</span>';
+        }
+        window.onEnvVehicleSliderInput = onEnvVehicleSliderInput;
+
+
+        function openDispatchEnvSettingsModal() {
+            const counts = getDispatchEnvVehicleCounts();
+            const map = {
+                envVehicleWeekday: counts.weekday,
+                envVehicleSaturday: counts.saturday,
+                envVehicleSundayHoliday: counts.sundayHoliday,
+                envVehicleVacation: counts.vacation
+            };
+            Object.keys(map).forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.min = 1;
+                    el.max = 30;
+                    el.step = 1;
+                    el.value = map[id];
+                    if (typeof onEnvVehicleSliderInput === 'function') onEnvVehicleSliderInput(el);
+                }
+            });
+            // 배차시간: 저장된 값으로 초안 로드 후 목록 표시
+            const times = getDispatchEnvTimes();
+            __envDispatchTimeDraft = {
+                weekday: times.weekday.slice(),
+                saturday: times.saturday.slice(),
+                sundayHoliday: times.sundayHoliday.slice(),
+                vacation: times.vacation.slice()
+            };
+            __envDispatchTimeDay = 'weekday';
+            if (typeof switchEnvDispatchTimeDay === 'function') switchEnvDispatchTimeDay('weekday');
+            else if (typeof renderEnvDispatchTimeList === 'function') renderEnvDispatchTimeList();
+            const modal = document.getElementById('dispatchEnvSettingsModal');
+            if (modal) modal.classList.remove('hidden');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function closeDispatchEnvSettingsModal() {
+            const modal = document.getElementById('dispatchEnvSettingsModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function saveDispatchEnvSettings() {
+            const counts = {
+                weekday: clampEnvVehicleCount(document.getElementById('envVehicleWeekday')?.value),
+                saturday: clampEnvVehicleCount(document.getElementById('envVehicleSaturday')?.value),
+                sundayHoliday: clampEnvVehicleCount(document.getElementById('envVehicleSundayHoliday')?.value),
+                vacation: clampEnvVehicleCount(document.getElementById('envVehicleVacation')?.value)
+            };
+            try {
+                localStorage.setItem(DISPATCH_ENV_STORAGE_KEY, JSON.stringify(counts));
+            } catch (e) {}
+            window.__dispatchEnvVehicleCounts = counts;
+            // 배차시간설정 저장
+            const draft = ensureEnvDispatchTimeDraft();
+            const timesToSave = {
+                weekday: (draft.weekday || []).slice(0, DISPATCH_TIME_SEQ_MAX),
+                saturday: (draft.saturday || []).slice(0, DISPATCH_TIME_SEQ_MAX),
+                sundayHoliday: (draft.sundayHoliday || []).slice(0, DISPATCH_TIME_SEQ_MAX),
+                vacation: (draft.vacation || []).slice(0, DISPATCH_TIME_SEQ_MAX)
+            };
+            try {
+                localStorage.setItem(DISPATCH_TIME_STORAGE_KEY, JSON.stringify(timesToSave));
+            } catch (e) {}
+            window.__dispatchEnvTimes = timesToSave;
+            closeDispatchEnvSettingsModal();
+            if (typeof showModal === 'function') {
+                showModal('환경설정 저장', '운행차량대수·배차시간이 저장되었습니다.\n평일 ' + counts.weekday + ' · 토 ' + counts.saturday + ' · 일/공휴 ' + counts.sundayHoliday + ' · 방학 ' + counts.vacation);
+            }
+            // 설정 변경 후 화면 갱신 (필요 시 배차 로직에서 getDispatchEnvVehicleCounts 사용)
+            try {
+                if (typeof renderAllViews === 'function') renderAllViews();
+                else if (typeof renderAllWeeklyView === 'function') renderAllWeeklyView();
+            } catch (e) {}
+        }
+
+        window.getDispatchEnvVehicleCounts = getDispatchEnvVehicleCounts;
+        window.openDispatchEnvSettingsModal = openDispatchEnvSettingsModal;
+        window.closeDispatchEnvSettingsModal = closeDispatchEnvSettingsModal;
+        window.saveDispatchEnvSettings = saveDispatchEnvSettings;
+        getDispatchEnvVehicleCounts();
+
         function updateWeeklyDbSaveButton() {
             const modalOpen = isWelcomeModalOpen();
             const btn = document.getElementById('weeklyDbSaveBtn');
@@ -7896,20 +8352,13 @@ function getMonthlyOffAllDriverNames(){
                         
                         let isGrayBg = (colIndex % 2 === 0);
                         let zigzagBg = isGrayBg ? 'bg-slate-100 text-slate-900' : 'bg-white text-slate-900';
-                        // 순번·요일별 오전/오후 셀 하늘색
-                        // 평일: 29번 / 토: 27~29 / 일·공휴: 26~29
+                        // 운행차량대수 초과 순번 → 차량·오전·오후 하늘색
                         const __rowSeq = Number(busItem.seq) || (idx + 1);
-                        const __dow = new Date(currentYear, currentMonth - 1, d).getDay();
-                        const __isHol = (typeof isKoreanPublicHoliday === 'function') && isKoreanPublicHoliday(currentYear, currentMonth, d);
-                        let __shiftSky = false;
-                        if (__dow === 0 || __isHol) {
-                            __shiftSky = (__rowSeq >= 26 && __rowSeq <= 29);
-                        } else if (__dow === 6) {
-                            __shiftSky = (__rowSeq >= 27 && __rowSeq <= 29);
-                        } else {
-                            __shiftSky = (__rowSeq === 29);
-                        }
-                        const shiftBg = __shiftSky ? 'bg-sky-200 text-slate-900' : zigzagBg;
+                        const __opLimit = (typeof getOperatingVehicleLimitForDate === 'function')
+                            ? getOperatingVehicleLimitForDate(currentYear, currentMonth, d)
+                            : 29;
+                        const __overLimit = __rowSeq > __opLimit;
+                        const shiftBg = __overLimit ? 'bg-sky-200 text-slate-900' : zigzagBg;
 
                         if (bMatch) {
                             function formatWeeklyCell(name, dateKeyStr, line, busNo, shiftType) {
