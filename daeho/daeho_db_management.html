@@ -1760,6 +1760,7 @@ main{padding-top:18px !important;}
     ad.offDays = {};
     window.manualOverrides = {};
     window.manualOffDisplayOverrides = {};
+    window.morningCellSpinners = {};
     window.monthlyOffListSelections = {};
     window.monthlyOffDayEntries = [];
     // 메인 스크립트 로컬 변수도 비우도록 알림
@@ -1832,6 +1833,8 @@ main{padding-top:18px !important;}
           ? data.manualOffDisplayOverrides : {},
         y, m
       );
+      window.morningCellSpinners = (data.morningCellSpinners && typeof data.morningCellSpinners === 'object')
+        ? data.morningCellSpinners : {};
       // ★ 휴무자명단 테이블 → 휴무 표시 동기화
       // 중요: monthlyOffDayEntries 에 '이 문서 년·월' 날짜가 실제로 있을 때만 기준으로 사용.
       // (배차월 저장 시 다음달 휴무일자가 같은 필드에 들어가 있어도, 해당 월 날짜가 없으면
@@ -2124,6 +2127,7 @@ main{padding-top:18px !important;}
         offDays: offDaysSave,
         manualOverrides: window.manualOverrides || {},
         manualOffDisplayOverrides: filterMapByYearMonth(window.manualOffDisplayOverrides || {}, y, m),
+        morningCellSpinners: window.morningCellSpinners || {},
         monthlyOffListSelections: window.monthlyOffListSelections || {},
         monthlyOffDayEntries: dayEntriesSave,
         savedAt: serverTimestamp()
@@ -3303,11 +3307,14 @@ main{padding-top:18px !important;}
         window.appData = appData;
 
         let manualOverrides = {};
+        // 일요일/공휴일 회차 스피너 (0~3). key = dateKey|line|busNo
+        let morningCellSpinners = {};
         window.clearMainScheduleLocals = function () {
             manualOverrides = {};
             manualOffDisplayOverrides = {};
             monthlyOffListSelections = {};
             monthlyOffDayEntries = [];
+            morningCellSpinners = {};
             try {
                 if (typeof monthlySimulationCache !== 'undefined') monthlySimulationCache = null;
                 if (typeof monthlySimulationCacheKey !== 'undefined') monthlySimulationCacheKey = '';
@@ -3317,6 +3324,7 @@ main{padding-top:18px !important;}
         window.syncManualOverridesToWindow = function () {
             window.manualOverrides = manualOverrides || {};
             window.manualOffDisplayOverrides = manualOffDisplayOverrides || {};
+            window.morningCellSpinners = morningCellSpinners || {};
         };
         // DB 로드 후 window → 로컬 반영
         window.syncManualOverridesFromWindow = function () {
@@ -3325,6 +3333,9 @@ main{padding-top:18px !important;}
             }
             if (window.manualOffDisplayOverrides && typeof window.manualOffDisplayOverrides === 'object') {
                 manualOffDisplayOverrides = window.manualOffDisplayOverrides;
+            }
+            if (window.morningCellSpinners && typeof window.morningCellSpinners === 'object') {
+                morningCellSpinners = window.morningCellSpinners;
             }
         };
         // 기사변경을 하더라도 해당 날짜의 원래 휴무기사 명단은 그대로 보존합니다.
@@ -5740,6 +5751,41 @@ function getMonthlyOffAllDriverNames(){
             return new Date(year, parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)).getDay() === 0;
         }
 
+        // 일요일 또는 대한민국 공휴일 → 감축운행일 (스피너 열)
+        function isReducedServiceDay(dateKey, targetYear = null) {
+            const parts = String(dateKey || '').split('-');
+            if (parts.length < 3) return false;
+            const year = targetYear || (2000 + parseInt(parts[0], 10));
+            const month = parseInt(parts[1], 10);
+            const day = parseInt(parts[2], 10);
+            if (new Date(year, month - 1, day).getDay() === 0) return true;
+            return typeof isKoreanPublicHoliday === 'function' && isKoreanPublicHoliday(year, month, day);
+        }
+
+        function morningSpinnerKey(dateKey, line, busNo) {
+            return `${dateKey}|${line}|${busNo}`;
+        }
+
+        function getMorningCellSpinner(dateKey, line, busNo) {
+            const n = Number(morningCellSpinners[morningSpinnerKey(dateKey, line, busNo)]);
+            if (Number.isFinite(n) && n >= 0 && n <= 3) return n;
+            return 0;
+        }
+
+        function setMorningCellSpinner(dateKey, line, busNo, value) {
+            let n = parseInt(value, 10);
+            if (!Number.isFinite(n)) n = 0;
+            n = Math.max(0, Math.min(3, n));
+            morningCellSpinners[morningSpinnerKey(dateKey, line, busNo)] = n;
+            if (typeof window !== 'undefined') window.morningCellSpinners = morningCellSpinners;
+            if (typeof renderAllWeeklyView === 'function') renderAllWeeklyView();
+        }
+
+        function bumpMorningCellSpinner(dateKey, line, busNo, delta) {
+            const cur = getMorningCellSpinner(dateKey, line, busNo);
+            setMorningCellSpinner(dateKey, line, busNo, cur + delta);
+        }
+
         // 월별 배차 계산 결과를 연/월별로 따로 보관합니다.
         // 일자별 배차현황에서 조회일자를 바꾸어도 다른 월의 계산 결과가 섞이지 않습니다.
         let monthlySimulationCache = null;
@@ -6511,6 +6557,7 @@ function getMonthlyOffAllDriverNames(){
                 const dayCount = weekInfo.end - weekInfo.start + 1;
                 const colWidthLabel = 88; 
                 const dayColWidth = 62;
+                const spinColWidth = 40;
 
                 let topHeader = `<tr class="border-b border-slate-300 text-center bg-sky-100 text-slate-900" style="height:40px;">
                     <th rowspan="2" style="width: ${colWidthLabel}px; min-width: ${colWidthLabel}px; left: 0; background:#e0f2fe !important; height:40px;" class="px-1 py-1 text-center bg-sky-100 text-slate-900 border-r border-slate-300 font-bold text-sm align-middle sticky z-20 shadow-xs">
@@ -6524,15 +6571,24 @@ function getMonthlyOffAllDriverNames(){
                     const isHoliday = (typeof isKoreanPublicHoliday === 'function') && isKoreanPublicHoliday(currentYear, currentMonth, d);
                     // 평일 검정 / 토 파랑 / 일·공휴 빨강
                     let dateColor = (dow === '일' || isHoliday) ? 'text-rose-600' : ((dow === '토') ? 'text-blue-600' : 'text-slate-900');
+                    const dateKeyHdr = `${String(currentYear).substring(2)}-${currentMonth < 10 ? '0'+currentMonth : currentMonth}-${d < 10 ? '0'+d : d}`;
+                    const isReducedHdr = isReducedServiceDay(dateKeyHdr, currentYear);
+                    const daySpan = isReducedHdr ? 3 : 2;
+                    const dayMinW = isReducedHdr ? (dayColWidth * 2 + spinColWidth) : (dayColWidth * 2);
 
-                    topHeader += `<th colspan="2" style="min-width: ${dayColWidth * 2}px; height:40px;" class="px-1 py-1 text-center border-r border-slate-300 align-middle bg-sky-100">
+                    topHeader += `<th colspan="${daySpan}" style="min-width: ${dayMinW}px; height:40px;" class="px-1 py-1 text-center border-r border-slate-300 align-middle ${isReducedHdr ? 'bg-rose-50' : 'bg-sky-100'}">
                         <div class="flex items-center justify-center w-full gap-0.5">
                             <span class="text-[15px] font-black ${dateColor}">${currentMonth}.${d}</span><span class="text-[15px] font-black ${dateColor}">(${dow})</span>
                         </div>
                     </th>`;
-                    // 오후: inline color !important 로 테마/공통 thead 색 덮어쓰기 방지
-                    subHeader += `<th style="min-width: ${dayColWidth}px; height:20px;" class="px-0.5 py-0.5 font-extrabold text-[12px] border-r border-slate-200 align-middle text-center bg-sky-50 text-slate-800">오전</th>
-                                  <th style="min-width: ${dayColWidth}px; height:20px; color:#16a34a !important;" class="weekly-pm-th px-0.5 py-0.5 font-extrabold text-[12px] border-r border-slate-300 align-middle text-center bg-sky-50">오후</th>`;
+                    if (isReducedHdr) {
+                        subHeader += `<th style="min-width: ${dayColWidth}px; height:20px;" class="px-0.5 py-0.5 font-extrabold text-[12px] border-r border-slate-200 align-middle text-center bg-sky-50 text-slate-800">오전</th>
+                                      <th style="min-width: ${spinColWidth}px; width: ${spinColWidth}px; height:20px;" class="px-0 py-0.5 font-extrabold text-[10px] border-r border-slate-200 align-middle text-center bg-rose-50 text-rose-700">회</th>
+                                      <th style="min-width: ${dayColWidth}px; height:20px; color:#16a34a !important;" class="weekly-pm-th px-0.5 py-0.5 font-extrabold text-[12px] border-r border-slate-300 align-middle text-center bg-sky-50">오후</th>`;
+                    } else {
+                        subHeader += `<th style="min-width: ${dayColWidth}px; height:20px;" class="px-0.5 py-0.5 font-extrabold text-[12px] border-r border-slate-200 align-middle text-center bg-sky-50 text-slate-800">오전</th>
+                                      <th style="min-width: ${dayColWidth}px; height:20px; color:#16a34a !important;" class="weekly-pm-th px-0.5 py-0.5 font-extrabold text-[12px] border-r border-slate-300 align-middle text-center bg-sky-50">오후</th>`;
+                    }
                     dayIndex++;
                 }
                 topHeader += `</tr>`; subHeader += `</tr>`;
@@ -6586,30 +6642,51 @@ function getMonthlyOffAllDriverNames(){
                         let zigzagBg = isGrayBg ? 'bg-slate-100 text-slate-900' : 'bg-white text-slate-900';
 
                         if (bMatch) {
-                            function formatWeeklyCell(name, dateKeyStr, line, busNo, shiftType) {
-                                // 매트릭스 탭과 동일한 기사 글자 크기(text-xs) 적용
-                                if (name.includes('운행종료')) {
-                                    return `<div class="flex items-center justify-center w-full h-full cursor-pointer transition-colors" onclick="openDriverSelectModal('${dateKeyStr}', '${line}', '${busNo}', '${shiftType}', '')">
-                                        <span class="font-bold text-red-600 text-xs">운행종료</span>
-                                    </div>`;
+                            function formatWeeklyNameOnly(name) {
+                                if (String(name || '').includes('운행종료')) {
+                                    return `<span class="font-bold text-red-600 text-xs">운행종료</span>`;
                                 }
-                                let clean = name.replace('(S)', '').trim();
+                                let clean = String(name || '').replace('(S)', '').trim();
                                 let isSpare = appData.spares.includes(clean);
                                 if (isSpare) {
-                                    return `<div class="flex items-center justify-center px-0.5 py-1 text-center text-blue-600 font-bold text-xs truncate w-full blue-underline" title="${clean} (스페어)">${clean}</div>`;
+                                    return `<span class="font-bold text-blue-600 text-xs blue-underline truncate" title="${clean} (스페어)">${clean}</span>`;
                                 }
-                                return `<div class="flex items-center justify-center px-0.5 py-1 text-center text-slate-950 font-bold text-xs truncate w-full" title="${clean}">${clean}</div>`;
+                                return `<span class="font-bold text-slate-950 text-xs truncate" title="${clean}">${clean}</span>`;
                             }
 
+                            const isReducedDay = isReducedServiceDay(dateKey, currentYear);
+                            const bothEnded = String(bMatch.morningAssigned || '').includes('운행종료')
+                                && String(bMatch.afternoonAssigned || '').includes('운행종료');
+                            const showMidSpinner = isReducedDay && !bothEnded;
+                            const spinVal = showMidSpinner ? getMorningCellSpinner(dateKey, busItem.line, busItem.busNo) : 0;
+                            const midSpinnerHtml = showMidSpinner
+                                ? `<span class="inline-flex items-center justify-center no-print" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">
+                                    <button type="button" class="w-4 h-4 leading-none text-[10px] font-black border border-rose-300 rounded-l bg-rose-50 text-rose-700 hover:bg-rose-100"
+                                        onclick="event.stopPropagation(); bumpMorningCellSpinner('${dateKey}', '${busItem.line}', '${busItem.busNo}', -1)" title="감소">−</button>
+                                    <span class="w-4 h-4 leading-4 text-center text-[10px] font-extrabold border-y border-rose-300 bg-white text-rose-800">${spinVal}</span>
+                                    <button type="button" class="w-4 h-4 leading-none text-[10px] font-black border border-rose-300 rounded-r bg-rose-50 text-rose-700 hover:bg-rose-100"
+                                        onclick="event.stopPropagation(); bumpMorningCellSpinner('${dateKey}', '${busItem.line}', '${busItem.busNo}', 1)" title="증가">+</button>
+                                   </span>`
+                                : `<span class="text-slate-300 text-[10px]">-</span>`;
+
                             tbodyHtml += `<td style="min-width: ${dayColWidth}px;" class="px-0.5 text-center ${zigzagBg} align-middle border-r border-slate-200 cursor-pointer" onclick="openDriverSelectModal('${dateKey}', '${busItem.line}', '${busItem.busNo}', 'morning', '${bMatch.morningAssigned.replace('(S)','')} ')">
-                                ${formatWeeklyCell(bMatch.morningAssigned, dateKey, busItem.line, busItem.busNo, 'morning')}
+                                <div class="flex items-center justify-center w-full h-full px-0.5 py-1">${formatWeeklyNameOnly(bMatch.morningAssigned)}</div>
                             </td>`;
+                            if (isReducedDay) {
+                                tbodyHtml += `<td style="min-width: ${spinColWidth}px; width: ${spinColWidth}px;" class="px-0 text-center ${zigzagBg} align-middle border-r border-slate-200 bg-rose-50/40">
+                                    <div class="flex items-center justify-center w-full h-full py-1">${midSpinnerHtml}</div>
+                                </td>`;
+                            }
                             tbodyHtml += `<td style="min-width: ${dayColWidth}px;" class="px-0.5 text-center ${zigzagBg} align-middle border-r border-slate-300 cursor-pointer" onclick="openDriverSelectModal('${dateKey}', '${busItem.line}', '${busItem.busNo}', 'afternoon', '${bMatch.afternoonAssigned.replace('(S)','')} ')">
-                                ${formatWeeklyCell(bMatch.afternoonAssigned, dateKey, busItem.line, busItem.busNo, 'afternoon')}
+                                <div class="flex items-center justify-center w-full h-full px-0.5 py-1">${formatWeeklyNameOnly(bMatch.afternoonAssigned)}</div>
                             </td>`;
                         } else {
-                            tbodyHtml += `<td style="min-width: ${dayColWidth}px;" class="px-0.5 text-center ${zigzagBg} border-r border-slate-200 align-middle">-</td>
-                                          <td style="min-width: ${dayColWidth}px;" class="px-0.5 text-center ${zigzagBg} border-r border-slate-300 align-middle">-</td>`;
+                            const isReducedEmpty = isReducedServiceDay(dateKey, currentYear);
+                            tbodyHtml += `<td style="min-width: ${dayColWidth}px;" class="px-0.5 text-center ${zigzagBg} border-r border-slate-200 align-middle">-</td>`;
+                            if (isReducedEmpty) {
+                                tbodyHtml += `<td style="min-width: ${spinColWidth}px; width: ${spinColWidth}px;" class="px-0 text-center ${zigzagBg} border-r border-slate-200 align-middle">-</td>`;
+                            }
+                            tbodyHtml += `<td style="min-width: ${dayColWidth}px;" class="px-0.5 text-center ${zigzagBg} border-r border-slate-300 align-middle">-</td>`;
                         }
                         colIndex++;
                     }
@@ -6637,7 +6714,10 @@ function getMonthlyOffAllDriverNames(){
                         for (let i = 0; i < offNames.length; i += 3) _lines.push(offNames.slice(i, i + 3).join(', '));
                         offLinesHtml = _lines.map(l => `<div style="white-space:nowrap;">${l}</div>`).join('');
                     }
-                    offRowHtml += `<td colspan="2" style="min-width: ${dayColWidth * 2}px; padding:10px 8px !important; font-size:0.75rem !important; color:#15803d !important; vertical-align:middle; text-align:center; height:auto !important; min-height:64px !important; overflow:visible !important;" class="weekly-offday-name text-xs align-middle border-r border-slate-300 font-bold">` +
+                    const isReducedOff = isReducedServiceDay(dateKey, currentYear);
+                    const offSpan = isReducedOff ? 3 : 2;
+                    const offMinW = isReducedOff ? (dayColWidth * 2 + spinColWidth) : (dayColWidth * 2);
+                    offRowHtml += `<td colspan="${offSpan}" style="min-width: ${offMinW}px; padding:10px 8px !important; font-size:0.75rem !important; color:#15803d !important; vertical-align:middle; text-align:center; height:auto !important; min-height:64px !important; overflow:visible !important;" class="weekly-offday-name text-xs align-middle border-r border-slate-300 font-bold">` +
                         `<div class="weekly-offday-inner" style="display:block;white-space:normal;overflow-wrap:anywhere;word-break:keep-all;line-height:1.45;font-size:0.75rem;font-weight:700;text-align:center;height:auto;overflow:visible;padding:2px 0;" title="${offText}">${offLinesHtml}</div></td>`;
                 }
                 offRowHtml += `</tr>`;
@@ -8556,14 +8636,22 @@ function getMonthlyOffAllDriverNames(){
                     <div style="font-size:22px;font-weight:700;color:#16a34a;line-height:1.35;word-break:keep-all;text-align:center;">${esc(offText)}</div>
                 </div>`;
 
-                // 노선 / 오전 / 오후 배차 표
+                // 노선 / 오전 / (회) / 오후 배차 표 — 일·공휴일만 회(스피너) 열
+                const isReducedImg = (typeof isReducedServiceDay === 'function')
+                    ? isReducedServiceDay(dateKey, currentYear)
+                    : (isSun || holiday);
+                const colW = isReducedImg
+                    ? { line: '22%', morning: '32%', spin: '14%', afternoon: '32%' }
+                    : { line: '26%', morning: '37%', spin: '0%', afternoon: '37%' };
+
                 html += `<div style="padding:8px 6px;flex:1;box-sizing:border-box;">
                     <table style="width:100%;border-collapse:collapse;table-layout:fixed;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;">
                         <thead>
                             <tr>
-                                <th style="width:26%;text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#334155;padding:8px 2px;border:1px solid #cbd5e1;background:#f8fafc;line-height:1.15;">노선</th>
-                                <th style="width:37%;text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#b45309;padding:8px 2px;border:1px solid #cbd5e1;background:#fffbeb;line-height:1.15;">오전</th>
-                                <th style="width:37%;text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#c2410c;padding:8px 2px;border:1px solid #cbd5e1;background:#fef2f2;line-height:1.15;">오후</th>
+                                <th style="width:${colW.line};text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#334155;padding:8px 2px;border:1px solid #cbd5e1;background:#f8fafc;line-height:1.15;">노선</th>
+                                <th style="width:${colW.morning};text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#b45309;padding:8px 2px;border:1px solid #cbd5e1;background:#fffbeb;line-height:1.15;">오전</th>
+                                ${isReducedImg ? `<th style="width:${colW.spin};text-align:center;vertical-align:middle;font-size:20px;font-weight:900;color:#be123c;padding:8px 2px;border:1px solid #cbd5e1;background:#fff1f2;line-height:1.15;">회</th>` : ''}
+                                <th style="width:${colW.afternoon};text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#c2410c;padding:8px 2px;border:1px solid #cbd5e1;background:#fef2f2;line-height:1.15;">오후</th>
                             </tr>
                         </thead>
                         <tbody>`;
@@ -8579,9 +8667,22 @@ function getMonthlyOffAllDriverNames(){
                     const aColor = a === '운행종료' ? '#dc2626' : (aSpare ? '#2563eb' : '#0f172a');
                     const lineText = `${bus.line.replace('번', '')}·${bus.busNo}`;
                     const cellBase = `height:${ROW_H}px;text-align:center;vertical-align:middle;padding:0 2px;border:1px solid #e2e8f0;background:#ffffff;white-space:nowrap;overflow:hidden;box-sizing:border-box;line-height:1;`;
+                    const bothEndedImg = m.includes('운행종료') && a.includes('운행종료');
+                    let spinCell = '';
+                    if (isReducedImg) {
+                        if (bothEndedImg) {
+                            spinCell = `<td style="${cellBase}font-size:18px;font-weight:800;color:#94a3b8;background:#fff1f2;">-</td>`;
+                        } else {
+                            const spinN = (typeof getMorningCellSpinner === 'function')
+                                ? getMorningCellSpinner(dateKey, bus.line, bus.busNo)
+                                : 0;
+                            spinCell = `<td style="${cellBase}font-size:24px;font-weight:900;color:#be123c;background:#fff1f2;">${spinN}</td>`;
+                        }
+                    }
                     html += `<tr style="height:${ROW_H}px;">
-                        <td style="${cellBase}font-size:${fitFont(lineText, colPx.line, 28, 16)}px;font-weight:900;color:${lineColor};">${esc(lineText)}</td>
+                        <td style="${cellBase}font-size:${fitFont(lineText, colPx.line, 28, 16) + 2}px;font-weight:900;color:${lineColor};line-height:1.15;">${esc(bus.line.replace('번', ''))}<br>${esc(bus.busNo)}</td>
                         <td style="${cellBase}font-size:${fitFont(m, colPx.shift, 31, 17)}px;font-weight:800;color:${mColor};">${esc(m)}</td>
+                        ${spinCell}
                         <td style="${cellBase}font-size:${fitFont(a, colPx.shift, 31, 17)}px;font-weight:800;color:${aColor};">${esc(a)}</td>
                     </tr>`;
                 });
@@ -8596,6 +8697,7 @@ function getMonthlyOffAllDriverNames(){
             const legend = document.createElement('div');
             legend.innerHTML = `<div style="margin-top:16px;text-align:center;font-size:18px;font-weight:700;color:#475569;line-height:1.6;">
                 <span style="display:inline-block;margin:0 10px;">🟧 오전 · 🟥 오후</span>
+                <span style="display:inline-block;margin:0 10px;color:#be123c;">회 = 일요일/공휴일 회차</span>
                 <span style="display:inline-block;margin:0 10px;color:#2563eb;">파란 글자 = 스페어 대체기사</span>
                 <span style="display:inline-block;margin:0 10px;color:#dc2626;">빨강 날짜 = 일요일/공휴일</span>
             </div>`;
