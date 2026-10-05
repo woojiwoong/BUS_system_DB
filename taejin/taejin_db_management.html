@@ -1042,6 +1042,59 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
   outline:none;border-color:#2563eb;
   box-shadow:0 0 0 3px rgba(37,99,235,.18);
 }
+
+/* 휴무 구분 라디오 */
+.monthly-off-type-group{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px 8px;
+  margin-top:10px;
+  padding:10px 10px 8px;
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  background:linear-gradient(180deg,#f8fafc 0%,#fff 100%);
+  box-sizing:border-box;
+  width:100%;
+}
+.monthly-off-type-group-label{
+  grid-column:1 / -1;
+  width:100%;font-size:12px;font-weight:900;color:#475569;margin-bottom:2px;
+  letter-spacing:-0.01em;
+}
+.monthly-off-type-opt{
+  display:inline-flex;align-items:center;justify-content:center;gap:5px;
+  padding:7px 8px;border:1.5px solid #cbd5e1;border-radius:10px;
+  background:#fff;cursor:pointer;font-size:13px;font-weight:800;color:#334155;
+  transition:border-color .15s, background .15s, color .15s, box-shadow .15s;
+  user-select:none;-webkit-user-select:none;
+  text-align:center;min-height:36px;box-sizing:border-box;
+}
+.monthly-off-type-opt:hover{border-color:#94a3b8;background:#f8fafc}
+.monthly-off-type-opt:has(input:checked){
+  border-color:#2563eb;background:#eff6ff;color:#1d4ed8;
+  box-shadow:0 0 0 2px rgba(37,99,235,.12);
+}
+.monthly-off-type-opt input{
+  position:absolute;opacity:0;width:0;height:0;pointer-events:none;
+}
+.monthly-off-type-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:36px;padding:2px 8px;border-radius:999px;
+  font-size:12px;font-weight:900;line-height:1.4;
+  background:#e2e8f0;color:#334155;
+}
+.monthly-off-type-badge[data-type="휴무"]{background:#dbeafe;color:#1d4ed8}
+.monthly-off-type-badge[data-type="위로"]{background:#fce7f3;color:#be185d}
+.monthly-off-type-badge[data-type="연차"]{background:#dcfce7;color:#15803d}
+.monthly-off-type-badge[data-type="결근"]{background:#fee2e2;color:#b91c1c}
+.monthly-off-type-badge[data-type="유급"]{background:#ffedd5;color:#c2410c}
+.monthly-off-type-badge[data-type="휴직"]{background:#e0e7ff;color:#4338ca}
+.monthly-off-type-badge[data-type="기타"]{background:#f1f5f9;color:#475569}
+@media(max-width:639px){
+  .monthly-off-type-group{gap:5px 6px;padding:8px;grid-template-columns:1fr 1fr}
+  .monthly-off-type-opt{padding:6px 6px;font-size:12px;min-height:34px}
+}
+
 .monthly-off-day-date::-webkit-calendar-picker-indicator{
   cursor:pointer;opacity:.75;transform:scale(1.15);
 }
@@ -1083,7 +1136,7 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
 .monthly-off-day-table-wrap{
   margin:8px 14px 14px;width:auto;overflow:auto;
   border:1px solid #c7d2e3;border-radius:14px;background:#fff;
-  max-height:calc(5 * 48px + 48px);
+  max-height:min(60vh, 420px);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.8);
 }
 .monthly-off-day-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed}
@@ -1094,24 +1147,42 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
   border-bottom:1px solid #cbd5e1;letter-spacing:-0.01em;
 }
 .monthly-off-day-table thead th.monthly-off-day-th-date{
-  font-size:17px;font-weight:900;color:#0f172a;width:32%;
+  font-size:14px;font-weight:900;color:#0f172a;width:130px;
 }
-.monthly-off-day-table thead th.monthly-off-day-th-del{width:76px;font-size:13px}
+.monthly-off-day-table thead th.monthly-off-day-th-names{
+  font-size:14px;font-weight:900;color:#0f172a;width:auto;
+}
+.monthly-off-day-table thead th.monthly-off-day-th-del{width:64px;font-size:13px}
 .monthly-off-day-table tbody td{
-  padding:11px 10px;text-align:center;vertical-align:middle;
+  padding:10px 12px;text-align:center;vertical-align:middle;
   border-bottom:1px solid #e8eef5;font-size:14px;font-weight:700;color:#0f172a;
-  height:48px;box-sizing:border-box;
+  height:auto;min-height:48px;box-sizing:border-box;
 }
 .monthly-off-day-table tbody tr:last-child td{border-bottom:0}
 .monthly-off-day-table tbody tr:hover td{background:#f8fafc}
 .monthly-off-day-table .off-day-date-cell{
-  color:#b91c1c;font-weight:900;font-size:17px;letter-spacing:-0.02em;white-space:nowrap;
+  color:#b91c1c;font-weight:900;font-size:14px;letter-spacing:-0.02em;white-space:nowrap;
+  width:130px;
 }
-.off-day-name-pair{display:flex;align-items:center;justify-content:flex-start;gap:0;white-space:nowrap;line-height:1.55}
-.off-day-name-gap{display:inline-block;margin:0 5px}
+.off-day-name-gap{display:inline;margin:0}
 .off-day-names-cell{
-  text-align:left;font-weight:700;font-size:14px;color:#334155;word-break:keep-all;
+  text-align:center !important;
+  font-weight:700;font-size:14px;color:#334155;
+  word-break:keep-all;overflow-wrap:anywhere;white-space:normal !important;
+  line-height:1.55 !important;width:auto;
 }
+.off-day-names-cell > span{display:inline;white-space:nowrap}
+
+.off-day-name-line{
+  display:block !important;
+  width:100% !important;
+  text-align:center !important;
+  line-height:1.5 !important;
+  padding:1px 0 !important;
+  white-space:nowrap !important;
+}
+
+.off-day-names-cell .off-day-spare-name{white-space:nowrap}
 .monthly-off-day-table .off-day-del{
   border:0;background:#fee2e2;color:#b91c1c;font-weight:800;font-size:12px;
   padding:6px 11px;border-radius:9px;cursor:pointer;
@@ -1127,8 +1198,10 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
   .monthly-off-day-btn-add{padding:0 14px}
   .monthly-off-day-btn-reset{padding:0 10px}
   .monthly-off-day-table-wrap{margin:6px 10px 12px}
-  .monthly-off-day-table thead th.monthly-off-day-th-date{font-size:15px}
-  .monthly-off-day-table .off-day-date-cell{font-size:15px}
+  .monthly-off-day-table thead th.monthly-off-day-th-date{font-size:13px;width:96px}
+  .monthly-off-day-table .off-day-date-cell{font-size:13px;width:96px}
+  .monthly-off-day-table thead th.monthly-off-day-th-del{width:56px}
+  .monthly-off-day-names-cell,.off-day-names-cell{font-size:13px !important}
 }
 </style>
 
@@ -1552,57 +1625,46 @@ main{padding-top:18px !important;}
   font-weight: 800 !important;
 }
 </style>
-<style id="monthly-off-two-per-line-final">
+<style id="monthly-off-names-flow-final">
 #view-monthlyOffList .off-day-names-cell,
 #view-info .off-day-names-cell {
-  text-align:left !important;
+  text-align:center !important;
   white-space:normal !important;
   overflow:visible !important;
-}
-#view-monthlyOffList .off-day-name-pair,
-#view-info .off-day-name-pair {
-  display:flex !important;
-  flex-wrap:nowrap !important;
-  align-items:center !important;
-  justify-content:flex-start !important;
-  width:100% !important;
-  min-height:22px !important;
+  word-break:keep-all !important;
+  overflow-wrap:anywhere !important;
   line-height:1.55 !important;
-  white-space:nowrap !important;
 }
 #view-monthlyOffList .off-day-name-gap,
 #view-info .off-day-name-gap {
-  display:inline-block !important;
-  margin:0 6px !important;
+  display:inline !important;
+  margin:0 !important;
+  white-space:pre !important;
 }
 </style>
 
-<style id="offday-two-per-line-hard-final">
-/* 휴무기사명: 정확히 2명씩 한 줄 */
+<style id="offday-names-wide-final">
+/* 휴무기사명: 넓은 칸 + 자연 줄바꿈 (강제 n명 줄바꿈 제거) */
 #view-monthlyOffList #monthlyOffDayTableBody td.off-day-names-cell {
-    text-align:left !important;
+    text-align:center !important;
     white-space:normal !important;
     overflow:visible !important;
     vertical-align:middle !important;
-}
-#view-monthlyOffList #monthlyOffDayTableBody td.off-day-names-cell .off-day-name-pair {
-    display:block !important;
-    width:100% !important;
-    white-space:nowrap !important;
-    overflow:visible !important;
+    width:auto !important;
     line-height:1.55 !important;
-    height:auto !important;
-    min-height:0 !important;
 }
 #view-monthlyOffList #monthlyOffDayTableBody td.off-day-names-cell .off-day-name-gap {
     display:inline !important;
-    margin:0 5px !important;
+    margin:0 !important;
+    white-space:pre !important;
 }
-#view-monthlyOffList #monthlyOffDayTableBody td.off-day-names-cell > br {
-    display:block !important;
-    content:"" !important;
-    height:0 !important;
-    line-height:0 !important;
+#view-monthlyOffList #monthlyOffDayTableBody td.off-day-date-cell {
+    width:130px !important;
+    max-width:130px !important;
+}
+#view-monthlyOffList #monthlyOffDayTableBody td:last-child {
+    width:64px !important;
+    max-width:64px !important;
 }
 </style>
 
@@ -2224,6 +2286,7 @@ main{padding-top:18px !important;}
         };
         window.monthlyOffDayEntries = _offDays.map(e => ({
           date: normD(e && e.date),
+          type: (e && e.type) ? String(e.type).trim() : '휴무',
           drivers: [...new Set((e && e.drivers || []).map(n => String(n || '').replace('(S)','').trim()).filter(Boolean))]
         })).filter(e => e.date && e.date.startsWith(pfx) && e.drivers.length);
       }
@@ -2502,6 +2565,7 @@ main{padding-top:18px !important;}
       };
       const tableEntries = (window.monthlyOffDayEntries || []).map(e => ({
         date: normDate(e && e.date),
+        type: (e && e.type) ? String(e.type).trim() : '휴무',
         drivers: [...new Set((e && e.drivers || []).map(n => String(n || '').replace('(S)', '').trim()).filter(Boolean))]
           .sort((a, b) => a.localeCompare(b, 'ko'))
       })).filter(e => e.date && e.date.startsWith(prefix) && e.drivers.length);
@@ -2721,6 +2785,7 @@ main{padding-top:18px !important;}
         const raw = Array.isArray(src && src.monthlyOffDayEntries) ? src.monthlyOffDayEntries : [];
         return raw.map(e => ({
           date: normDate(e && e.date),
+          type: (e && e.type) ? String(e.type).trim() : '휴무',
           drivers: cleanDrivers(e && e.drivers)
         })).filter(e => e.date && e.date.startsWith(prefix) && e.drivers.length);
       }
@@ -3547,6 +3612,16 @@ main{padding-top:18px !important;}
                                 <label class="monthly-off-day-label monthly-off-day-label-lg">휴무일자</label>
                                 <input type="date" id="monthlyOffDayDate" class="monthly-off-day-date">
                                 <div id="monthlyOffDayDateFixedNote" class="mt-1 text-[11px] font-extrabold text-rose-600 text-center"></div>
+                                <div class="monthly-off-type-group" role="radiogroup" aria-label="휴무 구분">
+                                    <div class="monthly-off-type-group-label">휴무 구분</div>
+                                    <label class="monthly-off-type-opt"><input type="radio" name="monthlyOffDayType" value="휴무" checked>휴무</label>
+                                    <label class="monthly-off-type-opt"><input type="radio" name="monthlyOffDayType" value="위로">위로</label>
+                                    <label class="monthly-off-type-opt"><input type="radio" name="monthlyOffDayType" value="연차">연차</label>
+                                    <label class="monthly-off-type-opt"><input type="radio" name="monthlyOffDayType" value="결근">결근</label>
+                                    <label class="monthly-off-type-opt"><input type="radio" name="monthlyOffDayType" value="유급">유급</label>
+                                    <label class="monthly-off-type-opt"><input type="radio" name="monthlyOffDayType" value="휴직">휴직</label>
+                                    <label class="monthly-off-type-opt"><input type="radio" name="monthlyOffDayType" value="기타">기타</label>
+                                </div>
                             </div>
                             <div class="monthly-off-day-field monthly-off-day-field-drivers">
                                 <label class="monthly-off-day-label">휴무기사명 <span class="monthly-off-day-label-sub">(다중선택)</span></label>
@@ -3573,7 +3648,7 @@ main{padding-top:18px !important;}
                                 <thead>
                                     <tr>
                                         <th class="monthly-off-day-th-date">휴무일자</th>
-                                        <th>휴무기사명</th>
+                                        <th class="monthly-off-day-th-names">휴무기사명</th>
                                         <th class="monthly-off-day-th-del">제거</th>
                                     </tr>
                                 </thead>
@@ -5118,6 +5193,7 @@ main{padding-top:18px !important;}
                                     const pfx = t.y + '-' + String(t.m).padStart(2, '0') + '-';
                                     monthlyOffDayEntries = parsedDays.map(e => ({
                                         date: normalizeOffDayDateKey(e && e.date) || String(e && e.date || ''),
+                                        type: (e && e.type) ? String(e.type).trim() : '휴무',
                                         drivers: (e && e.drivers || []).map(n => String(n || '').replace('(S)', '').trim()).filter(Boolean)
                                     })).filter(e => e.date && e.date.startsWith(pfx) && e.drivers.length);
                                     if (monthlyOffDayEntries.length) monthlyOffListOverrideFromFile = true;
@@ -5195,6 +5271,7 @@ main{padding-top:18px !important;}
 
             return Object.keys(map).sort().map(date => ({
                 date,
+                type: '휴무',
                 drivers: map[date].sort((a, b) => a.localeCompare(b, 'ko'))
             })).filter(e => e.drivers.length);
         }
@@ -5274,6 +5351,7 @@ main{padding-top:18px !important;}
             if (Array.isArray(dayEntries) && dayEntries.length > 0) {
                 mappedDayEntries = dayEntries.map(e => ({
                     date: _norm(e && e.date),
+                    type: (e && e.type) ? String(e.type).trim() : '휴무',
                     drivers: [...new Set((e.drivers || []).map(n => String(n || '').replace('(S)', '').trim()).filter(Boolean))]
                       .sort((a, b) => a.localeCompare(b, 'ko'))
                 })).filter(e => e.date && e.date.startsWith(_prefix) && e.drivers.length);
@@ -5315,7 +5393,7 @@ main{padding-top:18px !important;}
         let txtBaselineData = { routes: null, spares: null };
         // true: 사용자가 '휴무자명단불러오기'로 연 값 표시 중(기본 TXT 스냅샷 강제 적용 안 함)
         let monthlyOffListOverrideFromFile = false;
-        // 휴무일자·휴무기사 연결 목록 [{ date:'YYYY-MM-DD', drivers:['이름',...] }, ...]
+        // 휴무일자·휴무기사 연결 목록 [{ date:'YYYY-MM-DD', type:'휴무|위로|연차|결근|유급|휴직|기타', drivers:['이름',...] }, ...]
         let monthlyOffDayEntries = [];
         // 테이블 추가/제거 후 미저장 상태 (true면 서버 로드로 덮어쓰지 않음)
         // window.monthlyOffListDirty 와 동기
@@ -5939,7 +6017,10 @@ function getMonthlyOffAllDriverNames(){
                 .concat(spareNames, dbNames)
                 .filter(Boolean)
                 .filter(n => !isGroup(n));
-            return [...new Set(names)].sort((a,b)=>a.localeCompare(b,'ko'));
+            // 가나다순 (한글 로케일)
+            return [...new Set(names)].sort((a, b) =>
+                String(a).localeCompare(String(b), 'ko-KR', { numeric: true, sensitivity: 'base' })
+            );
         }
 
         function syncMonthlyOffDayDatePicker(){
@@ -5993,8 +6074,17 @@ function getMonthlyOffAllDriverNames(){
 
         function getDriversAlreadyOnDate(dateVal){
             if (!dateVal) return [];
-            const entry = (monthlyOffDayEntries || []).find(e => e.date === dateVal);
-            return entry ? (entry.drivers || []).slice() : [];
+            // 같은 날짜의 모든 구분(휴무/연차/결근 등)에 등록된 기사를 합침
+            // → 해당 일자에 이미 등록된 기사는 선택 목록에서 제외 (중복 등록 방지)
+            const names = [];
+            (monthlyOffDayEntries || []).forEach(e => {
+                if (String(e && e.date) !== String(dateVal)) return;
+                (e.drivers || []).forEach(n => {
+                    const clean = String(n || '').replace('(S)', '').trim();
+                    if (clean && !names.includes(clean)) names.push(clean);
+                });
+            });
+            return names;
         }
 
         function renderMonthlyOffDriverMultiList(){
@@ -6005,9 +6095,14 @@ function getMonthlyOffAllDriverNames(){
             const dateVal = dateEl ? dateEl.value : '';
             const already = getDriversAlreadyOnDate(dateVal);
             // 이미 해당 일자에 등록된 기사는 선택 목록에서 제외
-            const available = names.filter(n => !already.includes(n));
+            // 가나다순 재정렬 (목록 표시 직전)
+            const available = names
+                .filter(n => !already.includes(n))
+                .sort((a, b) => String(a).localeCompare(String(b), 'ko-KR', { numeric: true, sensitivity: 'base' }));
             // 선택 중인데 이미 등록된 기사가 있으면 선택 상태도 정리
-            monthlyOffDaySelectedDrivers = monthlyOffDaySelectedDrivers.filter(n => !already.includes(n));
+            monthlyOffDaySelectedDrivers = monthlyOffDaySelectedDrivers
+                .filter(n => !already.includes(n))
+                .sort((a, b) => String(a).localeCompare(String(b), 'ko-KR', { numeric: true, sensitivity: 'base' }));
             const spareNameSet = new Set(getMonthlyOffBaselineSpares());
             list.innerHTML = available.map(name => {
                 const checked = monthlyOffDaySelectedDrivers.includes(name) ? 'checked' : '';
@@ -6036,7 +6131,29 @@ function getMonthlyOffAllDriverNames(){
             } else {
                 monthlyOffDaySelectedDrivers = monthlyOffDaySelectedDrivers.filter(n => n !== name);
             }
+            // 선택 표시도 가나다순
+            monthlyOffDaySelectedDrivers.sort((a, b) =>
+                String(a).localeCompare(String(b), 'ko-KR', { numeric: true, sensitivity: 'base' })
+            );
             updateMonthlyOffDriverMultiLabel();
+        }
+
+
+        const MONTHLY_OFF_DAY_TYPES = ['휴무','위로','연차','결근','유급','휴직','기타'];
+        function getSelectedMonthlyOffDayType(){
+            const el = document.querySelector('input[name="monthlyOffDayType"]:checked');
+            const v = el ? String(el.value || '').trim() : '휴무';
+            return MONTHLY_OFF_DAY_TYPES.includes(v) ? v : '휴무';
+        }
+        function setSelectedMonthlyOffDayType(type){
+            const v = MONTHLY_OFF_DAY_TYPES.includes(type) ? type : '휴무';
+            document.querySelectorAll('input[name="monthlyOffDayType"]').forEach(r => {
+                r.checked = (r.value === v);
+            });
+        }
+        function normalizeMonthlyOffDayType(type){
+            const v = String(type || '').trim();
+            return MONTHLY_OFF_DAY_TYPES.includes(v) ? v : '휴무';
         }
 
         function clearMonthlyOffDaySelection(){
@@ -6044,6 +6161,7 @@ function getMonthlyOffAllDriverNames(){
             const panel = document.getElementById('monthlyOffDriverMultiPanel');
             if (panel) panel.querySelectorAll('input[type=checkbox]').forEach(c => { c.checked = false; });
             updateMonthlyOffDriverMultiLabel();
+            setSelectedMonthlyOffDayType('휴무');
             syncMonthlyOffDayDatePicker();
         }
 
@@ -6078,13 +6196,27 @@ function getMonthlyOffAllDriverNames(){
                 const dup = monthlyOffDaySelectedDrivers.filter(n => already.includes(n));
                 showModal('일부 중복', `이미 등록된 기사(${dup.join(', ')})는 제외하고 추가합니다.`);
             }
-            const existIdx = monthlyOffDayEntries.findIndex(e => e.date === dateVal);
+            const offType = (typeof getSelectedMonthlyOffDayType === 'function')
+                ? getSelectedMonthlyOffDayType() : '휴무';
+            // 같은 일자 + 같은 구분끼리 병합
+            const existIdx = monthlyOffDayEntries.findIndex(e =>
+                e.date === dateVal && normalizeMonthlyOffDayType(e.type) === offType
+            );
             if (existIdx >= 0) {
                 const merged = [...new Set([...(monthlyOffDayEntries[existIdx].drivers || []), ...drivers])];
                 monthlyOffDayEntries[existIdx].drivers = merged.sort((a,b)=>a.localeCompare(b,'ko'));
+                monthlyOffDayEntries[existIdx].type = offType;
             } else {
-                monthlyOffDayEntries.push({ date: dateVal, drivers: drivers.sort((a,b)=>a.localeCompare(b,'ko')) });
-                monthlyOffDayEntries.sort((a,b)=>a.date.localeCompare(b.date));
+                monthlyOffDayEntries.push({
+                    date: dateVal,
+                    type: offType,
+                    drivers: drivers.sort((a,b)=>a.localeCompare(b,'ko'))
+                });
+                monthlyOffDayEntries.sort((a,b)=>{
+                    const dc = a.date.localeCompare(b.date);
+                    if (dc) return dc;
+                    return normalizeMonthlyOffDayType(a.type).localeCompare(normalizeMonthlyOffDayType(b.type), 'ko');
+                });
             }
             // 추가 시: 캐시(DB 조회 캐시/로컬 백업)를 삭제하지 않음. 로컬 백업만 갱신.
             // invalidatetaejinDocCache 호출 금지 — 미저장 추가분이 서버 재조회로 덮이지 않도록 함.
@@ -6108,8 +6240,14 @@ function getMonthlyOffAllDriverNames(){
         }
 
         function removeMonthlyOffDayEntry(idxOrDate){
-            // 내림차순 표시이므로 날짜 문자열로 제거하는 것을 권장
-            if (typeof idxOrDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(idxOrDate)) {
+            // date 또는 date|type 키로 제거
+            if (typeof idxOrDate === 'string' && idxOrDate.includes('|')) {
+                const [d, t] = idxOrDate.split('|');
+                const typ = normalizeMonthlyOffDayType(t);
+                monthlyOffDayEntries = monthlyOffDayEntries.filter(e =>
+                    !(String(e.date) === d && normalizeMonthlyOffDayType(e.type) === typ)
+                );
+            } else if (typeof idxOrDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(idxOrDate)) {
                 monthlyOffDayEntries = monthlyOffDayEntries.filter(e => String(e.date) !== idxOrDate);
             } else {
                 const idx = Number(idxOrDate);
@@ -6133,11 +6271,13 @@ function getMonthlyOffAllDriverNames(){
         }
 
         function formatMonthlyOffDayDisplay(iso){
-            // YYYY-MM-DD → M월 D일(요일)
+            // YYYY-MM-DD → M월D일(요일)  예: 11월12일(화)
             const p = String(iso || '').split('-').map(Number);
             if (p.length !== 3 || !p[0]) return iso || '';
-            const dow = getDayOfWeekStr(p[0], p[1], p[2]);
-            return `${p[1]}월 ${p[2]}일(${dow})`;
+            const dow = (typeof getDayOfWeekStr === 'function')
+                ? getDayOfWeekStr(p[0], p[1], p[2])
+                : ['일','월','화','수','목','금','토'][new Date(p[0], p[1]-1, p[2]).getDay()];
+            return `${p[1]}월${p[2]}일(${dow})`;
         }
 
         function renderMonthlyOffDayTable(){
@@ -6170,6 +6310,9 @@ function getMonthlyOffAllDriverNames(){
                 }
                 return {
                     date: d,
+                    type: (typeof normalizeMonthlyOffDayType === 'function')
+                        ? normalizeMonthlyOffDayType(e && e.type)
+                        : (String((e && e.type) || '휴무').trim() || '휴무'),
                     drivers: expandOffListToDriverNames((e && e.drivers) || [])
                 };
             }).filter(e => e.date && /^\d{4}-\d{2}-\d{2}$/.test(e.date) && e.drivers.length);
@@ -6190,38 +6333,52 @@ function getMonthlyOffAllDriverNames(){
                 ).join('');
                 return;
             }
-            // 휴무일자 내림차순 표시
-            const sortedEntries = monthEntries.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
-            let rows = sortedEntries.map((entry) => {
-                // 스페어 기사는 밑줄, 정규기사는 일반 표시
-                const nameItems = (entry.drivers || []).map(n => {
+            // 같은 날짜는 한 행으로 합치고, 기사마다 한 줄: 이름(구분)
+            const byDate = {};
+            monthEntries.forEach(entry => {
+                const d = entry.date;
+                if (!byDate[d]) byDate[d] = [];
+                const offType = (typeof normalizeMonthlyOffDayType === 'function')
+                    ? normalizeMonthlyOffDayType(entry.type)
+                    : (String(entry.type || '휴무').trim() || '휴무');
+                (entry.drivers || []).forEach(n => {
                     const clean = String(n || '').replace('(S)', '').trim();
-                    if (!clean) return '';
-                    if (spareSet.has(clean)) {
-                        return `<span class="off-day-spare-name">${esc(clean)}</span>`;
+                    if (!clean) return;
+                    // 같은 날짜·같은 기사 중복 제거 (나중 등록 구분 우선)
+                    const existIdx = byDate[d].findIndex(x => x.name === clean);
+                    if (existIdx >= 0) byDate[d][existIdx].type = offType;
+                    else byDate[d].push({ name: clean, type: offType });
+                });
+            });
+            const sortedDates = Object.keys(byDate).sort((a, b) => String(b).localeCompare(String(a)));
+            // 건수 라벨: 날짜 기준
+            const labelEl2 = document.getElementById('monthlyOffDayMonthLabel');
+            if (labelEl2) {
+                labelEl2.textContent = sortedDates.length
+                    ? `${labelYm} 휴무 데이터 (${sortedDates.length}일) · 서버 기준`
+                    : `${labelYm} 휴무 데이터 (0건)`;
+            }
+            let rows = sortedDates.map((dateKey) => {
+                const people = byDate[dateKey] || [];
+                // 이름 가나다순
+                people.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+                const nameItems = people.map(p => {
+                    const label = `${esc(p.name)}(${esc(p.type)})`;
+                    if (spareSet.has(p.name)) {
+                        return `<div class="off-day-name-line"><span class="off-day-spare-name">${label}</span></div>`;
                     }
-                    return `<span>${esc(clean)}</span>`;
-                }).filter(Boolean);
-                // 휴무자는 반드시 2명씩 한 줄로 표시
-                const nameRows = [];
-                for (let ni = 0; ni < nameItems.length; ni += 2) {
-                    const pair = nameItems.slice(ni, ni + 2);
-                    // 휴무자 2명 단위로 한 줄을 만들고, 다음 2명은 반드시 다음 줄로 보냅니다.
-                    nameRows.push(
-                        `<div class="off-day-name-pair" style="display:block !important;width:100% !important;white-space:nowrap !important;line-height:1.55 !important;">` +
-                        pair.join('<span class="off-day-name-gap">, </span>') +
-                        `</div>`
-                    );
-                }
-                // pair 사이에 실제 <br>도 넣어 CSS에 관계없이 줄바꿈을 보장합니다.
-                const namesHtml = nameRows.join('<br>');
+                    return `<div class="off-day-name-line"><span>${label}</span></div>`;
+                });
+                const namesHtml = nameItems.join('');
+                // 제거: 해당 날짜 전체
+                const rowKey = esc(dateKey);
                 return `<tr>
-                    <td class="off-day-date-cell">${esc(formatMonthlyOffDayDisplay(entry.date))}</td>
+                    <td class="off-day-date-cell">${esc(formatMonthlyOffDayDisplay(dateKey))}</td>
                     <td class="off-day-names-cell">${namesHtml || '—'}</td>
-                    <td><button type="button" class="off-day-del" onclick="removeMonthlyOffDayEntry('${esc(entry.date)}')">제거</button></td>
+                    <td><button type="button" class="off-day-del" onclick="removeMonthlyOffDayEntry('${rowKey}')">제거</button></td>
                 </tr>`;
             }).join('');
-            const pad = Math.max(0, 5 - sortedEntries.length);
+            const pad = Math.max(0, 5 - sortedDates.length);
             for (let i = 0; i < pad; i++) {
                 rows += `<tr class="off-day-empty"><td>—</td><td class="off-day-names-cell" style="text-align:center">—</td><td></td></tr>`;
             }
@@ -7413,10 +7570,19 @@ function getMonthlyOffAllDriverNames(){
                                 else if (String(ov.afternoon).replace('(S)','').trim() === '운행종료') aAssigned = '운행종료';
                             }
                         }
-                        // 조휴무는 오버라이드 후에도 운행종료 강제 (10/1~3 등 표시 누락 방지)
+                        // 조휴무: 기본은 항상 N조휴무(운행종료).
+                        // 해당 셀을 직접 기사변경한 경우(__joOffEdit)에만 오버라이드 기사명 표시.
                         if (row.joOff) {
-                            mAssigned = '운행종료';
-                            aAssigned = '운행종료';
+                            if (ov && ov.__joOffEdit) {
+                                // 직접 변경한 교대만 유지, 값이 비면 운행종료
+                                const mv = (ov.morning != null) ? String(ov.morning).replace('(S)', '').trim() : '';
+                                const av = (ov.afternoon != null) ? String(ov.afternoon).replace('(S)', '').trim() : '';
+                                mAssigned = mv || '운행종료';
+                                aAssigned = av || '운행종료';
+                            } else {
+                                mAssigned = '운행종료';
+                                aAssigned = '운행종료';
+                            }
                         }
 
                         // 최종 배차 결과를 기준으로 스페어 투입차량을 기록합니다.
@@ -8046,10 +8212,24 @@ function getMonthlyOffAllDriverNames(){
             //    ★ 변경하는 셀의 해당 교대만 새 값으로 바꾸고,
             //      나머지 모든 셀(같은 차량 반대교대 포함)은 변경 직전 값으로 무조건 고정한다.
             //      → 휴무자 이동/시뮬레이션 재실행으로 다른 셀이 절대 바뀌지 않게 함
+            // 조휴무 패턴일 판별 (직접 기사변경한 조휴무 셀만 예외 허용)
+            const __editDayNum = parseInt(String(dateKey).split('-')[2], 10);
+            const __editOffGrp = (typeof getPatternOffGroup === 'function')
+                ? Number(getPatternOffGroup(__editDayNum, currentYear, currentMonth)) || 0
+                : 0;
+            const __isJoOffBus = (rLine, rBus) => {
+                if (!__editOffGrp) return false;
+                const g = (typeof getJoGroupForBus === 'function')
+                    ? Number(getJoGroupForBus(rLine, rBus)) || 0
+                    : 0;
+                return !!(g && g === __editOffGrp);
+            };
+
             (dayDataBefore.busAssignments || []).forEach(b => {
                 const bKey = `${dateKey}_${b.line}_${b.busNo}`;
                 if (!manualOverrides[bKey]) manualOverrides[bKey] = {};
                 const isEditCell = (b.line === line && String(b.busNo) === String(busNo));
+                const busIsJoOff = __isJoOffBus(b.line, b.busNo);
 
                 if (isEditCell) {
                     // 편집 중인 셀: 선택한 교대만 새 이름, 반대 교대는 변경 전 값으로 강제 유지
@@ -8058,10 +8238,20 @@ function getMonthlyOffAllDriverNames(){
                     manualOverrides[bKey][other] = norm(
                         shift === 'morning' ? b.afternoonAssigned : b.morningAssigned
                     );
+                    // 조휴무 셀을 직접 바꾼 경우에만 오버라이드 표시 허용
+                    if (busIsJoOff) {
+                        manualOverrides[bKey].__joOffEdit = true;
+                    }
                 } else {
-                    // 다른 모든 칸: 오전/오후 모두 변경 직전 화면 값으로 강제 고정 (기존 오버라이드 덮어씀)
-                    manualOverrides[bKey].morning = norm(b.morningAssigned);
-                    manualOverrides[bKey].afternoon = norm(b.afternoonAssigned);
+                    // 다른 모든 칸: 변경 직전 화면 값으로 고정
+                    // 조휴무 패턴 차량은 항상 운행종료로 고정 (기사명 오염 방지 → N조휴무 유지)
+                    if (busIsJoOff && !manualOverrides[bKey].__joOffEdit) {
+                        manualOverrides[bKey].morning = '운행종료';
+                        manualOverrides[bKey].afternoon = '운행종료';
+                    } else {
+                        manualOverrides[bKey].morning = norm(b.morningAssigned);
+                        manualOverrides[bKey].afternoon = norm(b.afternoonAssigned);
+                    }
                 }
             });
 
@@ -8137,7 +8327,7 @@ function getMonthlyOffAllDriverNames(){
                                 return d !== iso;
                             });
                             if (names.length) {
-                                list.push({ date: iso, drivers: names });
+                                list.push({ date: iso, type: '휴무', drivers: names });
                             }
                             list.sort((a, b) => String(a.date).localeCompare(String(b.date)));
                             monthlyOffDayEntries = list;
@@ -8179,11 +8369,20 @@ function getMonthlyOffAllDriverNames(){
                 });
             });
 
+            // 완료 메시지: 운행종료는 화면 표기와 같이 N조휴무로 표시
+            const __msgJoLabel = (typeof formatJoOffLabel === 'function')
+                ? formatJoOffLabel(line, busNo, dateKey)
+                : 'N조휴무';
+            const __disp = (name) => {
+                const n = String(name || '').replace('(S)', '').trim();
+                if (!n || n === '운행종료') return __msgJoLabel;
+                return n;
+            };
             showModal(
                 '기사 변경 완료',
                 cleanSelectedName === '운행종료'
-                    ? '선택한 데이터 셀만 운행종료로 변경했습니다.'
-                    : `${currentDriver || '기존기사'} → ${cleanSelectedName} 변경 완료.`
+                    ? `선택한 데이터 셀만 ${__msgJoLabel}로 변경했습니다.`
+                    : `${__disp(currentDriver) || '기존기사'} → ${__disp(cleanSelectedName)} 변경 완료.`
             );
         }
 
@@ -11550,7 +11749,7 @@ div[class*="rounded"][class*="border-slate"]{
                     
 
 <style id="final-driver-name-and-offday-fix">
-/* ===== 최종 검증: 기사명/조별 분리 + 휴무자 2명 단위 줄바꿈 ===== */
+/* ===== 최종 검증: 기사명/조별 분리 + 휴무기사명 넓은 칸·자연 줄바꿈 ===== */
 .monthly-off-list-table .monthly-off-jo-select {
   color:#64748b !important;
 }
@@ -11561,8 +11760,9 @@ div[class*="rounded"][class*="border-slate"]{
   white-space:normal !important;
   vertical-align:middle !important;
   overflow:visible !important;
+  text-align:center !important;
+  line-height:1.55 !important;
 }
-#view-monthlyOffList #monthlyOffDayTableBody .off-day-name-pair,
 .weekly-offday-name .weekly-offday-pair,
 .matrix-offday-pair {
   display:block !important;
