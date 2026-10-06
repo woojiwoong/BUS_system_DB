@@ -3262,7 +3262,7 @@ main{padding-top:18px !important;}
                 <h3 class="text-base font-bold text-slate-800" id="selectModalTitle">배차 기사 변경</h3>
                 <button onclick="closeDriverSelectModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
-            <p class="text-xs text-slate-500 mb-3">변경할 기사를 선택하세요. (휴무 → 근무중 → 근무중(스페어) → 같은교대교차중 순)</p>
+            <p class="text-xs text-slate-500 mb-3">변경할 기사를 선택하세요. (휴무 → 휴무(스페어) → 근무중 → 근무중(스페어) → 같은교대교차중 순)</p>
             <div class="space-y-2 max-h-60 overflow-y-auto mb-4" id="driverSelectList"></div>
         </div>
     </div>
@@ -6183,16 +6183,17 @@ function getMonthlyOffAllDriverNames(){
                 if (assigned && assigned !== '운행종료') sameShiftAssigned.add(assigned);
             });
 
-            // 정렬: 휴무 → 근무중 → 근무중(스페어) → 같은교대교차중
+            // 정렬: 휴무 → 휴무(스페어) → 근무중 → 근무중(스페어) → 같은교대교차중
             const driverSortRank = (name) => {
                 const clean = normN(name);
                 const isOff = offList.includes(name) || offList.includes(clean);
                 const isSpare = isSpareName(name);
                 const isSameShift = sameShiftAssigned.has(clean);
-                if (isSameShift) return 3; // 같은교대교차중
-                if (isOff) return 0;       // 휴무
-                if (isSpare) return 2;     // 근무중(스페어)
-                return 1;                  // 근무중
+                if (isSameShift) return 4;           // 같은교대교차중
+                if (isOff && !isSpare) return 0;     // 휴무
+                if (isOff && isSpare) return 1;      // 휴무(스페어)
+                if (!isOff && isSpare) return 3;     // 근무중(스페어)
+                return 2;                            // 근무중
             };
             allDrivers.sort((a, b) => {
                 const ra = driverSortRank(a);
@@ -6216,8 +6217,7 @@ function getMonthlyOffAllDriverNames(){
                 const blockedSpareRest = false; // (규칙 제거) 전날 오후 → 오전 제한 없음
                 const blocked = blockedOff || blockedDup || blockedSpareRest;
 
-                let statusText = isOff ? "휴무" : "근무중";
-                if (isSpare) statusText += "(스페어)";
+                let statusText = isOff ? (isSpare ? "휴무(스페어)" : "휴무") : (isSpare ? "근무중(스페어)" : "근무중");
                 if (blockedDup) statusText = "같은교대교차중";
                 else if (blockedSpareRest) statusText = "전날오후→오전불가";
                 else if (blockedOff) statusText = "선택불가";
