@@ -3262,7 +3262,7 @@ main{padding-top:18px !important;}
                 <h3 class="text-base font-bold text-slate-800" id="selectModalTitle">배차 기사 변경</h3>
                 <button onclick="closeDriverSelectModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
-            <p class="text-xs text-slate-500 mb-3">변경할 기사를 선택하세요. (휴무자가 상단에 정렬됩니다)</p>
+            <p class="text-xs text-slate-500 mb-3">변경할 기사를 선택하세요. (휴무 → 근무중 → 근무중(스페어) → 같은교대교차중 순)</p>
             <div class="space-y-2 max-h-60 overflow-y-auto mb-4" id="driverSelectList"></div>
         </div>
     </div>
@@ -6128,14 +6128,6 @@ function getMonthlyOffAllDriverNames(){
             const isPlaceholderDriver = selectedShiftDriver === '운행종료' || selectedShiftDriver === '운행종료';
             const blockOffDrivers = !!currentDriverInOppositeShift && !isPlaceholderDriver;
 
-            allDrivers.sort((a, b) => {
-                let aOff = offList.includes(a) ? 0 : 1;
-                let bOff = offList.includes(b) ? 0 : 1;
-                return aOff - bOff;
-            });
-
-            let listHtml = `<button onclick="selectDriverForCell('운행종료')" class="w-full text-left px-3 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-xs flex items-center justify-between mb-1"><span>운행종료 (차량 운휴)</span></button>`;
-
             const normN = (n) => String(n || '').replace('(S)', '').trim().replace(/^대체미정$/, '운행종료');
             const isSpareName = (n) => (appData.spares || []).some(s => normN(s) === normN(n));
 
@@ -6146,6 +6138,26 @@ function getMonthlyOffAllDriverNames(){
                 const assigned = normN(shift === 'morning' ? b.morningAssigned : b.afternoonAssigned);
                 if (assigned && assigned !== '운행종료') sameShiftAssigned.add(assigned);
             });
+
+            // 정렬: 휴무 → 근무중 → 근무중(스페어) → 같은교대교차중
+            const driverSortRank = (name) => {
+                const clean = normN(name);
+                const isOff = offList.includes(name) || offList.includes(clean);
+                const isSpare = isSpareName(name);
+                const isSameShift = sameShiftAssigned.has(clean);
+                if (isSameShift) return 3; // 같은교대교차중
+                if (isOff) return 0;       // 휴무
+                if (isSpare) return 2;     // 근무중(스페어)
+                return 1;                  // 근무중
+            };
+            allDrivers.sort((a, b) => {
+                const ra = driverSortRank(a);
+                const rb = driverSortRank(b);
+                if (ra !== rb) return ra - rb;
+                return normN(a).localeCompare(normN(b), 'ko');
+            });
+
+            let listHtml = `<button onclick="selectDriverForCell('운행종료')" class="w-full text-left px-3 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-xs flex items-center justify-between mb-1"><span>운행종료 (차량 운휴)</span></button>`;
 
             allDrivers.forEach(name => {
                 const cleanName = normN(name);
@@ -6161,8 +6173,8 @@ function getMonthlyOffAllDriverNames(){
                 const blocked = blockedOff || blockedDup || blockedSpareRest;
 
                 let statusText = isOff ? "휴무" : "근무중";
-                if (isSpare) statusText += " (스페어)";
-                if (blockedDup) statusText = "같은교대 배차중";
+                if (isSpare) statusText += "(스페어)";
+                if (blockedDup) statusText = "같은교대교차중";
                 else if (blockedSpareRest) statusText = "전날오후→오전불가";
                 else if (blockedOff) statusText = "선택불가";
 
