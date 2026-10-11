@@ -7289,7 +7289,8 @@ function getMonthlyOffAllDriverNames(){
                     });
             }
 
-            // 차량 정렬: 노선(15→19) 그룹 유지 + 조별코드 순서 (1-1 → 2-1 → 3-1 …)
+            // 차량 정렬 없음: TXT 파일에 적힌 순서 그대로 표시 (조별/차량번호 재정렬 안 함)
+            // 노선 키만 15→19 정도 유지, 노선 내 차량 순서는 baseline/TXT 배열 순서
             // 노선·차량수 셀은 노선별 rowspan 병합 (이 탭 표시만 변경, 다른 소스 미변경)
             const rows = [];
             const orderedRouteEntries = Object.keys(displayRoutes || {})
@@ -7297,18 +7298,11 @@ function getMonthlyOffAllDriverNames(){
                     const ra = (typeof routeOrderRank === 'function') ? routeOrderRank(a) : 999;
                     const rb = (typeof routeOrderRank === 'function') ? routeOrderRank(b) : 999;
                     if (ra !== rb) return ra - rb;
-                    return String(a).localeCompare(String(b), 'ko');
+                    return 0; // 노선 내 상대 순서는 Object 삽입 순서 유지
                 })
                 .map(routeName => {
-                    let buses = (displayRoutes[routeName] || []).slice();
-                    if (typeof compareWeeklyJoOrder === 'function' && buses.length > 1) {
-                        try {
-                            buses.sort((a, b) => compareWeeklyJoOrder(
-                                { line: routeName, busNo: a.busNo },
-                                { line: routeName, busNo: b.busNo }
-                            ));
-                        } catch (e) { console.warn('info tab jo sort', e); }
-                    }
+                    // TXT/baseline 배열 순서 그대로 (버스번호·조코드 정렬 금지)
+                    const buses = (displayRoutes[routeName] || []).slice();
                     return [routeName, buses];
                 });
 
@@ -10569,7 +10563,8 @@ function getMonthlyOffAllDriverNames(){
             ['15번', '19번'].forEach(r => {
                 const el = document.getElementById(r === '15번' ? 'route15Container' : 'route19Container');
                 if (el && infoRoutes[r]) {
-                    const orderedBuses = (infoRoutes[r] || []).slice().sort((a, b) => busNoSortKey(a.busNo) - busNoSortKey(b.busNo) || String(a.busNo).localeCompare(String(b.busNo),'ko'));
+                    // TXT 파일 순서 그대로 (차량번호 정렬 안 함)
+                    const orderedBuses = (infoRoutes[r] || []).slice();
                     el.innerHTML = orderedBuses.map(b => {
                         const m = getAuthoritativeDriverForVehicle(r, b.busNo, 'morning') || String(b.drivers[0] || '').replace('(S)','').trim();
                         const a = getAuthoritativeDriverForVehicle(r, b.busNo, 'afternoon') || String(b.drivers[1] || '').replace('(S)','').trim();
