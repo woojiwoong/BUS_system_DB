@@ -1379,6 +1379,20 @@ header.bg-brand-900 button[onclick="openTxtDeleteWindow()"]{
   display:none !important;
 }
 
+/* 탭이미지저장: 상단 헤더에서 항상 숨김 (기능 코드는 유지) */
+header.bg-brand-900 button[onclick="exportToImage()"]{
+  display:none !important;
+}
+/* 인쇄: 모바일 숨김, PC(768px 이상)에서만 표시 */
+header.bg-brand-900 button[onclick="prepareAndPrint()"]{
+  display:none !important;
+}
+@media (min-width: 768px){
+  header.bg-brand-900 button[onclick="prepareAndPrint()"]{
+    display:flex !important;
+  }
+}
+
 /* 상단 3개 핵심 버튼 */
 header.bg-brand-900 button[onclick="exportToImage()"],
 header.bg-brand-900 button[onclick="exportToExcelAllTabs()"],
@@ -2305,6 +2319,7 @@ main{padding-top:18px !important;}
     window.manualOffDisplayOverrides = {};
     window.monthlyOffListSelections = {};
     window.monthlyOffDayEntries = [];
+    try { window.__monthlyOffListLoadedKey = ''; } catch (e) {}
     // 메인 스크립트 로컬 변수도 비우도록 알림
     if (typeof window.clearMainScheduleLocals === 'function') {
       try { window.clearMainScheduleLocals(); } catch (e) {}
@@ -3175,6 +3190,8 @@ main{padding-top:18px !important;}
       if (typeof lucide !== 'undefined') lucide.createIcons();
 
       const hasData = dayEntries.length > 0 || Object.keys(selections).length > 0;
+      // v2_45: 동일 월 탭 재진입 시 서버 재조회 생략용 키
+      try { window.__monthlyOffListLoadedKey = monthlyKey; } catch (e) {}
       if (!silent && typeof showModal === 'function') {
         showModal(
           hasData ? '불러오기 완료' : '데이터 없음',
@@ -4377,25 +4394,40 @@ main{padding-top:18px !important;}
         // ===== 정규기사 조 휴무 패턴 (6일 주기, 월 경계와 무관하게 연속) =====
         // 기준일 2026-10-01: 1조 휴무, 10/2: 2조 … 10/5: 5조, 10/6: 휴무조 없음, 10/7: 1조 …
         // 조휴무 다음 블록(5일)마다 오전↔오후 교차가 번갈아 적용 (12일 순환)
-        // ===== 조코드 고정 부여 (조선택 제거) =====
-        // 정규/스페어 정보 표시 순서(노선 → 차량번호)대로 5대씩 1조~6조:
-        // 1-1~1-5, 2-1~2-5, … 5-1~5-5, 6-1~6-4 (총 29대)
+        // ===== 조코드 고정 부여 =====
+        // 정규/스페어 정보·TXT 불러오기 순서대로:
+        // 1-1 → 2-1 → 3-1 → 4-1 → 5-1 → 1-2 → … → 5-5 → 1-6 → 2-6 → 3-6 → 4-6
+        // (1~5조 세로 패턴, 마지막 4대는 1-6~4-6)
         const JO_GROUP_COUNT = 6;
         const JO_PER_GROUP = 5;
+        const JO_MAIN_GROUPS = 5; // 1~5조 세로 패턴
         function joCodeFromIndex(i) {
-            if (!(i >= 0) || i >= 29) return ''; // 6-4까지(29대)
-            const g = Math.floor(i / JO_PER_GROUP) + 1;
-            const n = (i % JO_PER_GROUP) + 1;
-            return g > JO_GROUP_COUNT ? '' : (g + '-' + n);
+            if (!(i >= 0)) return '';
+            let seen = 0;
+            // 1) 1~5조 × 1~5번: 1-1,2-1,3-1,4-1,5-1, 1-2, … 5-5
+            for (let n = 1; n <= JO_PER_GROUP; n++) {
+                for (let g = 1; g <= JO_MAIN_GROUPS; g++) {
+                    if (seen === i) return g + '-' + n;
+                    seen++;
+                }
+            }
+            // 2) 마지막 4대: 1-6, 2-6, 3-6, 4-6
+            for (let g = 1; g <= 4; g++) {
+                if (seen === i) return g + '-6';
+                seen++;
+            }
+            return '';
         }
         let __joCodeMapSig = '';
         let __joCodeMap = {};
         const JO_CODE_LIST = (function () {
             const arr = [];
-            for (let g = 1; g <= JO_GROUP_COUNT; g++) {
-                const max = (g === JO_GROUP_COUNT) ? 4 : JO_PER_GROUP;
-                for (let n = 1; n <= max; n++) arr.push(g + '-' + n);
+            for (let n = 1; n <= JO_PER_GROUP; n++) {
+                for (let g = 1; g <= JO_MAIN_GROUPS; g++) {
+                    arr.push(g + '-' + n);
+                }
             }
+            for (let g = 1; g <= 4; g++) arr.push(g + '-6');
             return arr;
         })();
         function __joSelections() {
@@ -4823,6 +4855,7 @@ main{padding-top:18px !important;}
             currentMonth = m;
             window.currentYear = y;
             window.currentMonth = m;
+            try { window.__monthlyOffListLoadedKey = ''; } catch (e) {}
             selectedDailyDate = y + '-' + String(m).padStart(2, '0') + '-01';
             if (typeof syncDatePickerToCurrentMonth === 'function') syncDatePickerToCurrentMonth();
             if (typeof updateMonthHeaderTitles === 'function') updateMonthHeaderTitles();
@@ -5262,6 +5295,7 @@ main{padding-top:18px !important;}
             currentMonth = m;
             window.currentYear = y;
             window.currentMonth = m;
+            try { window.__monthlyOffListLoadedKey = ''; } catch (e) {}
             selectedDailyDate = y + '-' + String(m).padStart(2, '0') + '-01';
 
             try {
@@ -6192,13 +6226,16 @@ main{padding-top:18px !important;}
             return String(busNo || '').replace(/\s*호\s*$/g, '').trim();
         }
 
-        // 조별 항목: 1-1~1-5, 2-1~2-5, … 5-1~5-5, 6-1~6-4 (고정 표시, 선택 불가)
+        // 조별 항목: 1-1 → 2-1 → 3-1 → 4-1 → 5-1 → 1-2 → … → 5-5 → 1-6 → 2-6 → 3-6 → 4-6
         function getJoGroupOptions() {
-            const opts = [];
-            for (let g = 1; g <= 6; g++) {
-                const max = (g === 6) ? 4 : 5;
-                for (let n = 1; n <= max; n++) opts.push(g + '-' + n);
+            if (typeof JO_CODE_LIST !== 'undefined' && Array.isArray(JO_CODE_LIST) && JO_CODE_LIST.length) {
+                return JO_CODE_LIST.slice();
             }
+            const opts = [];
+            for (let n = 1; n <= 5; n++) {
+                for (let g = 1; g <= 5; g++) opts.push(g + '-' + n);
+            }
+            for (let g = 1; g <= 4; g++) opts.push(g + '-6');
             return opts;
         }
         function monthlyOffJoOptions(selected) {
@@ -6261,6 +6298,60 @@ main{padding-top:18px !important;}
             } catch (e) {}
             try { window.monthlyOffListSelections = monthlyOffListSelections; } catch (e) {}
         }
+
+        // 스페어 이름 풀: 차량에 배치돼도 풀에는 유지 → 해제 시 동적 리스트에 다시 표시
+        function normalizeSparePoolName(v) {
+            return String(v || '').replace('(S)', '').replace(/\s+/g, ' ').trim();
+        }
+        function ensureSpareNamePool() {
+            if (!Array.isArray(window.__taejinSpareNamePool)) window.__taejinSpareNamePool = [];
+            const seen = new Set();
+            const ordered = [];
+            const add = function (n) {
+                const v = normalizeSparePoolName(n);
+                if (!v) return;
+                if (typeof isDriverGroupValue === 'function' && isDriverGroupValue(v)) return;
+                if (seen.has(v)) return;
+                seen.add(v);
+                ordered.push(v);
+            };
+            // 1) TXT 스페어 순서 우선
+            try {
+                const base = (typeof getMonthlyOffBaselineSpares === 'function')
+                    ? getMonthlyOffBaselineSpares() : ((appData && appData.spares) || []);
+                (base || []).forEach(add);
+            } catch (e) {}
+            // 2) 기존 풀 / 현재 리스트 / 선택 키 (TXT에 없는 추가분)
+            (window.__taejinSpareNamePool || []).forEach(add);
+            try { (getSpareListValues() || []).forEach(add); } catch (e) {}
+            try {
+                Object.keys(monthlyOffListSelections || {}).forEach(function (k) {
+                    if (/^스페어\|\d+$/.test(k)) add(monthlyOffListSelections[k]);
+                });
+            } catch (e) {}
+            window.__taejinSpareNamePool = ordered;
+            return window.__taejinSpareNamePool.slice();
+        }
+        function getNamesAssignedToVehicles() {
+            const set = new Set();
+            Object.keys(monthlyOffListSelections || {}).forEach(function (k) {
+                if (!/\|[12]$/.test(k) || /^스페어\|/.test(k)) return;
+                const n = normalizeSparePoolName(monthlyOffListSelections[k]);
+                if (n) set.add(n);
+            });
+            return set;
+        }
+        /** 차량 정규칸에 선택된 스페어는 동적 리스트에서 숨기고, 해제하면 다시 표시 */
+        function syncSpareDynamicListWithVehicleSelection() {
+            const pool = ensureSpareNamePool();
+            const assigned = getNamesAssignedToVehicles();
+            const remaining = pool.filter(function (n) { return n && !assigned.has(n); });
+            setSpareListValues(remaining);
+            return remaining;
+        }
+        window.ensureSpareNamePool = ensureSpareNamePool;
+        window.syncSpareDynamicListWithVehicleSelection = syncSpareDynamicListWithVehicleSelection;
+
         function renderSpareDynamicList() {
             const spareWrap = document.getElementById('monthlyOffListSpare');
             if (!spareWrap) return;
@@ -6291,16 +6382,44 @@ main{padding-top:18px !important;}
         function updateSpareListItem(idx, value) {
             const vals = getSpareListValues();
             while (vals.length <= idx) vals.push('');
+            const prev = normalizeSparePoolName(vals[idx]);
+            const next = normalizeSparePoolName(value);
             vals[idx] = String(value || '');
             setSpareListValues(vals);
+            // 풀 갱신: 새 이름 추가, 더 이상 안 쓰는 이전 이름은 풀에서 제거
+            try {
+                ensureSpareNamePool();
+                if (next) {
+                    if (!window.__taejinSpareNamePool.includes(next)) {
+                        window.__taejinSpareNamePool.push(next); // TXT 순서 뒤에 추가분 append
+                    }
+                }
+                if (prev && prev !== next) {
+                    const stillUsed = Object.keys(monthlyOffListSelections || {}).some(function (k) {
+                        return normalizeSparePoolName(monthlyOffListSelections[k]) === prev;
+                    });
+                    if (!stillUsed) {
+                        window.__taejinSpareNamePool = window.__taejinSpareNamePool.filter(function (n) {
+                            return normalizeSparePoolName(n) !== prev;
+                        });
+                    }
+                }
+            } catch (e) {}
             try { monthlyOffListDirty = true; } catch (e) {}
             window.monthlyOffListDirty = true;
         }
         function removeSpareListItem(idx) {
             const vals = getSpareListValues();
             if (idx < 0 || idx >= vals.length) return;
+            const removed = normalizeSparePoolName(vals[idx]);
             vals.splice(idx, 1); // 아래 항목이 한 칸씩 위로
             if (!vals.length) vals.push('');
+            // 동적 리스트에서 삭제한 이름은 풀에서도 제거 (다시 자동 복귀 방지)
+            if (removed && Array.isArray(window.__taejinSpareNamePool)) {
+                window.__taejinSpareNamePool = window.__taejinSpareNamePool.filter(function (n) {
+                    return normalizeSparePoolName(n) !== removed;
+                });
+            }
             setSpareListValues(vals);
             try { monthlyOffListDirty = true; } catch (e) {}
             window.monthlyOffListDirty = true;
@@ -6333,23 +6452,90 @@ main{padding-top:18px !important;}
         window.removeSpareListItem = removeSpareListItem;
         window.updateSpareListItem = updateSpareListItem;
 
-        function monthlyOffListOptions(names, selected=''){
-            // 정규기사 콤보에는 기사명만 표시합니다.
-            // 1-1 / 1-2 / 2-1 / 1조 같은 조별 값은 절대 옵션으로 넣지 않습니다.
+        function monthlyOffListOptions(names, selected='', excludeNames){
+            // 정규기사 콤보: 정규+스페어 기사명 표시 (조코드 제외)
+            // - 빈항목 "-" 완전 제거
+            // - 스페어정보 순번(스페어|1,2,3…) 기준으로 정렬
             const isGroup = value => {
                 const v = String(value || '').replace('(S)','').trim();
                 return /^\d+\s*-\s*\d+$/.test(v) || /^\d+\s*조$/.test(v);
             };
-            const sorted = [...new Set((names || [])
-                .filter(Boolean)
-                .map(String)
-                .filter(name => !isGroup(name))
-            )].sort((a,b)=>a.localeCompare(b,'ko'));
-            return sorted.map(name => {
+            const isDash = v => {
+                const s = String(v || '').trim();
+                return !s || s === '-' || s === '—' || s === '–' || s === '－';
+            };
+            let sel = String(selected || '').replace('(S)','').trim();
+            if (isDash(sel)) sel = '';
+            const exclude = new Set();
+            (excludeNames || []).forEach(n => {
+                const v = String(n || '').replace('(S)','').trim();
+                if (v && !isDash(v) && v !== sel) exclude.add(v);
+            });
+            const list = [];
+            const seen = new Set();
+            (names || []).forEach(n => {
+                const name = String(n || '').replace('(S)','').trim();
+                if (isDash(name) || isGroup(name) || exclude.has(name) || seen.has(name)) return;
+                seen.add(name);
+                list.push(name);
+            });
+            if (sel && !isGroup(sel) && !seen.has(sel)) {
+                list.unshift(sel);
+                seen.add(sel);
+            }
+            // 스페어 순번 맵 구성
+            const spareOrder = {};
+            try {
+                let spares = [];
+                if (typeof getAuthoritativeSpareDriverNames === 'function') {
+                    spares = getAuthoritativeSpareDriverNames() || [];
+                }
+                if (!spares.length && typeof getSpareListValues === 'function') {
+                    spares = getSpareListValues() || [];
+                }
+                if (!spares.length && typeof getMonthlyOffBaselineSpares === 'function') {
+                    spares = getMonthlyOffBaselineSpares() || [];
+                }
+                // 스페어|n 키 순번도 반영
+                try {
+                    const selMap = (typeof monthlyOffListSelections === 'object' && monthlyOffListSelections)
+                        ? monthlyOffListSelections : (window.monthlyOffListSelections || {});
+                    Object.keys(selMap || {})
+                        .filter(k => /^스페어\|\d+$/.test(k))
+                        .sort((a,b) => Number(a.split('|')[1]) - Number(b.split('|')[1]))
+                        .forEach((k, i) => {
+                            const v = String(selMap[k] || '').replace('(S)','').trim();
+                            if (v && !isDash(v) && spareOrder[v] == null) spareOrder[v] = Number(k.split('|')[1]) - 1;
+                        });
+                } catch (e2) {}
+                (spares || []).forEach(function (n, i) {
+                    const v = String(n || '').replace('(S)','').trim();
+                    if (v && !isDash(v) && spareOrder[v] == null) spareOrder[v] = i;
+                });
+            } catch (e) {}
+            // 정렬: 스페어는 순번 오름차순, 비스페어(정규)는 앞쪽·입력순서 유지
+            list.sort(function (a, b) {
+                const sa = spareOrder.hasOwnProperty(a) ? spareOrder[a] : null;
+                const sb = spareOrder.hasOwnProperty(b) ? spareOrder[b] : null;
+                const aSpare = (sa !== null), bSpare = (sb !== null);
+                if (aSpare && bSpare) return sa - sb;
+                if (!aSpare && bSpare) return -1;
+                if (aSpare && !bSpare) return 1;
+                return 0;
+            });
+            // "-" 옵션 완전 제거 (빈 선택 옵션도 넣지 않음)
+            let html = '';
+            list.forEach(name => {
                 const safe = String(name).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-                const selectedAttr = (String(name) === String(selected)) ? ' selected' : '';
-                return `<option value="${safe}"${selectedAttr}>${safe}</option>`;
-            }).join('');
+                const selectedAttr = (String(name) === sel) ? ' selected' : '';
+                html += '<option value="' + safe + '"' + selectedAttr + '>' + safe + '</option>';
+            });
+            // 선택값이 비어 있으면 selected 없이 첫 항목만 표시 (강제 선택 안 함)
+            if (!sel && html) {
+                // 브라우저가 첫 항목을 자동 선택하지 않도록 value="" 없이 두되,
+                // 사용자가 "-"를 보지 않도록 빈 라벨 옵션도 넣지 않음.
+            }
+            return html;
         }
 
         // 정규/스페어 정보 중복 배치 검증
@@ -6390,8 +6576,8 @@ main{padding-top:18px !important;}
                 }
             };
 
-            // DB monthlyOffListSelections가 원본이므로 실제 저장된 차량 키를 직접 검사합니다.
-            // 1) 차량 1/2번 근무자: 노선/차량/근무조 순서
+            // 차량 정규1/2 칸끼리만 중복 검사 (같은 기사는 한 칸만)
+            // 스페어 목록(스페어|n)은 후보 명단이므로 차량 배치와 중복으로 지우지 않음
             const vehicleKeys = Object.keys(cleaned)
                 .filter(key => /\|[12]$/.test(String(key)) && !/^스페어\|/.test(String(key)))
                 .sort((a,b) => {
@@ -6407,12 +6593,21 @@ main{padding-top:18px !important;}
 
             vehicleKeys.forEach(register);
 
-            // 2) 스페어: 차량 정규근무자와 중복인지 먼저 검사하고,
-            //    스페어끼리도 한 명당 한 칸만 허용합니다.
+            // 스페어 목록 안에서만 동일 이름 중복 제거 (목록 항목끼리)
+            const spareSeen = new Map();
             Object.keys(cleaned)
                 .filter(key => /^스페어\|\d+$/.test(String(key)))
                 .sort((a,b) => Number(a.split('|')[1]) - Number(b.split('|')[1]))
-                .forEach(register);
+                .forEach(function (key) {
+                    const name = normalize(cleaned[key]);
+                    if (!name || name === '운행종료' || isDriverGroupValue(name)) return;
+                    if (spareSeen.has(name)) {
+                        cleaned[key] = '';
+                        duplicates.push({ name, keptKey: spareSeen.get(name), removedKey: key });
+                    } else {
+                        spareSeen.set(name, key);
+                    }
+                });
 
             return { selections: cleaned, duplicates };
         }
@@ -6436,10 +6631,13 @@ main{padding-top:18px !important;}
             const nextValue = value || '';
             const previousValue = monthlyOffListSelections[key] || '';
 
-            // 이미 다른 차량에 배치된 기사를 다시 선택하지 못하게 함
-            if (normalizeInfoDriverName(nextValue)) {
+            // 이미 다른 차량 정규칸에 배치된 기사는 선택 불가 (스페어 목록 키는 검사 제외)
+            if (normalizeInfoDriverName(nextValue) && /\|[12]$/.test(String(key)) && !/^스페어\|/.test(String(key))) {
                 const duplicateKey = Object.keys(monthlyOffListSelections || {}).find(k =>
                     k !== key &&
+                    /\|[12]$/.test(String(k)) &&
+                    !/^스페어\|/.test(String(k)) &&
+                    !String(k).endsWith('|조') &&
                     normalizeInfoDriverName(monthlyOffListSelections[k]) === normalizeInfoDriverName(nextValue)
                 );
                 if (duplicateKey) {
@@ -6447,7 +6645,7 @@ main{padding-top:18px !important;}
                     if (typeof showModal === 'function') {
                         showModal(
                             '중복 배치',
-                            `${normalizeInfoDriverName(nextValue)} 기사는 이미 다른 차량에 배치되어 있습니다.\n한 차량에서만 배치할 수 있습니다.`,
+                            normalizeInfoDriverName(nextValue) + ' 기사는 이미 다른 차량에 배치되어 있습니다.\n한 칸에만 배치할 수 있습니다.',
                             true,
                             3000
                         );
@@ -6466,6 +6664,16 @@ main{padding-top:18px !important;}
             // 변경 즉시 localStorage에 저장하지 않습니다.
             // 반드시 「휴무자저장」 버튼을 눌렀을 때만 저장됩니다.
             monthlyOffListSelections[key] = nextValue;
+            // 선택 직후 전체 차량 칸 중복 재검사·자동 제거
+            try {
+                const __dup = validateMonthlyOffListDriverDuplicates(monthlyOffListSelections);
+                if (__dup && __dup.selections) {
+                    monthlyOffListSelections = __dup.selections;
+                }
+            } catch (e) {}
+            try { window.monthlyOffListSelections = monthlyOffListSelections; } catch (e) {}
+            try { window.monthlyOffListDirty = true; } catch (e) {}
+            try { renderMonthlyOffListView(); } catch (e) {}
         }
 
         async function commitMonthlyOffListSelections(){
@@ -7002,12 +7210,29 @@ function getMonthlyOffAllDriverNames(){
                 const v = String(value || '').replace('(S)','').trim();
                 return /^\d+\s*-\s*\d+$/.test(v) || /^\d+\s*조$/.test(v);
             };
-            const allMonthlyOffDrivers = Object.values(baselineRoutes || {})
-                .flatMap(bs => (bs || []).flatMap(b => (b.drivers || []).map(normalizeDriverName)))
-                .concat(baselineSpares, dbSelectedDrivers)
-                .filter(Boolean)
-                .filter(name => !isDriverGroupValueLocal(name));
-            const comboDrivers = [...new Set(allMonthlyOffDrivers)].sort((a,b)=>a.localeCompare(b,'ko'));
+            // 스페어 목록 (TXT 순번 그대로) — 차량별 콤보는 아래에서 "해당 차량 기사 + 스페어"만 구성
+            const spareDriversTxtOrder = (function () {
+                const seen = new Set();
+                const out = [];
+                const push = (n) => {
+                    const v = normalizeDriverName(n);
+                    if (!v || v === '-' || v === '—' || v === '–' || v === '－' || isDriverGroupValueLocal(v) || seen.has(v)) return;
+                    seen.add(v);
+                    out.push(v);
+                };
+                // 스페어|1, 스페어|2 … 순번 우선
+                try {
+                    Object.keys(monthlyOffListSelections || {})
+                        .filter(function (k) { return /^스페어\|\d+$/.test(k); })
+                        .sort(function (a, b) {
+                            return Number(a.split('|')[1]) - Number(b.split('|')[1]);
+                        })
+                        .forEach(function (k) { push(monthlyOffListSelections[k]); });
+                } catch (e) {}
+                // baseline/TXT 스페어 (없는 것만 뒤에)
+                (baselineSpares || []).forEach(push);
+                return out;
+            })();
 
             const hasExistingSelections = monthlyOffListSelections && typeof monthlyOffListSelections === 'object'
                 && Object.keys(monthlyOffListSelections).length > 0;
@@ -7028,6 +7253,17 @@ function getMonthlyOffAllDriverNames(){
                 monthlyOffListOverrideFromFile = false;
                 try { window.monthlyOffListSelections = monthlyOffListSelections; } catch (e) {}
             }
+
+            // 중복 배치 자동 제거 (한 기사는 한 칸만)
+            try {
+                if (typeof validateMonthlyOffListDriverDuplicates === 'function') {
+                    const __dup = validateMonthlyOffListDriverDuplicates(monthlyOffListSelections);
+                    if (__dup && __dup.selections) {
+                        monthlyOffListSelections = __dup.selections;
+                        window.monthlyOffListSelections = monthlyOffListSelections;
+                    }
+                }
+            } catch (e) {}
 
             // DB에만 있는 차량도 화면에 빠지지 않도록 구조를 보강합니다.
             const displayRoutes = {};
@@ -7053,22 +7289,34 @@ function getMonthlyOffAllDriverNames(){
                     });
             }
 
-            Object.keys(displayRoutes).forEach(routeName => {
-                displayRoutes[routeName].sort((a,b) => {
-                    const ak = (typeof busNoSortKey === 'function') ? busNoSortKey(a.busNo) : Number(a.busNo) || 0;
-                    const bk = (typeof busNoSortKey === 'function') ? busNoSortKey(b.busNo) : Number(b.busNo) || 0;
-                    return ak - bk || String(a.busNo).localeCompare(String(b.busNo), 'ko');
-                });
-            });
-
+            // 차량 정렬: 노선(15→19) 그룹 유지 + 조별코드 순서 (1-1 → 2-1 → 3-1 …)
+            // 노선·차량수 셀은 노선별 rowspan 병합 (이 탭 표시만 변경, 다른 소스 미변경)
             const rows = [];
-            // 정규/스페어 정보 표시 순서: 항상 15번이 위, 19번이 아래(그 외 노선은 원래 순서 유지)로 고정합니다.
-            const orderedRouteEntries = (typeof getOrderedRouteEntries === 'function')
-                ? getOrderedRouteEntries(displayRoutes || {})
-                : Object.entries(displayRoutes || {}).sort((a, b) => routeOrderRank(a[0]) - routeOrderRank(b[0]));
+            const orderedRouteEntries = Object.keys(displayRoutes || {})
+                .sort((a, b) => {
+                    const ra = (typeof routeOrderRank === 'function') ? routeOrderRank(a) : 999;
+                    const rb = (typeof routeOrderRank === 'function') ? routeOrderRank(b) : 999;
+                    if (ra !== rb) return ra - rb;
+                    return String(a).localeCompare(String(b), 'ko');
+                })
+                .map(routeName => {
+                    let buses = (displayRoutes[routeName] || []).slice();
+                    if (typeof compareWeeklyJoOrder === 'function' && buses.length > 1) {
+                        try {
+                            buses.sort((a, b) => compareWeeklyJoOrder(
+                                { line: routeName, busNo: a.busNo },
+                                { line: routeName, busNo: b.busNo }
+                            ));
+                        } catch (e) { console.warn('info tab jo sort', e); }
+                    }
+                    return [routeName, buses];
+                });
 
             let __joRowIdx = -1;
             orderedRouteEntries.forEach(([routeName, buses]) => {
+                const busCount = (buses || []).length;
+                const routeLabel = formatRouteDisplay(routeName);
+                const routeCls = (String(routeName).includes('15') ? 'route15' : String(routeName).includes('19') ? 'route19' : '');
                 (buses || []).forEach((bus, idx) => {
                     __joRowIdx++;
                     const key1 = `${routeName}|${bus.busNo}|1`;
@@ -7077,16 +7325,48 @@ function getMonthlyOffAllDriverNames(){
                         if (!(key1 in monthlyOffListSelections)) monthlyOffListSelections[key1] = '';
                         if (!(key2 in monthlyOffListSelections)) monthlyOffListSelections[key2] = '';
                     }
-                    const routeLabel = formatRouteDisplay(routeName);
                     const busLabel = formatBusDisplay(bus.busNo);
-                    const busCount = (buses || []).length;
-                    const routeCls = (String(routeName).includes('15') ? 'route15' : String(routeName).includes('19') ? 'route19' : '');
+                    const joSelected = (typeof getJoCodeForBus === 'function')
+                        ? (getJoCodeForBus(routeName, bus.busNo) || (typeof joCodeFromIndex === 'function' ? joCodeFromIndex(__joRowIdx) : ''))
+                        : (typeof joCodeFromIndex === 'function' ? joCodeFromIndex(__joRowIdx) : '');
+                    // 콤보 항목 = 이 차량 기사(정규1/2) + 스페어(TXT 순) 만
+                    const busComboNames = (function () {
+                        const seen = new Set();
+                        const out = [];
+                        const push = (n) => {
+                            const v = normalizeDriverName(n);
+                            if (!v || v === '-' || v === '—' || v === '–' || v === '－' || isDriverGroupValueLocal(v) || seen.has(v)) return;
+                            seen.add(v);
+                            out.push(v);
+                        };
+                        // 1) 해당 차량 정규기사
+                        const bd = Array.isArray(bus.drivers) ? bus.drivers : [];
+                        push(bd[0]);
+                        push(bd[1]);
+                        push(monthlyOffListSelections[key1]);
+                        push(monthlyOffListSelections[key2]);
+                        // 2) 스페어 — 스페어|순번 순서
+                        (spareDriversTxtOrder || []).forEach(push);
+                        return out;
+                    })();
+                    // 다른 차량 정규칸에 이미 배치된 기사는 콤보에서 제외 (중복 배치 제거)
+                    const usedByOthers = Object.keys(monthlyOffListSelections || {})
+                        .filter(k =>
+                            k !== key1 && k !== key2 &&
+                            /\|[12]$/.test(String(k)) &&
+                            !/^스페어\|/.test(String(k)) &&
+                            !String(k).endsWith('|조')
+                        )
+                        .map(k => normalizeDriverName(monthlyOffListSelections[k]))
+                        .filter(Boolean);
+                    const usedForKey1 = usedByOthers.concat([normalizeDriverName(monthlyOffListSelections[key2] || '')]).filter(Boolean);
+                    const usedForKey2 = usedByOthers.concat([normalizeDriverName(monthlyOffListSelections[key1] || '')]).filter(Boolean);
                     rows.push(`<tr>
-                        ${idx===0 ? `<td class="route-cell ${routeCls}" rowspan="${buses.length}"><div class="route-num">${esc(routeLabel)}</div><div class="route-bus-count">${busCount}대</div></td>` : ''}
-                        <td><select class="monthly-off-jo-select" style="min-width:64px;width:100%;height:30px;border:1px solid #6366f1;border-radius:8px;background:#fff;color:#4338ca !important;font-weight:800;text-align:center;-webkit-appearance:menulist;appearance:auto;cursor:pointer" data-monthly-off-key="${esc(routeName + '|' + bus.busNo + '|조')}" onchange="updateMonthlyOffListSelection('${esc(routeName + '|' + bus.busNo + '|조')}', this.value)">${monthlyOffJoOptions(getJoCodeForBus(routeName, bus.busNo) || joCodeFromIndex(__joRowIdx))}</select></td>
+                        ${idx===0 ? `<td class="route-cell ${routeCls}" rowspan="${busCount}"><div class="route-num">${esc(routeLabel)}</div><div class="route-bus-count">${busCount}대</div></td>` : ''}
+                        <td><select class="monthly-off-jo-select" style="min-width:64px;width:100%;height:30px;border:1px solid #6366f1;border-radius:8px;background:#fff;color:#4338ca !important;font-weight:800;text-align:center;-webkit-appearance:menulist;appearance:auto;cursor:pointer" data-monthly-off-key="${esc(routeName + '|' + bus.busNo + '|조')}" onchange="updateMonthlyOffListSelection('${esc(routeName + '|' + bus.busNo + '|조')}', this.value)">${monthlyOffJoOptions(joSelected)}</select></td>
                         <td class="bus-cell">${esc(busLabel)}</td>
-                        <td><select class="monthly-off-driver-select" data-monthly-off-key="${esc(key1)}" onchange="updateMonthlyOffListSelection('${esc(key1)}', this.value)">${monthlyOffListOptions(comboDrivers, monthlyOffListSelections[key1] || '')}</select></td>
-                        <td><select class="monthly-off-driver-select" data-monthly-off-key="${esc(key2)}" onchange="updateMonthlyOffListSelection('${esc(key2)}', this.value)">${monthlyOffListOptions(comboDrivers, monthlyOffListSelections[key2] || '')}</select></td>
+                        <td><select class="monthly-off-driver-select" data-monthly-off-key="${esc(key1)}" onchange="updateMonthlyOffListSelection('${esc(key1)}', this.value)">${monthlyOffListOptions(busComboNames, monthlyOffListSelections[key1] || '', usedForKey1)}</select></td>
+                        <td><select class="monthly-off-driver-select" data-monthly-off-key="${esc(key2)}" onchange="updateMonthlyOffListSelection('${esc(key2)}', this.value)">${monthlyOffListOptions(busComboNames, monthlyOffListSelections[key2] || '', usedForKey2)}</select></td>
                     </tr>`);
                 });
             });
@@ -7114,6 +7394,7 @@ function getMonthlyOffAllDriverNames(){
                     appData.spares = [];
                 }
             }
+            // 스페어 순번/목록은 TXT 원래 순서 유지 (차량 선택과 연동해 숨기지 않음)
             renderSpareDynamicList();
             syncMonthlyOffDayDatePicker();
             renderMonthlyOffDriverMultiList();
@@ -7516,43 +7797,53 @@ function getMonthlyOffAllDriverNames(){
                 activeBtn.classList.add('active-tab');
             }
             
-            // 휴무자명단 탭: 서버에서 휴무일자(년·월) 기본값을 가져와 테이블에 표시
+            // 휴무자명단 탭: 로컬 즉시 표시 + (같은 월 이미 로드됐으면) 서버 재조회 생략
             if (tabId === 'monthlyOffList') {
                 try {
                     if (typeof renderMonthlyOffDayTable === 'function') renderMonthlyOffDayTable();
                     if (typeof renderMonthlyOffListView === 'function') renderMonthlyOffListView();
                 } catch (e) {}
                 if (window.monthlyOffListDirty) {
-                    // 미저장 편집 유지
-                } else if (typeof window.loadMonthlyOffListFromDB === 'function') {
-                    window.loadMonthlyOffListFromDB({ silent: true }).then(function () {
-                        try {
-                            if (typeof renderMonthlyOffDayTable === 'function') renderMonthlyOffDayTable();
-                            if (typeof renderMonthlyOffListView === 'function') renderMonthlyOffListView();
-                            if (window.lucide) lucide.createIcons();
-                        } catch (e) {}
-                    }).catch(function () {
-                        try {
-                            if (typeof renderMonthlyOffDayTable === 'function') renderMonthlyOffDayTable();
-                            if (typeof renderMonthlyOffListView === 'function') renderMonthlyOffListView();
-                        } catch (e) {}
-                    });
+                    // 미저장 편집 유지 — 서버로 덮지 않음
                 } else {
-                    autoLoadOffListForTargetMonthIfNeeded(true);
+                    let ty, tm;
+                    try {
+                        if (typeof getOffListTargetYearMonth === 'function') {
+                            const t = getOffListTargetYearMonth();
+                            ty = Number(t.y); tm = Number(t.m);
+                        }
+                    } catch (e) {}
+                    if (!ty || !tm) {
+                        ty = Number(typeof currentYear !== 'undefined' ? currentYear : (window.currentYear || 2026));
+                        tm = Number(typeof currentMonth !== 'undefined' ? currentMonth : (window.currentMonth || 1));
+                    }
+                    const loadKey = ty + '_' + String(tm).padStart(2, '0');
+                    // 동일 월을 이미 불러왔으면 네트워크 재조회 생략 (탭 전환 속도 개선)
+                    if (window.__monthlyOffListLoadedKey === loadKey) {
+                        // no-op
+                    } else if (typeof window.loadMonthlyOffListFromDB === 'function') {
+                        window.loadMonthlyOffListFromDB({ silent: true }).then(function () {
+                            try {
+                                window.__monthlyOffListLoadedKey = loadKey;
+                                if (typeof renderMonthlyOffDayTable === 'function') renderMonthlyOffDayTable();
+                                if (typeof renderMonthlyOffListView === 'function') renderMonthlyOffListView();
+                                if (window.lucide) lucide.createIcons();
+                            } catch (e) {}
+                        }).catch(function () {
+                            try {
+                                if (typeof renderMonthlyOffDayTable === 'function') renderMonthlyOffDayTable();
+                                if (typeof renderMonthlyOffListView === 'function') renderMonthlyOffListView();
+                            } catch (e) {}
+                        });
+                    } else {
+                        autoLoadOffListForTargetMonthIfNeeded(true);
+                    }
                 }
                 // 휴무자명단 탭에서는 renderAllViews 생략 (선택 초기화/이상 동작 방지)
             } else {
-                // 주별통합 등 탭 진입 시 배차/휴무 시뮬레이션 캐시 강제 삭제 후 다시 그림
-                // v2_38: 탭 진입 시 배차/휴무 시뮬레이션 캐시 강제 삭제 후 다시 그림
-                try {
-                    window.__forceClearSimCache = true;
-                    if (typeof window.clearMonthlySimCache === 'function') window.clearMonthlySimCache();
-                } catch (e) {}
-                try { window.__forceDbOverridesSync = true; } catch (e) {}
+                // v2_45: 탭 전환 시 시뮬레이션 캐시를 지우지 않음
+                // (저장·기사변경·월변경·DB로드 시에만 캐시 무효화 → 탭 클릭 속도 개선)
                 renderAllViews(tabId);
-                // 휴무구분은 DB 로드 시 이미 반영되어 있으므로 탭 진입 때 추가 조회하지 않습니다.
-                // 정규/스페어 정보(info) 탭 진입 시 휴무자명단 서버 재조회 하지 않음
-                // (반복 클릭 시 TXT baseline이 빈 appData로 덮이거나 화면이 초기화되던 원인)
             }
         }
 
@@ -7564,7 +7855,11 @@ function getMonthlyOffAllDriverNames(){
                 .filter(Boolean))].sort((a, b) => b.length - a.length);
             if (!spareNames.length) return;
 
-            const root = document.getElementById('app') || document.body;
+            // v2_45: 활성 탭 영역만 스캔 (전체 body TreeWalker 비용 감소)
+            const root = document.querySelector('.tab-content:not(.hidden)')
+                || document.getElementById('exportableArea')
+                || document.getElementById('app')
+                || document.body;
             const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
             const nodes = [];
             let node;
@@ -7940,11 +8235,24 @@ function getMonthlyOffAllDriverNames(){
             monthlyOffListSelections = {};
             try {
                 const br = (txtBaselineData && txtBaselineData.routes) ? txtBaselineData.routes : {};
-                Object.entries(br).forEach(([routeName, buses]) => {
-                    (buses || []).forEach(bus => {
+                // TXT 파일 순서대로 조코드: 1-1 → 2-1 → 3-1 → 4-1 → 5-1 → 1-2 → 2-2 …
+                // 노선 순서: 15번 → 19번 → 기타, 차량은 파일 등장 순서 유지
+                let __joIdx = 0;
+                const routeNames = Object.keys(br).sort((a, b) => {
+                    const ra = (typeof routeOrderRank === 'function') ? routeOrderRank(a) : 999;
+                    const rb = (typeof routeOrderRank === 'function') ? routeOrderRank(b) : 999;
+                    if (ra !== rb) return ra - rb;
+                    return String(a).localeCompare(String(b), 'ko');
+                });
+                routeNames.forEach(routeName => {
+                    const buses = br[routeName] || [];
+                    buses.forEach(bus => {
                         const defaults = (bus.drivers || []).map(n => String(n || '').replace('(S)','').trim());
                         monthlyOffListSelections[routeName + '|' + bus.busNo + '|1'] = defaults[0] || '';
                         monthlyOffListSelections[routeName + '|' + bus.busNo + '|2'] = defaults[1] || '';
+                        const jc = (typeof joCodeFromIndex === 'function') ? joCodeFromIndex(__joIdx) : '';
+                        if (jc) monthlyOffListSelections[routeName + '|' + bus.busNo + '|조'] = jc;
+                        __joIdx++;
                     });
                 });
                 const bs = (txtBaselineData && Array.isArray(txtBaselineData.spares)) ? txtBaselineData.spares : [];
@@ -7952,6 +8260,8 @@ function getMonthlyOffAllDriverNames(){
                 for (let i = 0; i < sc; i++) {
                     monthlyOffListSelections['스페어|' + (i + 1)] = (bs[i] || '');
                 }
+                // 조코드 맵 캐시 무효화
+                try { __joCodeMapSig = ''; __joCodeMap = {}; } catch (e) {}
             } catch (e) {}
             monthlyOffDayEntries = [];
             monthlyOffDaySelectedDrivers = [];
@@ -8937,7 +9247,7 @@ function getMonthlyOffAllDriverNames(){
                 if (assigned && assigned !== '운행종료') sameShiftAssigned.add(assigned);
             });
 
-            // 그룹 순서: 0 휴무자 → 1 쉬는차량(오전→오후) → 2 근무중 → 3 근무중(스페어) → 4 같은교대 배차중
+            // 그룹 순서: 0 휴무자 → 1 쉬는차량(오전→오후) → 2 근무중 → 3 스페어(대기중/근무중) → 4 같은교대 배차중
             const items = [];
             allDrivers.forEach((name, order) => {
                 const cleanName = normN(name);
@@ -8983,6 +9293,8 @@ function getMonthlyOffAllDriverNames(){
                     statusText = '같은교대 배차중';
                     badge = 'bg-slate-200 text-slate-600 font-bold';
                 } else {
+                    // 그룹: 정규 근무중(2) / 스페어(3)
+                    // 스페어가 당일 실제 배차되지 않았으면 '대기중 (스페어)', 배차됐으면 '오전/오후근무중 (스페어)'
                     group = isSpare ? 3 : 2;
                     const w = workedByName[cleanName] || null;
                     let wl = '', ws = 2;
@@ -8990,8 +9302,13 @@ function getMonthlyOffAllDriverNames(){
                     else if (w && w.morning) { wl = '오전'; ws = 0; }
                     else if (w && w.afternoon) { wl = '오후'; ws = 1; }
                     sortSub = wl ? ws : 3;
-                    statusText = wl + '근무중' + (isSpare ? ' (스페어)' : '');
-                    badge = 'bg-emerald-100 text-emerald-700';
+                    if (isSpare && !wl) {
+                        statusText = '대기중 (스페어)';
+                        badge = 'bg-amber-100 text-amber-800 font-bold';
+                    } else {
+                        statusText = wl + '근무중' + (isSpare ? ' (스페어)' : '');
+                        badge = 'bg-emerald-100 text-emerald-700';
+                    }
                 }
                 // 휴무자 외 그룹에서의 선택 불가 사유 표기 (그룹은 유지)
                 if (blockedOff) { statusText = '선택불가'; badge = 'bg-slate-200 text-slate-600 font-bold'; }
@@ -10040,8 +10357,7 @@ function getMonthlyOffAllDriverNames(){
 
         function renderDriverStatsView() {
             // 기존 기사별 통계표는 제거하고, 날짜별 통합 근무통계만 표시합니다.
-            monthlySimulationCache = null;
-            monthlySimulationCacheKey = '';
+            // v2_45: 탭 진입마다 캐시를 비우지 않음 — 기존 월 시뮬레이션 결과 재사용
             runMonthlySpareSimulation();
 
             const totalDays = getDaysInMonth(currentYear, currentMonth);
