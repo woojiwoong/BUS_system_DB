@@ -6255,19 +6255,15 @@ main{padding-top:18px !important;}
                     return Number(a.split('|')[1]) - Number(b.split('|')[1]);
                 });
             keys.forEach(function (k) {
-                const idx = Number(k.split('|')[1]) - 1;
+                // 키가 있으면 빈 칸도 그대로 유지 (추가 시 baseline/윗칸 이름 채우지 않음)
                 const raw = String(monthlyOffListSelections[k] || '').replace('(S)','').trim();
-                if (raw && !isDriverGroupValue(raw)) {
+                if (raw && !(typeof isDriverGroupValue === 'function' && isDriverGroupValue(raw))) {
                     vals.push(raw);
                 } else {
-                    const base = (typeof getMonthlyOffBaselineSpares === 'function')
-                        ? getMonthlyOffBaselineSpares() : (appData.spares || []);
-                    const fixed = String((base || [])[idx] || '').replace('(S)','').trim();
-                    vals.push(fixed && !isDriverGroupValue(fixed) ? fixed : '');
+                    vals.push('');
                 }
             });
-            // DB의 monthlyOffListSelections가 원본인 상태에서는
-            // DB에 스페어 키가 없다고 해서 TXT baseline 스페어를 다시 넣지 않습니다.
+            // 스페어 키가 하나도 없을 때만 TXT baseline으로 초기 목록 구성
             if (!vals.length && !window.__monthlyOffListSelectionsFromDB) {
                 try {
                     const base = (typeof getMonthlyOffBaselineSpares === 'function')
@@ -6280,6 +6276,7 @@ main{padding-top:18px !important;}
             if (!vals.length && !window.__monthlyOffListSelectionsFromDB) vals.push('');
             return vals;
         }
+
         function setSpareListValues(arr) {
             // 기존 스페어 키 제거 후 재부여 (삭제 시 위로 당김)
             Object.keys(monthlyOffListSelections || {}).forEach(function (k) {
@@ -6373,8 +6370,10 @@ main{padding-top:18px !important;}
                     + '<span class="spare-dynamic-index">' + (i + 1) + '</span>'
                     + '<input class="monthly-off-spare-input" type="text" value="' + esc(v) + '" placeholder="스페어 기사 ' + (i + 1) + '"'
                     + ' data-monthly-off-key="' + key + '"'
+                    + ' autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"'
+                    + ' inputmode="text" style="font-size:16px;"'
                     + ' onchange="updateSpareListItem(' + i + ', this.value)"'
-                    + ' oninput="updateSpareListItem(' + i + ', this.value)">'
+                    + ' oninput="updateSpareListItem(' + i + ', this.value)">' 
                     + '<button type="button" class="spare-dynamic-del" onclick="removeSpareListItem(' + i + ')">삭제</button>'
                     + '</div>';
             }).join('');
@@ -6427,27 +6426,52 @@ main{padding-top:18px !important;}
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
         function addSpareListItem() {
-            const vals = getSpareListValues();
+            // 빈 칸만 추가 (윗칸 기사명 복사 금지)
+            const vals = getSpareListValues().slice();
             vals.push('');
             setSpareListValues(vals);
             try { monthlyOffListDirty = true; } catch (e) {}
             window.monthlyOffListDirty = true;
             renderSpareDynamicList();
-            // 추가된 마지막 입력칸 자동 포커스
-            // preventScroll: 스크롤 점프 방지 / font-size 16px: iOS 자동 줌 방지
-            const wrap = document.getElementById('monthlyOffListSpare');
-            if (wrap) {
-                const inputs = wrap.querySelectorAll('.monthly-off-spare-input');
-                if (inputs.length) {
-                    const last = inputs[inputs.length - 1];
+
+            // 방금 추가된 빈 텍스트 필드에 포커스
+            function focusNewSpareInput() {
+                const wrap = document.getElementById('monthlyOffListSpare');
+                if (!wrap) return false;
+                const inputs = wrap.querySelectorAll('input.monthly-off-spare-input');
+                if (!inputs.length) return false;
+                const last = inputs[inputs.length - 1];
+                try {
+                    last.value = '';
+                    last.style.fontSize = '16px'; // iOS 자동 확대 방지
+                    last.removeAttribute('readonly');
+                    last.removeAttribute('disabled');
+                    // 텍스트 필드로 포커스
+                    last.focus({ preventScroll: true });
+                    // 일부 모바일 브라우저 보조
+                    try { last.click(); } catch (e) {}
                     try {
-                        last.focus({ preventScroll: true });
-                    } catch (e) {
-                        try { last.focus(); } catch (e2) {}
-                    }
+                        const len = (last.value || '').length;
+                        if (typeof last.setSelectionRange === 'function') last.setSelectionRange(len, len);
+                    } catch (e) {}
+                    return (document.activeElement === last);
+                } catch (e) {
+                    try { last.focus(); return true; } catch (e2) { return false; }
+                }
+            }
+            // 리렌더 직후 DOM 반영을 위해 여러 타이밍에 시도
+            if (!focusNewSpareInput()) {
+                if (typeof requestAnimationFrame === 'function') {
+                    requestAnimationFrame(function () {
+                        if (!focusNewSpareInput()) setTimeout(focusNewSpareInput, 30);
+                    });
+                } else {
+                    setTimeout(focusNewSpareInput, 0);
+                    setTimeout(focusNewSpareInput, 50);
                 }
             }
         }
+
         window.addSpareListItem = addSpareListItem;
         window.removeSpareListItem = removeSpareListItem;
         window.updateSpareListItem = updateSpareListItem;
