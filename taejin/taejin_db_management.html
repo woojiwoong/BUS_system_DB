@@ -845,7 +845,7 @@ header .max-w-7xl>div:nth-child(2)>div .action-btn{flex:1 1 0!important;width:0!
 .weekly-offday-name,
 #view-weekly .weekly-offday-name {
     color: #15803d !important;
-    text-align: center !important;
+    text-align: left !important;
     vertical-align: middle !important;
     font-weight: 800 !important;
     font-size: 0.75rem !important;
@@ -867,7 +867,7 @@ header .max-w-7xl>div:nth-child(2)>div .action-btn{flex:1 1 0!important;width:0!
     line-height: 1.45 !important;
     font-size: 0.75rem !important;
     font-weight: 700 !important;
-    text-align: center !important;
+    text-align: left !important;
     width: 100% !important;
     height: auto !important;
     max-height: none !important;
@@ -2579,21 +2579,30 @@ main{padding-top:18px !important;}
           if (!merged[iso]) merged[iso] = ownMap[iso];
         });
 
-        // 현재 기사명단에 없는 기사는 휴무구분에서도 절대 표시하지 않습니다.
-        let whitelist = new Set();
-        try { whitelist = getCurrentDriverNameWhitelist(); } catch (e) {}
-        if (whitelist.size) {
-          Object.keys(merged).forEach(iso => {
-            const cleaned = {};
-            Object.keys(merged[iso] || {}).forEach(name => {
-              const n = String(name || '').replace('(S)', '').trim();
-              if (whitelist.has(n)) cleaned[n] = merged[iso][name];
-            });
-            merged[iso] = cleaned;
-            if (!Object.keys(cleaned).length) delete merged[iso];
-          });
-        }
+        // 휴무구분(연차/위로 등)은 DB 저장값을 우선 표시합니다.
+        // 화이트리스트에 없어도 저장 구분은 유지 (명단 불일치로 연차·위로가 사라지던 문제 수정)
         window.__offTypeStore = merged;
+        // 주별통합 offList에 연차·위로가 빠지지 않도록 offDays에도 합침
+        try {
+          const adRef = (typeof window.appData === 'object' && window.appData) ? window.appData
+            : (typeof appData !== 'undefined' ? appData : null);
+          if (adRef) {
+            if (!adRef.offDays || typeof adRef.offDays !== 'object') adRef.offDays = {};
+            const yy = String(y).slice(-2);
+            const mm = String(m).padStart(2, '0');
+            Object.keys(merged).forEach(iso => {
+              const parts = String(iso).split('-');
+              if (parts.length !== 3) return;
+              const sk = yy + '-' + mm + '-' + String(parts[2]).padStart(2, '0');
+              const names = Object.keys(merged[iso] || {}).map(n => String(n || '').replace('(S)','').trim()).filter(Boolean);
+              if (!names.length) return;
+              const prev = Array.isArray(adRef.offDays[sk]) ? adRef.offDays[sk] : [];
+              adRef.offDays[sk] = [...new Set(prev.concat(names).map(n => String(n||'').replace('(S)','').trim()).filter(Boolean))];
+            });
+            window.appData = adRef;
+            try { if (typeof appData !== 'undefined') appData = adRef; } catch (e) {}
+          }
+        } catch (e) { console.warn('[휴무구분] offDays 동기화 실패', e); }
         console.log('[휴무구분] 저장 데이터 즉시 적용:', y + '-' + String(m).padStart(2,'0'),
           '전월=', Object.keys(prevMap).length, '현재월보완=', Object.keys(ownMap).length,
           '최종=', Object.keys(merged).length);
@@ -2685,7 +2694,14 @@ main{padding-top:18px !important;}
         try { window.syncManualOverridesFromWindow(); } catch (e) {}
       }
       // 캐시 무효화 + 전 탭 다시 그리기
+      window.__forceResim = true;
+      try {
+        if (typeof monthlySimulationCache !== 'undefined') monthlySimulationCache = null;
+        window.monthlySimulationCache = null;
+        window.__simSigLast = '';
+      } catch (e) {}
       if (typeof renderAllViews === 'function') renderAllViews();
+      try { if (typeof renderAllWeeklyView === 'function') renderAllWeeklyView(); } catch (e) {}
       if (typeof lucide !== 'undefined') lucide.createIcons();
       // 휴무구분은 위에서 현재 DB 로드 과정에 함께 반영했으므로 추가 DB 조회를 하지 않습니다.
       console.log('[DB로드] Overrides 화면 반영:',
@@ -2819,14 +2835,24 @@ main{padding-top:18px !important;}
           .filter(n => n && n !== '운행종료');
       });
       offDaysSave = filterMapByYearMonth(offDaysSave, y, m);
-      // 휴무자명단 엔트리: 다음 달 날짜만 저장 (이 달 날짜로 오인되어 로드 시 휴무를 비우지 않도록)
+      // 휴무자명단 엔트리: 휴무자셀과 동일하게 구분(type)별로 저장
+      // 1) 현재 월 offDays/오버라이드 + type맵 → 현재 월 엔트리 재구성
+      // 2) 기존 monthlyOffDayEntries 중 다음 달 날짜도 함께 유지
       let ny = y, nm = m + 1;
       if (nm > 12) { nm = 1; ny += 1; }
+      const curPfx = y + '-' + String(m).padStart(2, '0') + '-';
       const nextPfx = ny + '-' + String(nm).padStart(2, '0') + '-';
-      const dayEntriesSave = (Array.isArray(window.monthlyOffDayEntries) ? window.monthlyOffDayEntries : [])
+      const normEntryDate = (raw) => {
+        let d = String(raw || '').trim();
+        if (/^\d{2}-\d{2}-\d{2}$/.test(d)) d = '20' + d;
+        const mm = d.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (mm) return mm[1] + '-' + String(mm[2]).padStart(2, '0') + '-' + String(mm[3]).padStart(2, '0');
+        return d;
+      };
+      // 기존 엔트리: 다음 달 분 유지 + 현재 월은 아래에서 재구성
+      const existingEntries = (Array.isArray(window.monthlyOffDayEntries) ? window.monthlyOffDayEntries : [])
         .map(e => {
-          let d = String((e && e.date) || '').trim();
-          if (/^\d{2}-\d{2}-\d{2}$/.test(d)) d = '20' + d;
+          const d = normEntryDate(e && e.date);
           const typ = (typeof normalizeMonthlyOffDayType === 'function')
             ? normalizeMonthlyOffDayType(e && e.type)
             : String((e && e.type) || '휴무').trim() || '휴무';
@@ -2836,7 +2862,67 @@ main{padding-top:18px !important;}
             drivers: [...new Set((e && e.drivers || []).map(n => String(n || '').replace('(S)', '').trim()).filter(Boolean))]
           };
         })
-        .filter(e => e.date && e.date.startsWith(nextPfx) && e.drivers.length);
+        .filter(e => e.date && e.drivers.length);
+      const nextMonthEntries = existingEntries.filter(e => e.date.startsWith(nextPfx));
+      // 현재 월: 휴무자셀 기준(offDaysSave + type)으로 재구성
+      const curMonthEntries = [];
+      try {
+        const daysInMonth = (typeof window.getDaysInMonth === 'function')
+          ? window.getDaysInMonth(y, m)
+          : ((typeof getDaysInMonth === 'function') ? getDaysInMonth(y, m) : new Date(y, m, 0).getDate());
+        for (let d = 1; d <= daysInMonth; d++) {
+          const iso = y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+          const shortKey = String(y).slice(-2) + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+          let names = [];
+          if (Array.isArray(offDaysSave[shortKey])) names = offDaysSave[shortKey];
+          else if (Array.isArray(offDaysSave[iso])) names = offDaysSave[iso];
+          names = [...new Set((names || []).map(n => String(n || '').replace('(S)', '').trim())
+            .filter(n => n && n !== '운행종료' && !String(n).includes('조휴무')))];
+          if (!names.length) continue;
+          let typeMap = {};
+          try {
+            const _getType = (typeof window.getOffTypeByDriverMap === 'function')
+              ? window.getOffTypeByDriverMap
+              : (typeof getOffTypeByDriverMap === 'function' ? getOffTypeByDriverMap : null);
+            if (_getType) typeMap = _getType(y, m, d) || {};
+          } catch (e) {}
+          // 기존 엔트리 type도 보완
+          existingEntries.forEach(e => {
+            if (e.date !== iso) return;
+            (e.drivers || []).forEach(n => {
+              if (!typeMap[n] && e.type) typeMap[n] = e.type;
+            });
+          });
+          const byType = {};
+          names.forEach(n => {
+            let typ = typeMap[n] || '휴무';
+            if (typeof normalizeMonthlyOffDayType === 'function') typ = normalizeMonthlyOffDayType(typ);
+            if (!byType[typ]) byType[typ] = [];
+            if (!byType[typ].includes(n)) byType[typ].push(n);
+          });
+          Object.keys(byType).forEach(typ => {
+            byType[typ].sort((a, b) => a.localeCompare(b, 'ko'));
+            curMonthEntries.push({ date: iso, type: typ, drivers: byType[typ] });
+          });
+        }
+      } catch (e) {
+        console.warn('[DB저장] 현재월 휴무구분 재구성 실패', e);
+      }
+      // 현재월 엔트리 + 다음달 엔트리 합침 (중복 날짜·type은 현재월 우선)
+      const entryKey = e => e.date + '|' + e.type;
+      const mergedMap = {};
+      nextMonthEntries.forEach(e => { mergedMap[entryKey(e)] = e; });
+      curMonthEntries.forEach(e => { mergedMap[entryKey(e)] = e; });
+      const dayEntriesSave = Object.values(mergedMap)
+        .filter(e => e.date && e.drivers && e.drivers.length)
+        .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.type).localeCompare(String(b.type), 'ko'));
+      // 로컬 휴무자명단 상태도 휴무자셀과 동일하게 맞춤
+      try {
+        window.monthlyOffDayEntries = dayEntriesSave.slice();
+        if (typeof monthlyOffDayEntries !== 'undefined') {
+          try { monthlyOffDayEntries = dayEntriesSave.slice(); } catch (e) {}
+        }
+      } catch (e) {}
       const payload = {
         year: Number(y),
         month: Number(m), // 9월 → 9 (문자열 "09"가 아님)
@@ -3959,7 +4045,7 @@ main{padding-top:18px !important;}
                 <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-3 sm:p-5">
                     <div class="mb-3">
                         <div class="text-sm font-bold text-slate-700">차량별 정규기사 · 스페어</div>
-                        <div class="monthly-off-note mt-1">차량별 정규기사를 콤보박스에서 선택합니다. 스페어는 아래 칸에 입력합니다. 저장은 「휴무자명단작성」 탭 우측 하단의 빨간 「저장」 버튼을 사용하세요.</div>
+                        <div class="monthly-off-note mt-1">차량별 정규기사 칸 콤보에는 스페어 기사만 표시됩니다. 스페어는 아래 칸에도 입력할 수 있습니다. 저장은 「휴무자명단작성」 탭 우측 하단의 빨간 「저장」 버튼을 사용하세요.</div>
                     </div>
 
                     <div class="monthly-off-list-wrap">
@@ -4154,11 +4240,11 @@ main{padding-top:18px !important;}
     <div id="driverSelectModal" class="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl border border-slate-100">
             <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
-                <h3 class="text-base font-bold text-slate-800" id="selectModalTitle">배차 기사 변경</h3>
+                <h3 class="text-lg font-bold text-slate-800" id="selectModalTitle" style="font-size:18px;">배차 기사 변경</h3>
                 <button onclick="closeDriverSelectModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
             <p class="text-xs text-slate-500 mb-3">변경할 기사를 선택하세요. (휴무자가 상단에 정렬됩니다)</p>
-            <div class="space-y-2 max-h-60 overflow-y-auto mb-4" id="driverSelectList"></div>
+            <div class="space-y-2 max-h-60 overflow-y-auto mb-4 text-sm" id="driverSelectList" style="font-size:14px;"></div>
         </div>
     </div>
 
@@ -4330,6 +4416,7 @@ main{padding-top:18px !important;}
         function getDaysInMonth(year, month) {
             return new Date(year, month, 0).getDate();
         }
+        window.getDaysInMonth = getDaysInMonth;
 
         // 노선: 15번 위 → 19번 아래 → 기타 / 차량: 오름차순
         function routeOrderRank(routeName) {
@@ -5220,8 +5307,17 @@ main{padding-top:18px !important;}
         // 데이타 불러오기 성공 후: 전체 탭을 화면 새로고침처럼 다시 적용
         function hardRefreshAllTabsAfterDbLoad() {
             try {
-                if (typeof monthlySimulationCache !== 'undefined') monthlySimulationCache = null;
-                if (typeof monthlySimulationCacheKey !== 'undefined') monthlySimulationCacheKey = '';
+                // 데이타불러오기 직후: 배차 시뮬레이션·주별통합 캐시 전부 무효화
+                try {
+                    if (typeof monthlySimulationCache !== 'undefined') monthlySimulationCache = null;
+                    if (typeof monthlySimulationCacheKey !== 'undefined') monthlySimulationCacheKey = '';
+                    window.monthlySimulationCache = null;
+                    window.monthlySimulationCacheKey = '';
+                    window.__simSigLast = '';
+                    window.__forceResim = true;
+                    window.__forceClearSimCache = true;
+                    if (typeof window.clearMonthlySimCache === 'function') window.clearMonthlySimCache();
+                } catch (e) {}
                 if (typeof autoLoadedOffListMonths !== 'undefined' && autoLoadedOffListMonths && autoLoadedOffListMonths.clear) {
                     autoLoadedOffListMonths.clear();
                 }
@@ -5234,8 +5330,24 @@ main{padding-top:18px !important;}
                 } catch (e) {}
                 if (typeof updateMonthHeaderTitles === 'function') updateMonthHeaderTitles();
                 if (typeof syncDatePickerToCurrentMonth === 'function') syncDatePickerToCurrentMonth();
-                // 모든 탭 뷰 강제 재렌더
+                // 모든 탭 뷰 강제 재렌더 + 주별통합 테이블 명시적 새로고침
                 if (typeof renderAllViews === 'function') renderAllViews();
+                try {
+                    if (typeof renderAllWeeklyView === 'function') renderAllWeeklyView();
+                } catch (e) { console.warn('[hardRefresh] 주별통합 재렌더 실패', e); }
+                // DOM 반영 후 한 번 더 주별통합 갱신 (캐시·비동기 타이밍 보완)
+                try {
+                    requestAnimationFrame(function () {
+                        try {
+                            window.__forceResim = true;
+                            if (typeof monthlySimulationCache !== 'undefined') monthlySimulationCache = null;
+                            window.monthlySimulationCache = null;
+                            if (typeof renderAllWeeklyView === 'function') renderAllWeeklyView();
+                            if (typeof applySpareDriverGlobalStyle === 'function') applySpareDriverGlobalStyle();
+                            if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+                        } catch (e2) {}
+                    });
+                } catch (e) {}
                 // 휴무자명단: 화면 월의 다음 달 문서를 서버에서 가져와 테이블에 표시
                 // 예) 10월 배차 로드 → 11월 휴무자명단 문서 적용
                 if (typeof window.loadMonthlyOffListFromDB === 'function') {
@@ -5248,6 +5360,15 @@ main{padding-top:18px !important;}
                             if (typeof window.syncMonthlyOffToWindow === 'function') window.syncMonthlyOffToWindow();
                             if (typeof renderMonthlyOffDayTable === 'function') renderMonthlyOffDayTable();
                             if (typeof renderMonthlyOffListView === 'function') renderMonthlyOffListView();
+                            // 휴무구분 반영 후 주별통합 테이블 다시 새로고침
+                            try {
+                                window.__forceResim = true;
+                                if (typeof monthlySimulationCache !== 'undefined') monthlySimulationCache = null;
+                                window.monthlySimulationCache = null;
+                                window.__simSigLast = '';
+                                if (typeof renderAllWeeklyView === 'function') renderAllWeeklyView();
+                                if (typeof applySpareDriverGlobalStyle === 'function') applySpareDriverGlobalStyle();
+                            } catch (e3) {}
                             console.log('[hardRefresh] 휴무자명단 로드 결과:', ok, '건수=', (monthlyOffDayEntries || []).length);
                         } catch (e) {}
                     }).catch(function (err) {
@@ -5671,7 +5792,9 @@ main{padding-top:18px !important;}
         let _modalAutoCloseTimer = null;
         function showModal(title, msg, isError = false, autoCloseMs = 0) {
             document.getElementById('modalTitle').innerText = title;
-            document.getElementById('modalMessage').innerText = msg;
+            const __msgEl = document.getElementById('modalMessage');
+            __msgEl.innerText = msg;
+            __msgEl.style.whiteSpace = 'pre-line';
             document.getElementById('customModal').classList.remove('hidden');
             if (_modalAutoCloseTimer) {
                 clearTimeout(_modalAutoCloseTimer);
@@ -5944,6 +6067,15 @@ main{padding-top:18px !important;}
                 window.__taejinDuplicateDriverFixes = [];
             }
 
+            // 문서 로드 시점 스냅샷 (콤보 「초기화」 = 문서 저장값 복구)
+            try {
+                if (typeof snapshotMonthlyOffListDocSelections === 'function') {
+                    snapshotMonthlyOffListDocSelections(monthlyOffListSelections);
+                } else {
+                    window.__monthlyOffListSelectionsDocSnapshot = JSON.parse(JSON.stringify(monthlyOffListSelections || {}));
+                }
+            } catch (e) {}
+
             try {
                 monthlyOffListLoadedStorageKey = monthlyOffListStorageKey();
                 if (monthlyOffListSelections && Object.keys(monthlyOffListSelections).some(k => String(monthlyOffListSelections[k] || '').trim())) {
@@ -6128,10 +6260,12 @@ main{padding-top:18px !important;}
                 getMonthlyOffBaselineSpares().forEach(add);
             }
 
-            // DB/TXT가 조별 코드만 가지고 있는 경우에만 휴무자명단의 차량별 실명값을 보조로 사용
-            if (!names.size && typeof monthlyOffListSelections === 'object' && monthlyOffListSelections) {
+            // 정규/스페어 선택값·스페어 키는 항상 화이트리스트에 포함 (연차/위로 기사 누락 방지)
+            if (typeof monthlyOffListSelections === 'object' && monthlyOffListSelections) {
                 Object.keys(monthlyOffListSelections).forEach(k => {
-                    if (/^스페어\\|\\d+$/.test(k) || /\\|[12]$/.test(k)) add(monthlyOffListSelections[k]);
+                    if (/^스페어\|\d+$/.test(k) || /\|[12]$/.test(k) || String(k).endsWith('|조')) {
+                        add(monthlyOffListSelections[k]);
+                    }
                 });
             }
             return names;
@@ -6250,7 +6384,13 @@ main{padding-top:18px !important;}
                         });
                     }
                 });
-                const availableSpares = baselineSpares.filter(s => !offSet.has(s));
+                let availableSpares = baselineSpares.filter(s => !offSet.has(s));
+                // 일자별 시드 랜덤 순서 (주별통합과 동일 정책)
+                if (typeof shuffleArrayWithSeed === 'function') {
+                    availableSpares = shuffleArrayWithSeed(availableSpares.slice(), y * 10000 + m * 100 + d);
+                } else {
+                    availableSpares = availableSpares.slice().sort(function(){ return Math.random() - 0.5; });
+                }
                 const usedSparesToday = new Set();
 
                 // 오전 슬롯 먼저, 오후 슬롯 나중
@@ -6580,35 +6720,89 @@ main{padding-top:18px !important;}
             });
             return set;
         }
-        /** 차량 정규칸에 선택된 스페어는 동적 리스트에서 숨기고, 해제하면 다시 표시
-         *  남는 스페어는 화면에 보이던 순번(스페어|n)을 유지하며 위로 당김 — TXT 재정렬 금지 */
+        /** 차량 정규칸에 선택된 스페어는 동적 리스트에서 숨기고, 해제/초기화하면 다시 표시
+         *  복귀 순번: 문서(DB) 저장 스페어 순번 → TXT 순번 → 화면 기존 순번 */
+        function getSpareOriginalOrderRankMap() {
+            const rank = {};
+            let i = 0;
+            const add = function (n) {
+                const v = normalizeSparePoolName(n);
+                if (!v) return;
+                if (typeof isDriverGroupValue === 'function' && isDriverGroupValue(v)) return;
+                if (rank[v] != null) return;
+                rank[v] = i++;
+            };
+            // 1) 문서 스냅샷 스페어|n 순번 (초기화 복귀 기준)
+            try {
+                const snap = window.__monthlyOffListSelectionsDocSnapshot || {};
+                Object.keys(snap)
+                    .filter(function (k) { return /^스페어\|\d+$/.test(k); })
+                    .sort(function (a, b) {
+                        return Number(a.split('|')[1]) - Number(b.split('|')[1]);
+                    })
+                    .forEach(function (k) { add(snap[k]); });
+            } catch (e) {}
+            // 2) TXT 스페어 순번
+            try {
+                (typeof getTxtSpareOrderList === 'function' ? getTxtSpareOrderList() : []).forEach(add);
+            } catch (e) {}
+            // 3) 현재 화면 스페어|n
+            try {
+                Object.keys(monthlyOffListSelections || {})
+                    .filter(function (k) { return /^스페어\|\d+$/.test(k); })
+                    .sort(function (a, b) {
+                        return Number(a.split('|')[1]) - Number(b.split('|')[1]);
+                    })
+                    .forEach(function (k) { add(monthlyOffListSelections[k]); });
+            } catch (e) {}
+            // 4) 풀
+            try {
+                (window.__taejinSpareNamePool || []).forEach(add);
+            } catch (e) {}
+            return rank;
+        }
         function syncSpareDynamicListWithVehicleSelection() {
             const assigned = getNamesAssignedToVehicles();
-            // 1) 현재 저장된 스페어|n 순번 기준으로 미배정만 남김 (화면 순번 유지)
-            const remaining = [];
             const seen = new Set();
-            const keys = Object.keys(monthlyOffListSelections || {})
-                .filter(function (k) { return /^스페어\|\d+$/.test(k); })
-                .sort(function (a, b) {
-                    return Number(a.split('|')[1]) - Number(b.split('|')[1]);
-                });
-            keys.forEach(function (k) {
-                const v = normalizeSparePoolName(monthlyOffListSelections[k]);
-                if (!v || assigned.has(v) || seen.has(v)) return;
-                seen.add(v);
-                remaining.push(v);
-            });
-            // 2) 풀에만 있는 미배정 스페어(정규 해제 복귀 등)는 기존 순번 뒤에 추가
-            const pool = ensureSpareNamePool();
-            pool.forEach(function (n) {
+            const candidates = [];
+            const pushCand = function (n) {
                 const v = normalizeSparePoolName(n);
-                if (v && !assigned.has(v) && !seen.has(v)) {
-                    seen.add(v);
-                    remaining.push(v);
-                }
+                if (!v || assigned.has(v) || seen.has(v)) return;
+                if (typeof isDriverGroupValue === 'function' && isDriverGroupValue(v)) return;
+                seen.add(v);
+                candidates.push(v);
+            };
+            // 현재 스페어 키
+            try {
+                Object.keys(monthlyOffListSelections || {})
+                    .filter(function (k) { return /^스페어\|\d+$/.test(k); })
+                    .sort(function (a, b) {
+                        return Number(a.split('|')[1]) - Number(b.split('|')[1]);
+                    })
+                    .forEach(function (k) { pushCand(monthlyOffListSelections[k]); });
+            } catch (e) {}
+            // 풀 (정규칸 해제·초기화로 복귀할 스페어)
+            try {
+                const pool = ensureSpareNamePool();
+                (pool || []).forEach(pushCand);
+            } catch (e) {}
+            // 문서 스냅샷 스페어 (원래 순번 복귀용)
+            try {
+                const snap = window.__monthlyOffListSelectionsDocSnapshot || {};
+                Object.keys(snap)
+                    .filter(function (k) { return /^스페어\|\d+$/.test(k); })
+                    .forEach(function (k) { pushCand(snap[k]); });
+            } catch (e) {}
+
+            const rankMap = getSpareOriginalOrderRankMap();
+            candidates.sort(function (a, b) {
+                const ra = (rankMap[a] != null) ? rankMap[a] : 99999;
+                const rb = (rankMap[b] != null) ? rankMap[b] : 99999;
+                if (ra !== rb) return ra - rb;
+                return String(a).localeCompare(String(b), 'ko');
             });
-            setSpareListValues(remaining.length ? remaining : ['']);
-            return remaining;
+            setSpareListValues(candidates.length ? candidates : ['']);
+            return candidates;
         }
         window.ensureSpareNamePool = ensureSpareNamePool;
         window.syncSpareDynamicListWithVehicleSelection = syncSpareDynamicListWithVehicleSelection;
@@ -6741,9 +6935,40 @@ main{padding-top:18px !important;}
         window.removeSpareListItem = removeSpareListItem;
         window.updateSpareListItem = updateSpareListItem;
 
+        // 정규기사 콤보 초기화 전용 값 → 문서(DB)에 저장된 값으로 복구
+        const MONTHLY_OFF_INIT_VALUE = '__INIT_BASELINE__';
+
+        // 문서 로드/저장 시점의 monthlyOffListSelections 스냅샷 (초기화 복구용)
+        if (typeof window.__monthlyOffListSelectionsDocSnapshot === 'undefined') {
+            window.__monthlyOffListSelectionsDocSnapshot = {};
+        }
+        function snapshotMonthlyOffListDocSelections(src){
+            try {
+                const s = (src && typeof src === 'object' && !Array.isArray(src))
+                    ? src
+                    : ((typeof monthlyOffListSelections === 'object' && monthlyOffListSelections)
+                        ? monthlyOffListSelections : {});
+                window.__monthlyOffListSelectionsDocSnapshot = JSON.parse(JSON.stringify(s || {}));
+            } catch (e) {
+                window.__monthlyOffListSelectionsDocSnapshot = {};
+            }
+            return window.__monthlyOffListSelectionsDocSnapshot;
+        }
+        function getDocSavedDriverForOffListKey(key){
+            try {
+                const snap = window.__monthlyOffListSelectionsDocSnapshot || {};
+                return String(snap[key] || '').replace('(S)', '').replace(/\s+/g, ' ').trim();
+            } catch (e) {
+                return '';
+            }
+        }
+        // 하위 호환 (이전 이름)
+        function getBaselineDriverForOffListKey(key){
+            return getDocSavedDriverForOffListKey(key);
+        }
+
         function monthlyOffListOptions(names, selected='', excludeNames){
-            // 정규기사 콤보: 정규+스페어 기사명 표시 (조코드 제외)
-            // - 빈항목 "-" 완전 제거
+            // 정규/스페어 정보 콤보: 스페어 + 맨 위 「초기화」(문서 저장값 복구)
             // - names 배열 순서(TXT 파일 순번)를 절대 재정렬하지 않음
             const isGroup = value => {
                 const v = String(value || '').replace('(S)','').trim();
@@ -6754,7 +6979,7 @@ main{padding-top:18px !important;}
                 return !s || s === '-' || s === '—' || s === '–' || s === '－';
             };
             let sel = String(selected || '').replace('(S)','').trim();
-            if (isDash(sel)) sel = '';
+            if (isDash(sel) || sel === MONTHLY_OFF_INIT_VALUE) sel = '';
             const exclude = new Set();
             (excludeNames || []).forEach(n => {
                 const v = String(n || '').replace('(S)','').trim();
@@ -6773,13 +6998,20 @@ main{padding-top:18px !important;}
                 list.push(sel);
                 seen.add(sel);
             }
-            // "-" 옵션 완전 제거, 재정렬 없음
-            let html = '';
+            // 맨 위: 초기화 → 클릭 시 문서(DB)에 저장된 데이터로 복구
+            let html = '<option value="' + MONTHLY_OFF_INIT_VALUE + '">— 초기화 —</option>';
             list.forEach(name => {
                 const safe = String(name).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
                 const selectedAttr = (String(name) === sel) ? ' selected' : '';
                 html += '<option value="' + safe + '"' + selectedAttr + '>' + safe + '</option>';
             });
+            // 선택값이 비어 있으면 초기화가 선택된 것처럼 보이도록 (복구 대기 상태)
+            if (!sel) {
+                html = html.replace(
+                    'value="' + MONTHLY_OFF_INIT_VALUE + '"',
+                    'value="' + MONTHLY_OFF_INIT_VALUE + '" selected'
+                );
+            }
             return html;
         }
 
@@ -6873,7 +7105,16 @@ main{padding-top:18px !important;}
                 return;
             }
             const el = document.querySelector(`select[data-monthly-off-key="${CSS.escape(key)}"]`);
-            const nextValue = value || '';
+            // 「초기화」 선택 → 문서(DB)에 저장된 기사명으로 복구
+            let nextValue = value || '';
+            let isInitRestore = false;
+            if (nextValue === MONTHLY_OFF_INIT_VALUE || nextValue === '__INIT_BASELINE__') {
+                isInitRestore = true;
+                nextValue = (typeof getDocSavedDriverForOffListKey === 'function')
+                    ? (getDocSavedDriverForOffListKey(key) || '')
+                    : ((typeof getBaselineDriverForOffListKey === 'function')
+                        ? (getBaselineDriverForOffListKey(key) || '') : '');
+            }
             const previousValue = monthlyOffListSelections[key] || '';
 
             // 이미 다른 차량 정규칸에 배치된 기사는 선택 불가 (스페어 목록 키는 검사 제외)
@@ -6918,9 +7159,49 @@ main{padding-top:18px !important;}
             } catch (e) {}
             try { window.monthlyOffListSelections = monthlyOffListSelections; } catch (e) {}
             try { window.monthlyOffListDirty = true; } catch (e) {}
-            // 정규칸에 스페어 선택/해제 시 동적 리스트에서 즉시 숨김·복귀
+            // 정규칸에 스페어 선택/해제/초기화 시 동적 리스트에서 즉시 숨김·복귀
+            // 초기화: 이전에 배치했던 스페어는 풀에 넣고 문서/TXT 원래 순번으로 동적 리스트 재구성
             try {
                 if (/\|[12]$/.test(String(key)) && !/^스페어\|/.test(String(key))) {
+                    if (isInitRestore) {
+                        try {
+                            const prevN = (typeof normalizeSparePoolName === 'function')
+                                ? normalizeSparePoolName(previousValue)
+                                : String(previousValue || '').replace('(S)','').trim();
+                            if (prevN) {
+                                if (!Array.isArray(window.__taejinSpareNamePool)) window.__taejinSpareNamePool = [];
+                                let wasSpare = false;
+                                try {
+                                    const snap = window.__monthlyOffListSelectionsDocSnapshot || {};
+                                    Object.keys(snap).forEach(function (sk) {
+                                        if (!/^스페어\|\d+$/.test(sk)) return;
+                                        const sn = (typeof normalizeSparePoolName === 'function')
+                                            ? normalizeSparePoolName(snap[sk])
+                                            : String(snap[sk] || '').replace('(S)','').trim();
+                                        if (sn === prevN) wasSpare = true;
+                                    });
+                                } catch (e) {}
+                                try {
+                                    if (!wasSpare && typeof getTxtSpareOrderList === 'function') {
+                                        wasSpare = getTxtSpareOrderList().some(function (n) {
+                                            const sn = (typeof normalizeSparePoolName === 'function')
+                                                ? normalizeSparePoolName(n) : String(n || '').trim();
+                                            return sn === prevN;
+                                        });
+                                    }
+                                } catch (e) {}
+                                try {
+                                    if (!wasSpare && (window.__taejinSpareNamePool || []).some(function (n) {
+                                        return (typeof normalizeSparePoolName === 'function' ? normalizeSparePoolName(n) : String(n||'').trim()) === prevN;
+                                    })) wasSpare = true;
+                                } catch (e) {}
+                                if (wasSpare && window.__taejinSpareNamePool.indexOf(prevN) < 0) {
+                                    window.__taejinSpareNamePool.push(prevN);
+                                }
+                            }
+                        } catch (e) {}
+                    }
+                    if (typeof ensureSpareNamePool === 'function') ensureSpareNamePool();
                     if (typeof syncSpareDynamicListWithVehicleSelection === 'function') {
                         syncSpareDynamicListWithVehicleSelection();
                     }
@@ -6964,6 +7245,14 @@ main{padding-top:18px !important;}
         const result = await window.saveMonthlyOffListToDB();
         if (result && result.ok) {
             window.monthlyOffListDirty = false;
+            // 저장 성공 → 문서 스냅샷 갱신 (이후 「초기화」는 방금 저장한 값으로 복구)
+            try {
+                if (typeof snapshotMonthlyOffListDocSelections === 'function') {
+                    snapshotMonthlyOffListDocSelections(monthlyOffListSelections);
+                } else {
+                    window.__monthlyOffListSelectionsDocSnapshot = JSON.parse(JSON.stringify(monthlyOffListSelections || {}));
+                }
+            } catch (e) {}
             // 저장한 테이블 내용을 화면에 고정 (offDays/오버라이드로 다시 채우지 않음)
             try {
                 window.monthlyOffDayEntries = monthlyOffDayEntries || [];
@@ -7120,6 +7409,38 @@ function getMonthlyOffAllDriverNames(){
             return names;
         }
 
+        function getPatternOffDriverNamesForDate(dateVal){
+            // 휴무일자(YYYY-MM-DD)에 해당하는 N조휴무 정규기사 목록
+            // → 휴무기사선택 아이템에서 숨김 (조휴무는 별도 패턴으로 이미 처리됨)
+            try {
+                if (!dateVal || !/^\d{4}-\d{2}-\d{2}$/.test(String(dateVal))) return [];
+                const parts = String(dateVal).split('-');
+                const y = parseInt(parts[0], 10);
+                const m = parseInt(parts[1], 10);
+                const d = parseInt(parts[2], 10);
+                if (!y || !m || !d) return [];
+                const grpFn = (typeof getPatternOffGroup === 'function')
+                    ? getPatternOffGroup
+                    : (typeof window.getPatternOffGroup === 'function' ? window.getPatternOffGroup : null);
+                if (!grpFn) return [];
+                const g = Number(grpFn(d, y, m)) || 0;
+                if (!g) return [];
+                const listFn = (typeof getRegularDriversInJoGroup === 'function')
+                    ? getRegularDriversInJoGroup
+                    : null;
+                if (!listFn) return [];
+                const routes = (typeof appData !== 'undefined' && appData && appData.routes)
+                    ? appData.routes
+                    : ((window.appData && window.appData.routes) ? window.appData.routes : {});
+                return (listFn(g, routes) || [])
+                    .map(n => String(n || '').replace('(S)', '').trim())
+                    .filter(Boolean);
+            } catch (e) {
+                console.warn('getPatternOffDriverNamesForDate', e);
+                return [];
+            }
+        }
+
         function renderMonthlyOffDriverMultiList(){
             const list = document.getElementById('monthlyOffDriverMultiList');
             if (!list) return;
@@ -7127,14 +7448,17 @@ function getMonthlyOffAllDriverNames(){
             const dateEl = document.getElementById('monthlyOffDayDate');
             const dateVal = dateEl ? dateEl.value : '';
             const already = getDriversAlreadyOnDate(dateVal);
-            // 이미 해당 일자에 등록된 기사는 선택 목록에서 제외
+            // 해당 일자 N조휴무 기사는 선택 목록에서 숨김
+            const patternOffNames = getPatternOffDriverNamesForDate(dateVal);
+            const hideSet = new Set([...(already || []), ...(patternOffNames || [])]);
+            // 이미 해당 일자에 등록된 기사 + N조휴무 기사는 선택 목록에서 제외
             // 가나다순 재정렬 (목록 표시 직전)
             const available = names
-                .filter(n => !already.includes(n))
+                .filter(n => !hideSet.has(n))
                 .sort((a, b) => String(a).localeCompare(String(b), 'ko-KR', { numeric: true, sensitivity: 'base' }));
-            // 선택 중인데 이미 등록된 기사가 있으면 선택 상태도 정리
+            // 선택 중인데 이미 등록/조휴무인 기사가 있으면 선택 상태도 정리
             monthlyOffDaySelectedDrivers = monthlyOffDaySelectedDrivers
-                .filter(n => !already.includes(n))
+                .filter(n => !hideSet.has(n))
                 .sort((a, b) => String(a).localeCompare(String(b), 'ko-KR', { numeric: true, sensitivity: 'base' }));
             const spareNameSet = new Set(getMonthlyOffBaselineSpares());
             list.innerHTML = available.map(name => {
@@ -7145,7 +7469,7 @@ function getMonthlyOffAllDriverNames(){
                     ? `<span style="text-decoration:underline;text-decoration-color:#2563eb;text-decoration-thickness:2px;text-underline-offset:2px;">${safe}</span>`
                     : safe;
                 return `<label><input type="checkbox" value="${safe}" ${checked} onchange="onMonthlyOffDriverCheck(this)"> ${nameHtml}</label>`;
-            }).join('') || '<div class="text-xs text-slate-400 p-2">' + (already.length ? '이 일자에 등록 가능한 기사가 없습니다.' : '선택 가능한 기사가 없습니다. TXT를 먼저 불러오세요.') + '</div>';
+            }).join('') || '<div class="text-xs text-slate-400 p-2">' + ((already.length || patternOffNames.length) ? '이 일자에 등록 가능한 기사가 없습니다. (등록·N조휴무 제외)' : '선택 가능한 기사가 없습니다. TXT를 먼저 불러오세요.') + '</div>';
             updateMonthlyOffDriverMultiLabel();
         }
 
@@ -7218,16 +7542,23 @@ function getMonthlyOffAllDriverNames(){
                 showModal('입력 오류', '휴무기사명을 한 명 이상 선택해 주세요.');
                 return;
             }
-            // 같은 일자에 이미 등록된 기사는 제외
+            // 같은 일자에 이미 등록된 기사 + 해당 일자 N조휴무 기사는 제외
             const already = getDriversAlreadyOnDate(dateVal);
-            const drivers = monthlyOffDaySelectedDrivers.filter(n => !already.includes(n));
+            const patternOff = (typeof getPatternOffDriverNamesForDate === 'function')
+                ? getPatternOffDriverNamesForDate(dateVal) : [];
+            const blocked = new Set([...(already || []), ...(patternOff || [])]);
+            const drivers = monthlyOffDaySelectedDrivers.filter(n => !blocked.has(n));
             if (!drivers.length) {
-                showModal('중복 선택', '선택한 기사는 이미 해당 일자에 등록되어 있습니다.');
+                const onlyPattern = monthlyOffDaySelectedDrivers.every(n => patternOff.includes(n));
+                showModal(onlyPattern ? '조휴무 제외' : '중복 선택',
+                    onlyPattern
+                        ? '선택한 기사는 해당 일자 N조휴무이므로 휴무명단에 추가할 수 없습니다.'
+                        : '선택한 기사는 이미 해당 일자에 등록되어 있거나 N조휴무입니다.');
                 return;
             }
             if (drivers.length !== monthlyOffDaySelectedDrivers.length) {
-                const dup = monthlyOffDaySelectedDrivers.filter(n => already.includes(n));
-                showModal('일부 중복', `이미 등록된 기사(${dup.join(', ')})는 제외하고 추가합니다.`);
+                const skipped = monthlyOffDaySelectedDrivers.filter(n => blocked.has(n));
+                showModal('일부 제외', `이미 등록 또는 N조휴무 기사(${skipped.join(', ')})는 제외하고 추가합니다.`);
             }
             const offType = (typeof getSelectedMonthlyOffDayType === 'function')
                 ? getSelectedMonthlyOffDayType() : '휴무';
@@ -7620,7 +7951,8 @@ function getMonthlyOffAllDriverNames(){
                     const joSelected = String(
                         (monthlyOffListSelections[routeName + '|' + bus.busNo + '|조'] || item._jo || getJoCodeForBus(routeName, bus.busNo) || joCodeFromIndex(__joRowIdx) || '')
                     ).trim();
-                    // 콤보: 해당 차량 정규1/2 + 스페어(TXT 순번만)
+                    // 콤보: 스페어 기사만 표시 (TXT 스페어 순번)
+                    // - 이미 선택된 값이 스페어가 아니어도 monthlyOffListOptions가 선택값만 유지 표시
                     const busComboNames = (function () {
                         const seen = new Set();
                         const out = [];
@@ -7630,20 +7962,7 @@ function getMonthlyOffAllDriverNames(){
                             seen.add(v);
                             out.push(v);
                         };
-                        // 해당 차량 TXT 정규
-                        try {
-                            const list = (baselineRoutes[routeName] || []);
-                            const b0 = list.find(function (x) { return String(x.busNo) === String(bus.busNo); }) || bus;
-                            const bd = Array.isArray(b0.drivers) ? b0.drivers : [];
-                            push(bd[0]);
-                            push(bd[1]);
-                        } catch (e) {
-                            const bd = Array.isArray(bus.drivers) ? bus.drivers : [];
-                            push(bd[0]); push(bd[1]);
-                        }
-                        push(monthlyOffListSelections[key1]);
-                        push(monthlyOffListSelections[key2]);
-                        // 스페어 = TXT 파일 순번
+                        // 스페어 = TXT 파일 [스페어] 순번만
                         (spareDriversTxtOrder || []).forEach(push);
                         return out;
                     })();
@@ -8249,11 +8568,15 @@ function getMonthlyOffAllDriverNames(){
         window.saveDispatchEnvSettings = saveDispatchEnvSettings;
         getDispatchEnvVehicleCounts();
 
+        function isDriverSelectModalOpen() {
+            const m = document.getElementById('driverSelectModal');
+            return !!(m && !m.classList.contains('hidden'));
+        }
         function updateWeeklyDbSaveButton() {
-            const modalOpen = isWelcomeModalOpen();
+            const modalOpen = isWelcomeModalOpen() || isDriverSelectModalOpen();
             const btn = document.getElementById('weeklyDbSaveBtn');
             if (btn) {
-                // 데이타 불러오기 모달 활성 시 비활성(숨김), 주별통합 탭일 때만 표시
+                // 데이타 불러오기/기사변경 모달 활성 시 숨김, 주별통합 탭일 때만 표시
                 const show = !modalOpen && currentTab === 'weekly';
                 btn.style.display = show ? 'block' : 'none';
                 btn.disabled = !show;
@@ -8848,7 +9171,7 @@ function getMonthlyOffAllDriverNames(){
             // 입력이 하나라도 바뀌면 지문이 달라져 자동으로 재계산되므로 예전 값이 남지 않음
             // 패턴 버전 포함 → 패턴 변경 시 캐시 무효화
             let __simSig = '';
-            try { __simSig = cacheKey + '|joCycle6v5|' + JSON.stringify([appData.routes, appData.spares, appData.offDays, ovMap, offMap, getJoCodeMap()]); } catch (e) { __simSig = ''; }
+            try { __simSig = cacheKey + '|joCycle6v5|screenLockAll|spareRnd4|noBlank|' + JSON.stringify([appData.routes, appData.spares, appData.offDays, ovMap, offMap, getJoCodeMap()]); } catch (e) { __simSig = ''; }
             // 강제 캐시 무시 플래그
             if (window.__forceResim) {
                 monthlySimulationCache = null;
@@ -8888,10 +9211,10 @@ function getMonthlyOffAllDriverNames(){
                 try {
                     const typeMap = (typeof getOffTypeByDriverMap === 'function')
                         ? getOffTypeByDriverMap(targetYear, targetMonth, d) : {};
-                    const validNames = new Set(getAuthoritativeDriverNames().map(normSpare));
+                    // 연차·위로 등 저장 구분은 명단 필터로 빼지 않음
                     Object.keys(typeMap || {}).forEach(nm => {
                         const cn = normSpare(nm);
-                        if (cn && validNames.has(cn) && !offList.includes(cn)) offList.push(cn);
+                        if (cn && !offList.includes(cn)) offList.push(cn);
                     });
                 } catch (e) {}
                 const isSun = isSunday(dateKey, targetYear);
@@ -8923,7 +9246,7 @@ function getMonthlyOffAllDriverNames(){
                 });
 
                 // 복귀일: 선호·반대 교대 모두 자격 (선호 우선, 없으면 폴백으로 무조건 배차)
-                // 스페어 자동배차는 저장된 스페어 순위(배열 순서)를 그대로 사용합니다.
+                // 스페어 자동배차: 고정 순위가 아니라 일자별 시드 랜덤 순서로 투입
                 // 오전 휴무/N조휴무 -> 오전 스페어, 오후 휴무/N조휴무 -> 오후 스페어.
                 // 쉬는차(운행대수 초과)는 배차 불가능 → 스페어 미투입, 정규기사 유지.
                 // 전날 오후 근무 여부로 오전을 막지 않습니다.
@@ -8935,15 +9258,35 @@ function getMonthlyOffAllDriverNames(){
                     const name = normSpare(s);
                     return !!name && !offList.includes(name);
                 });
-                const morningPreferred = morningEligible.map(normSpare);
+                // 일자 시드 랜덤 셔플 (같은 날·같은 입력 → 동일 결과, 날짜마다 다른 순서)
+                const __spareSeedBase = (Number(targetYear) || 0) * 10000
+                    + (Number(targetMonth) || 0) * 100
+                    + (Number(d) || 0);
+                const __shuffleSpare = (arr, salt) => {
+                    const list = (arr || []).map(normSpare).filter(Boolean);
+                    if (typeof shuffleArrayWithSeed === 'function') {
+                        return shuffleArrayWithSeed(list, __spareSeedBase * 31 + salt);
+                    }
+                    // 폴백: Fisher-Yates + seededRandom
+                    const out = list.slice();
+                    for (let i = out.length - 1; i > 0; i--) {
+                        const r = (typeof seededRandom === 'function')
+                            ? seededRandom(__spareSeedBase + salt + i)
+                            : Math.random();
+                        const j = Math.floor(r * (i + 1));
+                        const t = out[i]; out[i] = out[j]; out[j] = t;
+                    }
+                    return out;
+                };
+                const morningPreferred = __shuffleSpare(morningEligible, 17);
                 const morningNormal = [];
                 const morningFallback = [];
-                const afternoonPreferred = afternoonEligible.map(normSpare);
+                const afternoonPreferred = __shuffleSpare(afternoonEligible, 53);
                 const afternoonNormal = [];
                 const afternoonFallback = [];
                 const usedSparesToday = new Set();
 
-                // 순위 1번부터 순서대로 빈 자리에 투입합니다.
+                // 랜덤 섞인 순서대로 빈 자리에 투입합니다.
                 const takeSpare = (pool) => {
                     while (pool.length) {
                         const s = pool.shift();
@@ -8956,9 +9299,12 @@ function getMonthlyOffAllDriverNames(){
                 const takeMorningSpare = () => takeSpare(morningPreferred);
                 const takeAfternoonSpare = () => takeSpare(afternoonPreferred);
 
-                // 1차 배차: 휴무/N조휴무 해당 교대에 순위순 스페어 자동 투입 (쉬는차는 제외)
+                // 1차 배차: N조휴무 슬롯 스페어 1순위 → 일반 휴무 슬롯 (쉬는차는 제외)
                 let busAssignments = [], assignedSpares = [];
                 const pendingRows = [];
+                // 일자 단위 쉬는차 키 (enforceUnique·각 차량 공통 사용)
+                const __cancelKeysAuto = (typeof getCancelledBusKeysForDate === 'function')
+                    ? getCancelledBusKeysForDate(dateKey) : new Set();
                 getOrderedRouteEntries(appData.routes).forEach(([routeName, buses]) => {
                     buses.forEach(bus => {
                         // 오전/오후 정규기사: 권위 소스(월휴무 선택·baseline) 우선, 없으면 drivers[0]/[1]
@@ -8989,8 +9335,6 @@ function getMonthlyOffAllDriverNames(){
                         }
                         // 조휴무: 해당 조 차량은 오전·오후 모두 휴무 처리
                         const __isJoOff = (__offGrp && __busJo && __busJo === __offGrp);
-                        const __cancelKeysAuto = (typeof getCancelledBusKeysForDate === 'function')
-                            ? getCancelledBusKeysForDate(dateKey) : new Set();
                         const __isRestBus = __cancelKeysAuto.has(String(routeName) + '|' + String(bus.busNo));
                         // N조휴무: 해당 교대 휴무로 스페어 자동배차
                         // 쉬는차(운행대수 초과): 배차 불가능 → 스페어 투입 금지, 정규기사 유지
@@ -9006,13 +9350,44 @@ function getMonthlyOffAllDriverNames(){
                             mOff = false;
                             aOff = false;
                         } else {
-                            mAssigned = !mOff ? mReg : (takeMorningSpare() || '');
-                            aAssigned = !aOff ? aReg : (takeAfternoonSpare() || '');
+                            // 스페어는 아래 단계에서 우선순위별로 투입 (여기서는 슬롯만 확보)
+                            mAssigned = !mOff ? mReg : '';
+                            aAssigned = !aOff ? aReg : '';
                         }
                         pendingRows.push({ routeName, busNo: bus.busNo, mReg, aReg, mOff, aOff, mAssigned, aAssigned, joOff: !!__isJoOff, joOffLabel: (__isJoOff && __offGrp ? (__offGrp + '조휴무') : ''), doCross: !!__doCross, restBus: !!__isRestBus });
                     });
                 });
-                // 2차: 아직 비어 있는 대체 슬롯에 폴백 스페어 투입
+                // 1차-A: N조휴무 차량에 스페어 1순위 배차 (일반 휴무보다 우선)
+                // 같은 날 같은 스페어 오전+오후 동시 배차 금지 (usedSparesToday)
+                pendingRows.forEach(row => {
+                    if (row.restBus || !row.joOff) return;
+                    if (row.mOff && !row.mAssigned) {
+                        row.mAssigned = takeMorningSpare() || '';
+                    }
+                    if (row.aOff && !row.aAssigned) {
+                        let s = takeAfternoonSpare() || '';
+                        // 같은 차량 오전과 동일하면 다시 뽑기
+                        if (s && s === String(row.mAssigned || '').replace('(S)','').trim()) {
+                            s = takeAfternoonSpare() || '';
+                        }
+                        row.aAssigned = s;
+                    }
+                });
+                // 1차-B: 일반 휴무(연차·결근 등) 슬롯에 남은 스페어 배차
+                pendingRows.forEach(row => {
+                    if (row.restBus || row.joOff) return;
+                    if (row.mOff && !row.mAssigned) {
+                        row.mAssigned = takeMorningSpare() || '';
+                    }
+                    if (row.aOff && !row.aAssigned) {
+                        let s = takeAfternoonSpare() || '';
+                        if (s && s === String(row.mAssigned || '').replace('(S)','').trim()) {
+                            s = takeAfternoonSpare() || '';
+                        }
+                        row.aAssigned = s;
+                    }
+                });
+                // 2차: 아직 비어 있는 대체 슬롯에 폴백 스페어 → 없으면 운행종료
                 // 쉬는차(운행대수 초과)는 배차 불가능 → 스페어/운행종료 폴백 금지, 정규기사 유지
                 pendingRows.forEach(row => {
                     if (row.restBus) {
@@ -9040,7 +9415,10 @@ function getMonthlyOffAllDriverNames(){
                         // N조휴무는 자동 스페어 배차가 우선입니다.
                         // 과거 DB에 남아있는 운행종료 오버라이드가 자동배차를 덮어쓰지 않도록
                         // 직접 기사변경(__joOffEdit)한 경우에만 오버라이드를 적용합니다.
-                        const __skipJoOffStoredOverride = !!(row.joOff && !(ov && ov.__joOffEdit));
+                        // 화면고정(__screenLock)/수동(__manualEdit)/조휴무수동(__joOffEdit):
+                        // 저장된 오버라이드를 최우선 적용 → 다른 칸이 스페어 재배정으로 바뀌지 않음
+                        const __lockOv = !!(ov && (ov.__screenLock || ov.__manualEdit || ov.__joOffEdit));
+                        const __skipJoOffStoredOverride = !!(row.joOff && !__lockOv);
                         if (ov && typeof ov === 'object' && !__skipJoOffStoredOverride) {
                             if (Object.prototype.hasOwnProperty.call(ov, 'morning') && ov.morning !== undefined && ov.morning !== null) {
                                 const v = String(ov.morning).replace('(S)', '').trim();
@@ -9055,7 +9433,7 @@ function getMonthlyOffAllDriverNames(){
                         }
                         // 조휴무도 일반 휴무와 동일하게 자동 스페어 배차합니다.
                         // 직접 기사변경한 값이 저장돼 있으면 그 오버라이드만 우선 적용합니다.
-                        if (row.joOff && ov && ov.__joOffEdit) {
+                        if (row.joOff && ov && (ov.__joOffEdit || ov.__screenLock || ov.__manualEdit)) {
                             const mv = (ov.morning != null) ? String(ov.morning).replace('(S)', '').trim() : '';
                             const av = (ov.afternoon != null) ? String(ov.afternoon).replace('(S)', '').trim() : '';
                             if (mv) mAssigned = mv;
@@ -9090,22 +9468,240 @@ function getMonthlyOffAllDriverNames(){
                             usedSparesToday.add(cleanA);
                         }
 
-                                                // 오전/오후가 같은 기사로 남은 경우만 복구 (의도된 교차·조휴무는 유지)
-                        if (!row.joOff && !row.doCross) {
+                                                // 수동 기사변경 플래그 (중복 검사에서 보호)
+                        const __manM = !!(ov && (ov.__screenLock || ov.__manualEdit || ov.__joOffEdit) && ov.morning != null && String(ov.morning).replace('(S)','').trim());
+                        const __manA = !!(ov && (ov.__screenLock || ov.__manualEdit || ov.__joOffEdit) && ov.afternoon != null && String(ov.afternoon).replace('(S)','').trim());
+                        // 오전/오후 동일 이름: 자동 배차만 보정. 기사변경(수동)은 중복 허용
+                        {
                             const cm = String(mAssigned || '').replace('(S)', '').trim();
                             const ca = String(aAssigned || '').replace('(S)', '').trim();
                             const n1 = String(mReg || '').replace('(S)', '').trim();
                             const n2 = String(aReg || '').replace('(S)', '').trim();
-                            if (cm && ca && cm === ca && n1 && n2 && n1 !== n2
-                                && cm !== '운행종료' && cm !== '미정') {
-                                mAssigned = n1;
-                                aAssigned = n2;
+                            const isSp = (n) => !!(n && (appData.spares || []).some(s => String(s).replace('(S)','').trim() === n));
+                            if (cm && ca && cm === ca && cm !== '운행종료' && cm !== '미정') {
+                                if (__manM || __manA) {
+                                    // 기사변경으로 넣은 값은 오전=오후 동일해도 유지
+                                } else if (isSp(cm)) {
+                                    aAssigned = '';
+                                } else if (!row.joOff && !row.doCross && n1 && n2 && n1 !== n2) {
+                                    mAssigned = n1;
+                                    aAssigned = n2;
+                                } else {
+                                    aAssigned = '';
+                                }
                             }
                         }
 
-                        busAssignments.push({ line: routeName, busNo: bus.busNo, morningRegular: mReg, afternoonRegular: aReg, morningAssigned: mAssigned, afternoonAssigned: aAssigned, morningIsOff: mOff, afternoonIsOff: aOff });
+                        busAssignments.push({ line: routeName, busNo: bus.busNo, morningRegular: mReg, afternoonRegular: aReg, morningAssigned: mAssigned, afternoonAssigned: aAssigned, morningIsOff: mOff, afternoonIsOff: aOff, restBus: !!row.restBus, joOff: !!row.joOff, manualMorning: __manM, manualAfternoon: __manA });
                 });
-                // 주별통합·전체 탭 휴무자 표시:
+                // ===== 같은 날 오전·오후 동일 인물 배차 금지 검증/보정 =====
+                // 규칙: 어떤 기사(스페어·정규)든 같은 날짜에 오전과 오후에 동시 배차 불가
+                // (예: 문진호가 11/1 오전·오후 모두 배차되면 오후 쪽을 다른 스페어/운행종료로 교체)
+                (function enforceUniqueDriverPerDay() {
+                    // ===== 배차 규칙 (같은 날) =====
+                    // 1) 자동 배차: 한 사람 = 하루 1슬롯 (중복 시 자동 쪽 제거)
+                    // 2) 기사변경(수동): 중복 허가 — 수동 슬롯은 절대 지우지 않음
+                    // 3) 쉬는차 표시용 정규기사명은 중복 검사에서 제외
+                    // 4) 빈칸 금지 → 정규(가능 시) / 운행종료 (일반 휴무 자동 스페어 없음)
+                    // 5) N조휴무 빈자리만 스페어 순번으로 보충
+                    const norm = (n) => String(n || '').replace('(S)', '').trim();
+                    const isSpare = (n) => {
+                        const c = norm(n);
+                        return !!c && (appData.spares || []).some(s => norm(s) === c);
+                    };
+                    const isPlaceholder = (n) => {
+                        const c = norm(n);
+                        return !c || c === '운행종료' || c === '미정' || c === '-';
+                    };
+
+                    // 쉬는차 키 (표시용 정규기사명은 실제 근무로 취급하지 않음)
+                    let restKeys = new Set();
+                    try {
+                        if (typeof __cancelKeysAuto !== 'undefined' && __cancelKeysAuto) {
+                            restKeys = __cancelKeysAuto;
+                        } else if (typeof getCancelledBusKeysForDate === 'function') {
+                            restKeys = getCancelledBusKeysForDate(dateKey);
+                        }
+                    } catch (e) {}
+                    const isRestRow = (b) => !!(b && (b.restBus || restKeys.has(String(b.line) + '|' + String(b.busNo))));
+
+                    // 중복 검사:
+                    //  - 기사변경(수동) 슬롯: 중복 완전 허가 (절대 지우지 않음)
+                    //  - 수동 배정과 같은 이름의 자동 슬롯도 유지 (기사변경 시 중복 허용)
+                    //  - 자동끼리만 중복이면 나중 슬롯 제거
+                    //  - 쉬는차는 건너뜀
+                    const isManualSlot = (b, shift) => !!(b && (shift === 'morning' ? b.manualMorning : b.manualAfternoon));
+                    const seenManual = new Set();
+                    const seenAuto = new Set();
+                    busAssignments.forEach(b => {
+                        if (isRestRow(b)) return;
+                        if (isManualSlot(b, 'morning')) {
+                            const n = norm(b.morningAssigned);
+                            if (!isPlaceholder(n)) seenManual.add(n);
+                        }
+                        if (isManualSlot(b, 'afternoon')) {
+                            const n = norm(b.afternoonAssigned);
+                            if (!isPlaceholder(n)) seenManual.add(n);
+                        }
+                    });
+                    const clearDup = (b, shift) => {
+                        if (isRestRow(b)) return;
+                        if (isManualSlot(b, shift)) return; // 기사변경 유지
+                        const key = shift === 'morning' ? 'morningAssigned' : 'afternoonAssigned';
+                        const n = norm(b[key]);
+                        if (isPlaceholder(n)) return;
+                        // 수동과 같은 이름 → 기사변경 중복 허가로 유지
+                        if (seenManual.has(n)) {
+                            seenAuto.add(n);
+                            return;
+                        }
+                        if (seenAuto.has(n)) {
+                            console.warn('[배차검증] 자동끼리 중복 제거:', n, shift, dateKey, b.line, b.busNo);
+                            b[key] = '';
+                        } else {
+                            seenAuto.add(n);
+                        }
+                    };
+                    busAssignments.forEach(b => clearDup(b, 'morning'));
+                    busAssignments.forEach(b => clearDup(b, 'afternoon'));
+
+                    // 스페어 풀 (이미 배정된 이름 제외) — 순번 유지
+                    const used = new Set();
+                    busAssignments.forEach(b => {
+                        if (isRestRow(b)) return;
+                        const m = norm(b.morningAssigned);
+                        const a = norm(b.afternoonAssigned);
+                        if (!isPlaceholder(m)) used.add(m);
+                        if (!isPlaceholder(a)) used.add(a);
+                    });
+                    let pool = (appData.spares || [])
+                        .map(norm)
+                        .filter(n => n && !offList.includes(n) && !used.has(n));
+                    // 스페어 순번 정렬 (랜덤 없음)
+                    try {
+                        const rank = {};
+                        let seq = 0;
+                        (typeof getTxtSpareOrderList === 'function' ? getTxtSpareOrderList() : []).forEach(function (s) {
+                            const n = norm(s);
+                            if (n && rank[n] === undefined) rank[n] = seq++;
+                        });
+                        (appData.spares || []).forEach(function (s) {
+                            const n = norm(s);
+                            if (n && rank[n] === undefined) rank[n] = seq++;
+                        });
+                        pool = pool.slice().sort(function (a, b) {
+                            const ra = (rank[a] !== undefined) ? rank[a] : 9999;
+                            const rb = (rank[b] !== undefined) ? rank[b] : 9999;
+                            if (ra !== rb) return ra - rb;
+                            return String(a).localeCompare(String(b), 'ko');
+                        });
+                    } catch (e) {}
+                    const takeSpare = () => {
+                        while (pool.length) {
+                            const s = pool.shift();
+                            if (!s || used.has(s) || offList.includes(s)) continue;
+                            used.add(s);
+                            return s;
+                        }
+                        return '';
+                    };
+
+                    // 빈 슬롯 채우기
+                    // - 쉬는차: 정규기사 유지 (스페어 투입 금지)
+                    // - N조휴무 빈자리: 스페어 순번 보충 → 없으면 운행종료
+                    // - 일반 휴무 빈자리: 운행종료만 (자동 스페어 없음)
+                    const fillSlot = (b, shift) => {
+                        const key = shift === 'morning' ? 'morningAssigned' : 'afternoonAssigned';
+                        const regKey = shift === 'morning' ? 'morningRegular' : 'afternoonRegular';
+                        const offKey = shift === 'morning' ? 'morningIsOff' : 'afternoonIsOff';
+                        if (isRestRow(b)) {
+                            // 쉬는차: 정규 유지, 스페어/운행종료로 덮지 않음
+                            const reg = norm(b[regKey]);
+                            if (isPlaceholder(b[key]) && reg) b[key] = reg;
+                            return;
+                        }
+                        if (!isPlaceholder(b[key])) {
+                            used.add(norm(b[key]));
+                            return;
+                        }
+                        const reg = norm(b[regKey]);
+                        const isOff = !!b[offKey];
+                        // 1) 정규가 휴무가 아니고, 아직 안 쓰였으면 정규 복구
+                        if (!isOff && reg && reg !== '미정' && !used.has(reg) && !offList.includes(reg)) {
+                            b[key] = reg;
+                            used.add(reg);
+                            return;
+                        }
+                        // 2) N조휴무 빈자리만 스페어 순번 보충
+                        if (b.joOff) {
+                            const sp = takeSpare();
+                            if (sp) {
+                                b[key] = sp;
+                                return;
+                            }
+                        }
+                        // 3) 일반 휴무·기타: 자동 스페어 없음 → 운행종료
+                        b[key] = '운행종료';
+                    };
+                    busAssignments.forEach(b => fillSlot(b, 'morning'));
+                    busAssignments.forEach(b => fillSlot(b, 'afternoon'));
+
+                    // 최종 재검증: 기사변경 관련 이름은 중복 허가, 자동끼리만 정리
+                    const finalManual = new Set();
+                    const finalAuto = new Set();
+                    busAssignments.forEach(b => {
+                        if (isRestRow(b)) return;
+                        if (isManualSlot(b, 'morning')) {
+                            const n = norm(b.morningAssigned);
+                            if (!isPlaceholder(n)) finalManual.add(n);
+                        }
+                        if (isManualSlot(b, 'afternoon')) {
+                            const n = norm(b.afternoonAssigned);
+                            if (!isPlaceholder(n)) finalManual.add(n);
+                        }
+                    });
+                    const finalClear = (b, shift) => {
+                        if (isRestRow(b)) return;
+                        if (isManualSlot(b, shift)) return;
+                        const key = shift === 'morning' ? 'morningAssigned' : 'afternoonAssigned';
+                        const n = norm(b[key]);
+                        if (isPlaceholder(n)) {
+                            b[key] = '운행종료';
+                            return;
+                        }
+                        if (finalManual.has(n)) {
+                            // 수동과 동일 이름 → 중복 허가
+                            finalAuto.add(n);
+                            return;
+                        }
+                        if (finalAuto.has(n)) {
+                            console.warn('[배차검증] 최종 자동끼리 중복→운행종료:', n, shift, dateKey, b.line, b.busNo);
+                            b[key] = '운행종료';
+                        } else {
+                            finalAuto.add(n);
+                        }
+                    };
+                    busAssignments.forEach(b => finalClear(b, 'morning'));
+                    busAssignments.forEach(b => finalClear(b, 'afternoon'));
+
+                    // assignedSpares / spareLastWork 재구성 (쉬는차 제외)
+                    assignedSpares.length = 0;
+                    busAssignments.forEach(b => {
+                        if (isRestRow(b)) return;
+                        const m = norm(b.morningAssigned);
+                        const a = norm(b.afternoonAssigned);
+                        if (isSpare(m)) {
+                            assignedSpares.push({ spare: m, busNo: b.busNo, line: b.line, shift: '오전' });
+                            spareLastWork[m] = { day: d, shift: '오전' };
+                        }
+                        if (isSpare(a)) {
+                            assignedSpares.push({ spare: a, busNo: b.busNo, line: b.line, shift: '오후' });
+                            spareLastWork[a] = { day: d, shift: '오후' };
+                        }
+                    });
+                })();
+
+                                // 주별통합·전체 탭 휴무자 표시:
                 // 1) 오버라이드 필드(manualOffDisplayOverrides)에 해당 날짜 키가 있으면 그 값
                 // 2) 없으면 원본(appData.offDays = baseOffList)
                 // 3) 그날 오전/오후에 실제 배차된 사람은 휴무자에서 제외
@@ -9308,7 +9904,11 @@ function getMonthlyOffAllDriverNames(){
                         });
                     });
                     window.__offTypeStore = window.__offTypeStore || {};
-                    Object.keys(fresh).forEach(iso => { window.__offTypeStore[iso] = fresh[iso]; });
+                    // 날짜 통째 덮어쓰기 금지 → 기사·구분 단위 병합 (연차/위로 소실 방지)
+                    Object.keys(fresh).forEach(iso => {
+                        const prev = window.__offTypeStore[iso] || {};
+                        window.__offTypeStore[iso] = Object.assign({}, prev, fresh[iso] || {});
+                    });
                 } catch (err) {}
                 entries.forEach(e => {
                     if (!e) return;
@@ -9330,10 +9930,12 @@ function getMonthlyOffAllDriverNames(){
         function addOffEntryNamesToByType(byType, typeByDriver, patternOffSet, hideJoCode) {
             Object.keys(typeByDriver || {}).forEach(n => {
                 if (!n) return;
-                if (patternOffSet && patternOffSet.has(n)) return;      // 조휴무 기사는 'N조휴무'로 표시
                 if (String(n).includes('조휴무')) return;
                 if (typeof isDriverGroupValue === 'function' && isDriverGroupValue(n)) return;
                 const typ = typeByDriver[n] || '휴무';
+                // 연차·위로·결근 등 명시 구분은 조휴무 여부와 무관하게 표시
+                // (기본 '휴무'만 조휴무 라벨로 흡수)
+                if (patternOffSet && patternOffSet.has(n) && (typ === '휴무' || !typ)) return;
                 let label = n;
                 if (!hideJoCode && typeof getJoCodeForDriverName === 'function') {
                     const jo = getJoCodeForDriverName(n);
@@ -9415,7 +10017,10 @@ function getMonthlyOffAllDriverNames(){
                 window.__offTypeStore = window.__offTypeStore || {};
                 const sig = (st) => JSON.stringify(Object.keys(fresh).sort().map(k => [k, st[k]]));
                 const before = sig(window.__offTypeStore);
-                Object.keys(fresh).forEach(iso => { window.__offTypeStore[iso] = fresh[iso]; });
+                Object.keys(fresh).forEach(iso => {
+                    const prev = window.__offTypeStore[iso] || {};
+                    window.__offTypeStore[iso] = Object.assign({}, prev, fresh[iso] || {});
+                });
                 const after = sig(window.__offTypeStore);
 
                 // 화면 상단 상태 표시 (어디서 몇 일치를 읽었는지)
@@ -9687,7 +10292,7 @@ function getMonthlyOffAllDriverNames(){
             } catch (e) {}
 
             currentEditingCell = { dateKey, line, busNo, shift };
-            document.getElementById('selectModalTitle').innerText = `${dateKey} (${line} ${busNo}) - 기사 변경`;
+            document.getElementById('selectModalTitle').innerHTML = `${dateKey} (${line} ${busNo})<br>기사변경`;
 
             // v2_38: 기사변경 모달에는 조별 코드(예: 1-1, 1조)가 아닌 기사 이름만 표시
             let allDrivers = [];
@@ -9734,25 +10339,35 @@ function getMonthlyOffAllDriverNames(){
             // 운행종료/운행종료 상태의 셀은 휴무자 및 휴무 스페어도
             // 자유롭게 선택할 수 있도록 합니다. 그 외 기존 제한 규칙은 그대로 유지합니다.
             const isPlaceholderDriver = selectedShiftDriver === '운행종료' || selectedShiftDriver === '운행종료';
-            const blockOffDrivers = !!currentDriverInOppositeShift && !isPlaceholderDriver;
+            // 선택불가 제거: 휴무자·반대교대 여부 관계없이 전원 선택 가능
+            const blockOffDrivers = false;
 
-            let listHtml = `<button onclick="selectDriverForCell('운행종료')" class="w-full text-left px-3 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-xs flex items-center justify-between mb-1"><span>운행종료 (차량 운휴)</span></button>`;
+            let listHtml = `<button onclick="selectDriverForCell('운행종료')" class="w-full text-left px-3 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold flex items-center justify-between mb-1" style="font-size:14px;"><span>운행종료 (차량 운휴)</span></button>`;
 
             const normN = (n) => String(n || '').replace('(S)', '').trim().replace(/^대체미정$/, '운행종료');
             const isSpareName = (n) => (appData.spares || []).some(s => normN(s) === normN(n));
             const patternOffSetModal = new Set((dayData.patternOffNames || []).map(normN).filter(Boolean));
 
-            // 운행대수 초과(취소선) 차량에 배차된 기사: 교대별로 기록
+            // 운행대수 초과(취소선/쉬는차) 차량 기사: 배정·정규 모두 기록 → 모달에 전부 표시
             const cancelledKeys = getCancelledBusKeysForDate(dateKey);
             const cancelledByName = {}; // name -> { morning:bool, afternoon:bool }
             (dayData.busAssignments || []).forEach(b => {
                 if (!cancelledKeys.has(String(b.line) + '|' + String(b.busNo))) return;
-                ['morning', 'afternoon'].forEach(sh => {
-                    const nm = normN(sh === 'morning' ? b.morningAssigned : b.afternoonAssigned);
-                    if (!nm || nm === '운행종료') return;
-                    if (!cancelledByName[nm]) cancelledByName[nm] = { morning: false, afternoon: false };
-                    cancelledByName[nm][sh] = true;
-                });
+                const addCancel = (nm, sh) => {
+                    const n = normN(nm);
+                    if (!n || n === '운행종료' || n === '미정') return;
+                    if (!cancelledByName[n]) cancelledByName[n] = { morning: false, afternoon: false };
+                    cancelledByName[n][sh] = true;
+                };
+                // 실제 배정 + 정규기사 (취소선에 보이는 이름 전부)
+                addCancel(b.morningAssigned, 'morning');
+                addCancel(b.afternoonAssigned, 'afternoon');
+                addCancel(b.morningRegular, 'morning');
+                addCancel(b.afternoonRegular, 'afternoon');
+            });
+            // 쉬는차 정규기사가 allDrivers에 없을 수 있어 목록에 강제 포함
+            Object.keys(cancelledByName).forEach(n => {
+                if (n && !allDrivers.some(x => normN(x) === n)) allDrivers.push(n);
             });
 
             // 근무중 기사의 당일 근무 교대(취소선 차량 제외)
@@ -9767,118 +10382,204 @@ function getMonthlyOffAllDriverNames(){
                 });
             });
 
-            // 같은 날·같은 교대 이미 배차된 기사 (취소선 차량의 배차는 제외 → 쉬는차량으로 선택 가능)
-            const sameShiftAssigned = new Set();
+            // 배차근무중: 오전/오후 각각 기록 (취소선 차량 제외)
+            // 현재 편집 칸의 같은 교대만 제외하고, 같은 차량의 반대 교대 스페어는 포함
+            const assignedMorning = new Set();
+            const assignedAfternoon = new Set();
             (dayData.busAssignments || []).forEach(b => {
-                if (b.line === line && String(b.busNo) === String(busNo)) return;
                 if (cancelledKeys.has(String(b.line) + '|' + String(b.busNo))) return;
-                const assigned = normN(shift === 'morning' ? b.morningAssigned : b.afternoonAssigned);
-                if (assigned && assigned !== '운행종료') sameShiftAssigned.add(assigned);
+                const isEditBus = (b.line === line && String(b.busNo) === String(busNo));
+                const mName = normN(b.morningAssigned);
+                const aName = normN(b.afternoonAssigned);
+                // 현재 편집 중인 교대 슬롯의 기사는 제외 (자기 자신 칸)
+                if (mName && mName !== '운행종료') {
+                    if (!(isEditBus && shift === 'morning')) assignedMorning.add(mName);
+                }
+                if (aName && aName !== '운행종료') {
+                    if (!(isEditBus && shift === 'afternoon')) assignedAfternoon.add(aName);
+                }
             });
 
-            // 그룹 순서: 0 휴무자 → 1 쉬는차량(오전→오후) → 2 근무중 → 3 스페어(대기중/근무중) → 4 같은교대 배차중
+            // 그룹: 0 휴무 → 1 쉬는차 → 3 대기중 스페어 → 4 배차근무중 스페어
+            // 조휴무자·근무중 정규기사는 목록에서 숨김
+            // ★ 쉬는차+휴무 겹침 → 휴무 우선 / 쉬는차+조휴무·근무중 → 숨김
+            // 휴무 판정 강화 (offList + offDays + type맵 + 휴무자셀)
+            const offNameSet = new Set();
+            (offList || []).forEach(n => { const c = normN(n); if (c) offNameSet.add(c); });
+            try {
+                const rawOff = (appData.offDays && appData.offDays[dateKey]) ? appData.offDays[dateKey] : [];
+                (rawOff || []).forEach(n => { const c = normN(n); if (c) offNameSet.add(c); });
+            } catch (e) {}
+            try {
+                const ovOff = (typeof manualOffDisplayOverrides === 'object' && manualOffDisplayOverrides[dateKey])
+                    ? manualOffDisplayOverrides[dateKey]
+                    : (window.manualOffDisplayOverrides && window.manualOffDisplayOverrides[dateKey]);
+                if (Array.isArray(ovOff)) ovOff.forEach(n => { const c = normN(n); if (c) offNameSet.add(c); });
+            } catch (e) {}
+            let typeMapModal = {};
+            try {
+                if (typeof getOffTypeByDriverMap === 'function') {
+                    const __dk = String(dateKey || '').split('-');
+                    if (__dk.length === 3) {
+                        const __y = 2000 + parseInt(__dk[0], 10);
+                        const __m = parseInt(__dk[1], 10);
+                        const __d = parseInt(__dk[2], 10);
+                        typeMapModal = getOffTypeByDriverMap(__y, __m, __d) || {};
+                        Object.keys(typeMapModal).forEach(k => {
+                            const c = normN(k);
+                            if (c) offNameSet.add(c);
+                        });
+                    }
+                }
+            } catch (e) {}
+
             const items = [];
             allDrivers.forEach((name, order) => {
                 const cleanName = normN(name);
-                const isOff = offList.includes(name) || offList.includes(cleanName);
+                // N조휴무(패턴 조휴무) 기사는 무조건 숨김 — 2조휴무 등
+                if (patternOffSetModal.has(cleanName)) return;
+
+                // 휴무: offList·offDays·오버라이드·구분맵 (조휴무 제외 후 판정)
+                let isOff = offNameSet.has(cleanName) || offList.includes(name) || offList.includes(cleanName);
                 const isSpare = isSpareName(name);
-                const isJoOff = isOff && patternOffSetModal.has(cleanName);
 
                 const cancel = cancelledByName[cleanName] || null;
-                // 쉬는차량/취소차량: 편집 교대 기준 우선, 없으면 반대 교대에서 취소선인 경우
-                let restShift = null;      // 'morning' | 'afternoon'
-                let restType = null;       // 'rest' (같은 교대) | 'cancel' (반대 교대)
-                if (!isOff && cancel) {
-                    if (cancel[shift]) { restShift = shift; restType = 'rest'; }
-                    else {
-                        const other = shift === 'morning' ? 'afternoon' : 'morning';
-                        if (cancel[other]) { restShift = other; restType = 'cancel'; }
-                    }
+                let restShift = null;
+                let restType = null;
+                // 기사변경 모달: 현재 선택 교대에 해당하는 쉬는차만 활성화
+                //  - 오전기사 선택 → 쉬는차(오전)만 표시 / 쉬는차(오후) 비활성
+                //  - 오후기사 선택 → 쉬는차(오후)만 표시 / 쉬는차(오전) 비활성
+                if (cancel && cancel[shift]) {
+                    restShift = shift;
+                    restType = 'rest';
                 }
 
-                const blockedOff = blockOffDrivers && isOff;
-                const blockedDup = sameShiftAssigned.has(cleanName);
-                // 기사변경 모달에서는 전날 오후 근무자의 다음날 오전 배차 제한을 적용하지 않는다.
-                // 사용자가 원하는 경우 오전/오후 모두 자유롭게 선택할 수 있도록 한다.
-                const blockedSpareRest = false;
-                const blocked = blockedOff || blockedDup;
+                const onMorning = assignedMorning.has(cleanName);
+                const onAfternoon = assignedAfternoon.has(cleanName);
+                const isAssignedAnywhere = onMorning || onAfternoon;
+                const w = workedByName[cleanName] || null;
+                const isWorking = !!(w && (w.morning || w.afternoon));
+
+                // ★ 원래 휴무인 기사(김대우 등)는 휴무가 쉬는차보다 우선
+                //   휴무가 아닌 쉬는차 기사만 모달에 '쉬는차'로 표시
+                if (isOff) {
+                    restType = null; // 휴무 우선
+                }
+
+                // 쉬는차 + 근무중 겹침 → 숨김 (휴무가 아닐 때만)
+                if (restType && !isOff && (isWorking || (isAssignedAnywhere && !isSpare))) {
+                    return;
+                }
+                // 배차근무중 정규기사 숨김 (휴무 제외)
+                if (!isOff && isAssignedAnywhere && !isSpare && !restType) return;
+                if (!isOff && isWorking && !isSpare && !restType) return;
 
                 let group, statusText, badge, sortSub = 0;
+                // 휴무 우선 (쉬는차보다 먼저)
                 if (isOff) {
                     group = 0;
-                    statusText = isJoOff ? '조휴무' : '휴무';
+                    let offTyp = '휴무';
+                    try {
+                        offTyp = typeMapModal[cleanName] || typeMapModal[name] || '휴무';
+                        if (typeof normalizeMonthlyOffDayType === 'function') {
+                            offTyp = normalizeMonthlyOffDayType(offTyp);
+                        }
+                    } catch (e) { offTyp = '휴무'; }
+                    statusText = offTyp || '휴무';
                     if (isSpare) statusText += ' (스페어)';
-                    badge = 'bg-rose-100 text-rose-700 font-bold';
-                    sortSub = isJoOff ? 1 : 0;
-                } else if (restType) {
+                    const typeBadgeMap = {
+                        '휴무': 'bg-rose-100 text-rose-700 font-bold',
+                        '위로': 'bg-pink-100 text-pink-700 font-bold',
+                        '연차': 'bg-emerald-100 text-emerald-700 font-bold',
+                        '결근': 'bg-red-100 text-red-800 font-bold',
+                        '유급': 'bg-orange-100 text-orange-700 font-bold',
+                        '휴직': 'bg-indigo-100 text-indigo-700 font-bold',
+                        '기타': 'bg-slate-100 text-slate-700 font-bold'
+                    };
+                    badge = typeBadgeMap[offTyp] || 'bg-rose-100 text-rose-700 font-bold';
+                    const typeOrderArr = (typeof MONTHLY_OFF_DAY_TYPES !== 'undefined' && Array.isArray(MONTHLY_OFF_DAY_TYPES))
+                        ? MONTHLY_OFF_DAY_TYPES : ['휴무','위로','연차','결근','유급','휴직','기타'];
+                    const ti = typeOrderArr.indexOf(offTyp);
+                    sortSub = (ti >= 0 ? ti : 99);
+                    items.push({ cleanName, isOff: true, isSpare, blocked: false, group, sortSub, statusText, badge, order });
+                    return;
+                }
+                if (restType) {
                     group = 1;
                     const sl = restShift === 'morning' ? '오전' : '오후';
-                    statusText = sl + '쉬는차량';
+                    statusText = '쉬는차(' + sl + ')';
                     if (isSpare) statusText += ' (스페어)';
                     badge = 'bg-sky-100 text-sky-700 font-bold';
                     sortSub = (restShift === 'morning' ? 0 : 1);
-                } else if (blockedDup) {
+                } else if (isSpare && isAssignedAnywhere) {
+                    // 배차근무중 스페어: 오전/오후 모두 표시
                     group = 4;
-                    statusText = '같은교대 배차중';
-                    badge = 'bg-slate-200 text-slate-600 font-bold';
-                } else {
-                    // 그룹: 정규 근무중(2) / 스페어(3)
-                    // 스페어가 당일 실제 배차되지 않았으면 '대기중 (스페어)', 배차됐으면 '오전/오후근무중 (스페어)'
-                    group = isSpare ? 3 : 2;
-                    const w = workedByName[cleanName] || null;
-                    let wl = '', ws = 2;
-                    if (w && w.morning && w.afternoon) { wl = '오전·오후'; ws = 2; }
-                    else if (w && w.morning) { wl = '오전'; ws = 0; }
-                    else if (w && w.afternoon) { wl = '오후'; ws = 1; }
-                    sortSub = wl ? ws : 3;
-                    if (isSpare && !wl) {
-                        statusText = '대기중 (스페어)';
-                        badge = 'bg-amber-100 text-amber-800 font-bold';
+                    if (onMorning && onAfternoon) {
+                        statusText = '배차근무중(오전·오후)';
+                        sortSub = 0;
+                    } else if (onMorning) {
+                        statusText = '배차근무중(오전)';
+                        sortSub = 1;
                     } else {
-                        statusText = wl + '근무중' + (isSpare ? ' (스페어)' : '');
-                        badge = 'bg-emerald-100 text-emerald-700';
+                        statusText = '배차근무중(오후)';
+                        sortSub = 2;
                     }
+                    badge = 'bg-indigo-100 text-indigo-700 font-bold';
+                } else if (isSpare) {
+                    group = 3;
+                    sortSub = 3;
+                    statusText = '대기중 (스페어)';
+                    badge = 'bg-amber-100 text-amber-800 font-bold';
+                } else {
+                    // 근무중 정규기사는 숨김
+                    return;
                 }
-                // 휴무자 외 그룹에서의 선택 불가 사유 표기 (그룹은 유지)
-                if (blockedOff) { statusText = '선택불가'; badge = 'bg-slate-200 text-slate-600 font-bold'; }
-
-                items.push({ cleanName, isOff, isSpare, blocked, group, sortSub, statusText, badge, order });
+                items.push({ cleanName, isOff, isSpare, blocked: false, group, sortSub, statusText, badge, order });
             });
             items.sort((a, b) => (a.group - b.group) || (a.sortSub - b.sortSub) || String(a.cleanName).localeCompare(String(b.cleanName), 'ko') || (a.order - b.order));
 
             items.forEach(it => {
-                if (it.blocked) {
-                    listHtml += `
-                    <button type="button" disabled class="w-full text-left px-3 py-2 rounded-lg bg-slate-100 text-slate-400 text-xs flex items-center justify-between cursor-not-allowed opacity-70">
-                        <span class="font-bold">${it.cleanName}</span>
-                        <span class="px-2 py-0.5 rounded-full text-[10px] ${it.badge}">${it.statusText}</span>
+                const rowCls = it.isOff ? 'bg-rose-50/50 hover:bg-rose-100/60 border border-rose-100'
+                    : (it.group === 1 ? 'bg-sky-50 hover:bg-sky-100 border border-sky-100'
+                    : (it.group === 4 ? 'bg-indigo-50 hover:bg-indigo-100 border border-indigo-100' : 'bg-slate-50 hover:bg-slate-100'));
+                listHtml += `
+                    <button onclick="selectDriverForCell('${it.cleanName}')" class="w-full text-left px-3 py-2 rounded-lg ${rowCls} text-slate-800 flex items-center justify-between transition-colors" style="font-size:14px;">
+                        <span class="font-bold text-slate-950 ${it.isSpare ? 'text-blue-600 blue-underline' : ''}" style="font-size:14px;">${it.cleanName}</span>
+                        <span class="px-2 py-0.5 rounded-full ${it.badge}" style="font-size:12px;">${it.statusText}</span>
                     </button>`;
-                } else {
-                    const rowCls = it.isOff ? 'bg-rose-50/50 hover:bg-rose-100/60 border border-rose-100'
-                        : (it.group === 1 ? 'bg-sky-50 hover:bg-sky-100 border border-sky-100' : 'bg-slate-50 hover:bg-slate-100');
-                    listHtml += `
-                    <button onclick="selectDriverForCell('${it.cleanName}')" class="w-full text-left px-3 py-2 rounded-lg ${rowCls} text-slate-800 text-xs flex items-center justify-between transition-colors">
-                        <span class="font-bold text-slate-950 ${it.isSpare ? 'text-blue-600 blue-underline' : ''}">${it.cleanName}</span>
-                        <span class="px-2 py-0.5 rounded-full text-[10px] ${it.badge}">${it.statusText}</span>
-                    </button>`;
-                }
             });
 
             document.getElementById('driverSelectList').innerHTML = listHtml;
             document.getElementById('driverSelectModal').classList.remove('hidden');
+            if (typeof updateWeeklyDbSaveButton === 'function') updateWeeklyDbSaveButton();
         }
 
-        function closeDriverSelectModal() { document.getElementById('driverSelectModal').classList.add('hidden'); currentEditingCell = null; }
+        function closeDriverSelectModal() {
+            document.getElementById('driverSelectModal').classList.add('hidden');
+            currentEditingCell = null;
+            if (typeof updateWeeklyDbSaveButton === 'function') updateWeeklyDbSaveButton();
+        }
         function selectDriverForCell(selectedName) {
             if (!currentEditingCell) return;
 
             const { dateKey, line, busNo, shift } = currentEditingCell;
             const overrideKey = `${dateKey}_${line}_${busNo}`;
             const norm = (n) => String(n || '').replace('(S)', '').trim().replace(/^대체미정$/, '운행종료');
-            const isSpareName = (n) => (appData.spares || []).some(s => norm(s) === norm(n));
+            const isSpareName = (n) => {
+                const c = norm(n);
+                if (!c) return false;
+                if ((appData.spares || []).some(s => norm(s) === c)) return true;
+                try {
+                    if (typeof getAuthoritativeSpareDriverNames === 'function') {
+                        return getAuthoritativeSpareDriverNames().some(s => norm(s) === c);
+                    }
+                } catch (e) {}
+                return false;
+            };
             const cleanSelectedName = norm(selectedName);
 
-            // 쉬는차(운행대수 초과)에는 스페어 배차 불가
+            // 쉬는차(운행대수 초과) 차량 자체에는 스페어 배차 불가
+            // (다른 운행차에서 쉬는차 기사를 선택하는 것은 허용)
             try {
                 const __rk = getCancelledBusKeysForDate(dateKey);
                 if (__rk.has(String(line) + '|' + String(busNo)) && isSpareName(cleanSelectedName)) {
@@ -9895,22 +10596,8 @@ function getMonthlyOffAllDriverNames(){
                 ? norm(shift === 'morning' ? currentBus.morningAssigned : currentBus.afternoonAssigned)
                 : '';
 
-            // ① 같은 날·같은 교대 중복 배차 금지
-            if (cleanSelectedName && cleanSelectedName !== '운행종료') {
-                const __cancelKeys = getCancelledBusKeysForDate(dateKey);
-                const dup = (dayDataBefore.busAssignments || []).find(b => {
-                    if (b.line === line && String(b.busNo) === String(busNo)) return false;
-                    if (__cancelKeys.has(String(b.line) + '|' + String(b.busNo))) return false;
-                    const assigned = norm(shift === 'morning' ? b.morningAssigned : b.afternoonAssigned);
-                    return assigned === cleanSelectedName;
-                });
-                if (dup) {
-                    showModal('근무 겹침',
-                        `${dateKey} ${shift === 'morning' ? '오전' : '오후'}에 ${cleanSelectedName} 기사가 이미 배차되어 있습니다.
-같은 일·같은 근무시간에는 중복 배차할 수 없습니다.`);
-                    return;
-                }
-            }
+            // ① 같은 날·같은 교대 중복 배차: 선택불가 제거 → 경고만 하고 진행 허용
+            // (기존에는 return으로 막았음)
 
             // ② 다른 칸의 현재 배차(스페어 포함)를 강제 고정
             //    ★ 변경하는 셀의 해당 교대만 새 값으로 바꾸고,
@@ -9942,16 +10629,23 @@ function getMonthlyOffAllDriverNames(){
                     manualOverrides[bKey][other] = norm(
                         shift === 'morning' ? b.afternoonAssigned : b.morningAssigned
                     );
-                    // 조휴무 셀을 직접 바꾼 경우에만 오버라이드 표시 허용
+                    // 직접 기사변경한 셀은 항상 수동 오버라이드 우선
+                    manualOverrides[bKey].__manualEdit = true;
+                    manualOverrides[bKey].__screenLock = true;
                     if (busIsJoOff) {
                         manualOverrides[bKey].__joOffEdit = true;
                     }
                 } else {
-                    // 다른 모든 칸: 변경 직전 화면 값으로 고정
-                    // 조휴무도 자동 스페어 배차 결과를 그대로 저장합니다.
-                    // 직접 조휴무 셀을 변경한 경우(__joOffEdit)에만 해당 수동값을 유지합니다.
+                    // 다른 모든 칸: 변경 직전 화면 값을 그대로 고정
+                    // ★ 재시뮬레이션·스페어 재배정·중복정리로 다른 칸이 바뀌지 않게
+                    //   조휴무 포함 전 차량에 __manualEdit/__screenLock을 걸어 화면 유지
                     manualOverrides[bKey].morning = norm(b.morningAssigned);
                     manualOverrides[bKey].afternoon = norm(b.afternoonAssigned);
+                    manualOverrides[bKey].__manualEdit = true;
+                    manualOverrides[bKey].__screenLock = true;
+                    if (busIsJoOff) {
+                        manualOverrides[bKey].__joOffEdit = true;
+                    }
                 }
             });
 
@@ -9960,41 +10654,159 @@ function getMonthlyOffAllDriverNames(){
             const currentDriverInOppositeShift = currentDriver && currentDriver !== '운행종료' &&
                 (dayDataBefore.busAssignments || []).some(b => norm(b[oppositeShiftField]) === currentDriver);
 
-            if (currentDriver && currentDriver !== cleanSelectedName) {
-                let currentOffList = (manualOffDisplayOverrides[dateKey]
-                    ? [...manualOffDisplayOverrides[dateKey]]
-                    : [...(appData.offDays[dateKey] || [])])
-                    .map(norm)
-                    .filter(n => n && n !== '운행종료');
+            // 당일 휴무 목록 기준 (오버라이드 → offDays → 시뮬레이션 offList)
+            let currentOffList = (manualOffDisplayOverrides[dateKey]
+                ? [...manualOffDisplayOverrides[dateKey]]
+                : (appData.offDays && appData.offDays[dateKey]
+                    ? [...appData.offDays[dateKey]]
+                    : [...(dayDataBefore.offList || [])]))
+                .map(norm)
+                .filter(n => n && n !== '운행종료');
 
+            // 휴무구분 맵 (연차/위로 등) — 표시용 휴무자도 포함
+            let typeMapToday = {};
+            try {
+                const pr = String(dateKey || '').split('-');
+                if (pr.length === 3 && typeof getOffTypeByDriverMap === 'function') {
+                    const yy = 2000 + parseInt(pr[0], 10);
+                    const mm = parseInt(pr[1], 10);
+                    const dd = parseInt(pr[2], 10);
+                    typeMapToday = getOffTypeByDriverMap(yy, mm, dd) || {};
+                }
+            } catch (e) {}
+            const typeOf = (name) => {
+                const t = typeMapToday[name] || typeMapToday[norm(name)];
+                return (typeof normalizeMonthlyOffDayType === 'function')
+                    ? normalizeMonthlyOffDayType(t)
+                    : (String(t || '휴무').trim() || '휴무');
+            };
+            // 쉬는차(운행대수 초과) 차량의 정규/배정 기사 여부
+            const isRestBusDriver = (name) => {
+                const n = norm(name);
+                if (!n || n === '운행종료') return false;
+                try {
+                    const keys = (typeof getCancelledBusKeysForDate === 'function')
+                        ? getCancelledBusKeysForDate(dateKey) : new Set();
+                    return (dayDataBefore.busAssignments || []).some(b => {
+                        if (!keys.has(String(b.line) + '|' + String(b.busNo))) return false;
+                        return [b.morningAssigned, b.afternoonAssigned, b.morningRegular, b.afternoonRegular]
+                            .some(x => norm(x) === n);
+                    });
+                } catch (e) { return false; }
+            };
+            // 원래 휴무 집합 (쉬는차 배정과 무관하게 유지)
+            const __origOffSet = new Set();
+            currentOffList.forEach(n => { if (n) __origOffSet.add(n); });
+            (dayDataBefore.offList || []).forEach(x => { const n = norm(x); if (n) __origOffSet.add(n); });
+            Object.keys(typeMapToday || {}).forEach(k => { const n = norm(k); if (n) __origOffSet.add(n); });
+
+            // 휴무자 여부: 원래 휴무면 휴무 (쉬는차보다 우선). 쉬는차만인 경우는 휴무 아님
+            const isOffPerson = (name) => {
+                const n = norm(name);
+                if (!n || n === '운행종료') return false;
+                if (__origOffSet.has(n) || currentOffList.includes(n)) return true;
+                if (typeMapToday[n] || typeMapToday[name]) return true;
+                return (dayDataBefore.offList || []).some(x => norm(x) === n);
+            };
+            // 휴무구분 없는 휴무자(기본 '휴무') 또는 구분 없음
+            const isPlainOffWithoutSpecialType = (name) => {
+                if (!isOffPerson(name)) return false;
+                const t = typeOf(name);
+                return !t || t === '휴무';
+            };
+            // 휴무자셀·구분 저장소에서 제거
+            const removeFromOffDisplay = (name) => {
+                const n = norm(name);
+                if (!n) return;
+                currentOffList = currentOffList.filter(x => x !== n);
+                try {
+                    const pr = String(dateKey || '').split('-');
+                    if (pr.length === 3) {
+                        const iso = (2000 + parseInt(pr[0], 10)) + '-' +
+                            String(parseInt(pr[1], 10)).padStart(2, '0') + '-' +
+                            String(parseInt(pr[2], 10)).padStart(2, '0');
+                        if (window.__offTypeStore && window.__offTypeStore[iso]) {
+                            delete window.__offTypeStore[iso][n];
+                            delete window.__offTypeStore[iso][name];
+                            if (!Object.keys(window.__offTypeStore[iso]).length) {
+                                delete window.__offTypeStore[iso];
+                            }
+                        }
+                        // monthlyOffDayEntries 에서도 해당 기사 제거
+                        const stripEntries = (arr) => {
+                            if (!Array.isArray(arr)) return arr;
+                            return arr.map(e => {
+                                if (!e || !e.date) return e;
+                                let d = String(e.date).trim();
+                                if (/^\d{2}-\d{2}-\d{2}$/.test(d)) d = '20' + d;
+                                const mm = d.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+                                if (mm) d = mm[1] + '-' + String(mm[2]).padStart(2, '0') + '-' + String(mm[3]).padStart(2, '0');
+                                if (d !== iso) return e;
+                                const drivers = (e.drivers || [])
+                                    .map(x => String(x || '').replace('(S)', '').trim())
+                                    .filter(x => x && x !== n);
+                                return drivers.length ? Object.assign({}, e, { drivers: drivers }) : null;
+                            }).filter(Boolean);
+                        };
+                        if (typeof monthlyOffDayEntries !== 'undefined' && Array.isArray(monthlyOffDayEntries)) {
+                            monthlyOffDayEntries = stripEntries(monthlyOffDayEntries);
+                            window.monthlyOffDayEntries = monthlyOffDayEntries;
+                        } else if (window.monthlyOffDayEntries) {
+                            window.monthlyOffDayEntries = stripEntries(window.monthlyOffDayEntries);
+                        }
+                    }
+                } catch (e) {}
+            };
+
+            if (currentDriver && currentDriver !== cleanSelectedName) {
                 if (currentDriverInOppositeShift) {
-                    // 반대 교대에도 같은 기사 → 휴무로 보내지 않음. 선택 기사가 휴무자면 휴무 목록에서만 제거
-                    if (currentOffList.includes(cleanSelectedName)) {
-                        currentOffList = currentOffList.filter(n => n !== cleanSelectedName);
+                    // 반대 교대에도 같은 기사 → 휴무로 보내지 않음
+                    // 선택 기사가 휴무자(특히 휴무구분 없는 휴무)면 휴무자셀에서 제거
+                    if (isOffPerson(cleanSelectedName)) {
+                        removeFromOffDisplay(cleanSelectedName);
                     }
                     manualOffDisplayOverrides[dateKey] = currentOffList;
                 } else if (cleanSelectedName === '운행종료') {
                     // 운행종료: 기존 기사 → 휴무
-                    if (currentDriver !== '운행종료' && !currentOffList.includes(currentDriver)) {
+                    if (currentDriver !== '운행종료' && !currentOffList.includes(currentDriver)
+                        && !(isRestBusDriver(currentDriver) && !__origOffSet.has(currentDriver))) {
                         currentOffList.push(currentDriver);
                     }
                     manualOffDisplayOverrides[dateKey] = currentOffList;
-                } else if (currentOffList.includes(cleanSelectedName)) {
-                    // 휴무자 투입: 휴무 해제 + 기존 기사 휴무
-                    currentOffList = currentOffList.filter(n => n !== cleanSelectedName);
-                    if (currentDriver !== '운행종료' && !currentOffList.includes(currentDriver)) {
+                } else if (isOffPerson(cleanSelectedName)) {
+                    // 휴무자 투입 → 휴무자셀에서 제거 + 기존 기사 휴무
+                    // 휴무구분 없는 휴무자(기본 휴무)뿐 아니라 연차/위로 등도 근무 투입 시 목록에서 제외
+                    removeFromOffDisplay(cleanSelectedName);
+                    if (currentDriver !== '운행종료' && !currentOffList.includes(currentDriver)
+                        && !(isRestBusDriver(currentDriver) && !__origOffSet.has(currentDriver))) {
                         currentOffList.push(currentDriver);
                     }
                     manualOffDisplayOverrides[dateKey] = currentOffList;
                 } else {
-                    // 일반 → 일반: 기존 기사 휴무 처리 (원래 규칙)
-                    // 다른 칸은 위에서 고정했으므로 스페어 연쇄 재배정 없음
-                    if (currentDriver !== '운행종료' && !currentOffList.includes(currentDriver)) {
+                    // 일반 → 일반: 기존 기사 휴무 처리
+                    if (currentDriver !== '운행종료' && !currentOffList.includes(currentDriver)
+                        && !(isRestBusDriver(currentDriver) && !__origOffSet.has(currentDriver))) {
                         currentOffList.push(currentDriver);
                     }
                     manualOffDisplayOverrides[dateKey] = currentOffList;
                 }
+            } else if (cleanSelectedName && cleanSelectedName !== '운행종료' && isOffPerson(cleanSelectedName)) {
+                // 같은 칸 재선택 등이 아니어도, 휴무자를 배정하면 휴무자셀에서 제거
+                removeFromOffDisplay(cleanSelectedName);
+                manualOffDisplayOverrides[dateKey] = currentOffList;
             }
+
+            // 쉬는차 전용 기사만 휴무 목록에서 제거 (원래 휴무인 김대우 등은 유지)
+            try {
+                currentOffList = currentOffList.filter(n => {
+                    if (__origOffSet.has(n)) return true; // 원래 휴무 유지
+                    if (isRestBusDriver(n)) return false; // 쉬는차만 → 휴무 아님
+                    return true;
+                });
+                if (Object.prototype.hasOwnProperty.call(manualOffDisplayOverrides, dateKey)) {
+                    manualOffDisplayOverrides[dateKey] = currentOffList.slice();
+                }
+            } catch (e) {}
 
             // 기사변경으로 바뀐 당일 휴무 표시를 offDays에도 맞춰 둠
             // (저장 후 재로드 시 오버라이드만 있고 원본이 어긋나지 않도록)
@@ -10004,37 +10816,77 @@ function getMonthlyOffAllDriverNames(){
                 appData.offDays[dateKey] = manualOffDisplayOverrides[dateKey].slice();
             }
 
-            // 휴무일자가 '휴무자명단' 대상 월(다음 달)이면 엔트리 테이블에도 반영
+            // 기사변경으로 바뀐 휴무자 → 휴무자명단(monthlyOffDayEntries)에 구분별로 동일 반영
+            // (현재 월·다음 달 모두, 휴무자셀 표시와 같은 type 유지)
             try {
-                if (typeof getOffListTargetYearMonth === 'function'
-                    && Object.prototype.hasOwnProperty.call(manualOffDisplayOverrides, dateKey)
+                if (Object.prototype.hasOwnProperty.call(manualOffDisplayOverrides, dateKey)
                     && Array.isArray(manualOffDisplayOverrides[dateKey])) {
-                    const t = getOffListTargetYearMonth();
                     const parts = String(dateKey).split('-');
                     if (parts.length === 3) {
                         const dkY = 2000 + parseInt(parts[0], 10);
                         const dkM = parseInt(parts[1], 10);
                         const dkD = parseInt(parts[2], 10);
-                        if (dkY === t.y && dkM === t.m) {
-                            const iso = t.y + '-' + String(t.m).padStart(2, '0') + '-' + String(dkD).padStart(2, '0');
-                            const names = manualOffDisplayOverrides[dateKey]
-                                .map(n => String(n || '').replace('(S)', '').trim())
-                                .filter(n => n && n !== '운행종료');
-                            let list = Array.isArray(monthlyOffDayEntries) ? monthlyOffDayEntries.slice() : [];
-                            list = list.filter(e => {
-                                let d = String((e && e.date) || '').trim();
-                                if (/^\d{2}-\d{2}-\d{2}$/.test(d)) d = '20' + d;
-                                return d !== iso;
+                        const iso = dkY + '-' + String(dkM).padStart(2, '0') + '-' + String(dkD).padStart(2, '0');
+                        const names = manualOffDisplayOverrides[dateKey]
+                            .map(n => String(n || '').replace('(S)', '').trim())
+                            .filter(n => n && n !== '운행종료' && !String(n).includes('조휴무'));
+                        const stillOff = new Set(names);
+                        // 기존 type 맵 + getOffTypeByDriverMap 병합
+                        const typeByDriver = {};
+                        try {
+                            if (typeof getOffTypeByDriverMap === 'function') {
+                                const m = getOffTypeByDriverMap(dkY, dkM, dkD) || {};
+                                Object.keys(m).forEach(k => { typeByDriver[k] = m[k]; });
+                            }
+                        } catch (e) {}
+                        const normIso = (raw) => {
+                            let d = String(raw || '').trim();
+                            if (/^\d{2}-\d{2}-\d{2}$/.test(d)) d = '20' + d;
+                            const mm = d.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+                            if (mm) return mm[1] + '-' + String(mm[2]).padStart(2, '0') + '-' + String(mm[3]).padStart(2, '0');
+                            return d;
+                        };
+                        let list = Array.isArray(monthlyOffDayEntries) ? monthlyOffDayEntries.slice() : [];
+                        // 기존 엔트리에서 해당 날짜 type 보존 (stillOff 인원만)
+                        list.forEach(e => {
+                            if (!e || normIso(e.date) !== iso) return;
+                            const typ = (typeof normalizeMonthlyOffDayType === 'function')
+                                ? normalizeMonthlyOffDayType(e.type) : (String(e.type || '휴무').trim() || '휴무');
+                            (e.drivers || []).forEach(x => {
+                                const n = String(x || '').replace('(S)', '').trim();
+                                if (n && stillOff.has(n) && !typeByDriver[n]) typeByDriver[n] = typ;
                             });
-                            if (names.length) {
-                                list.push({ date: iso, type: '휴무', drivers: names });
-                            }
-                            list.sort((a, b) => String(a.date).localeCompare(String(b.date)));
-                            monthlyOffDayEntries = list;
-                            window.monthlyOffDayEntries = list;
-                            if (typeof renderMonthlyOffDayTable === 'function') {
-                                try { renderMonthlyOffDayTable(); } catch (e) {}
-                            }
+                        });
+                        // 해당 날짜 엔트리 제거 후 구분별로 재구성
+                        list = list.filter(e => !(e && normIso(e.date) === iso));
+                        const byType = {};
+                        names.forEach(n => {
+                            let typ = typeByDriver[n] || '휴무';
+                            if (typeof normalizeMonthlyOffDayType === 'function') typ = normalizeMonthlyOffDayType(typ);
+                            if (!byType[typ]) byType[typ] = [];
+                            if (!byType[typ].includes(n)) byType[typ].push(n);
+                        });
+                        Object.keys(byType).forEach(typ => {
+                            if (!byType[typ].length) return;
+                            byType[typ].sort((a, b) => a.localeCompare(b, 'ko'));
+                            list.push({ date: iso, type: typ, drivers: byType[typ] });
+                        });
+                        list.sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.type).localeCompare(String(b.type), 'ko'));
+                        monthlyOffDayEntries = list;
+                        window.monthlyOffDayEntries = list;
+                        // 보관소(__offTypeStore)에도 반영 → 주별통합 휴무자셀 type 즉시 일치
+                        try {
+                            window.__offTypeStore = window.__offTypeStore || {};
+                            const slot = {};
+                            names.forEach(n => {
+                                let typ = typeByDriver[n] || '휴무';
+                                if (typeof normalizeMonthlyOffDayType === 'function') typ = normalizeMonthlyOffDayType(typ);
+                                slot[n] = typ;
+                            });
+                            window.__offTypeStore[iso] = slot;
+                        } catch (e) {}
+                        if (typeof renderMonthlyOffDayTable === 'function') {
+                            try { renderMonthlyOffDayTable(); } catch (e) {}
                         }
                     }
                 }
@@ -10070,6 +10922,7 @@ function getMonthlyOffAllDriverNames(){
             });
 
             // 완료 메시지: 운행종료는 화면 표기와 같이 N조휴무로 표시
+            // 중복 배차 시 안내 메시지를 5초간 표시
             const __msgJoLabel = (typeof formatJoOffLabel === 'function')
                 ? formatJoOffLabel(line, busNo, dateKey)
                 : 'N조휴무';
@@ -10078,11 +10931,71 @@ function getMonthlyOffAllDriverNames(){
                 if (!n || n === '운행종료') return __msgJoLabel;
                 return n;
             };
+
+            // 중복 위치 수집 (운행 차량만 — 쉬는차 슬롯은 중복 안내 대상 아님)
+            let __dupMsg = '';
+            try {
+                if (cleanSelectedName && cleanSelectedName !== '운행종료') {
+                    const __restKeysDup = (typeof getCancelledBusKeysForDate === 'function')
+                        ? getCancelledBusKeysForDate(dateKey) : new Set();
+                    const __isRestBus = (ln, bn) => __restKeysDup.has(String(ln) + '|' + String(bn));
+                    const __dupPlaces = [];
+                    const __seenKey = new Set();
+                    const __pushDup = (ln, bn, shLabel) => {
+                        // 쉬는차 배정은 중복 안내에서 제외
+                        if (__isRestBus(ln, bn)) return;
+                        const k = String(ln) + '|' + String(bn) + '|' + shLabel;
+                        if (__seenKey.has(k)) return;
+                        __seenKey.add(k);
+                        const plate = String(bn || '').replace('부산70자', '');
+                        __dupPlaces.push((ln ? String(ln).replace(/번$/, '') + ' ' : '') + plate + ' ' + shLabel);
+                    };
+                    // 변경한 칸 (쉬는차면 push 자체가 스킵)
+                    __pushDup(line, busNo, shift === 'morning' ? '오전' : '오후');
+                    (dayDataBefore.busAssignments || []).forEach(b => {
+                        const m = norm(b.morningAssigned);
+                        const a = norm(b.afternoonAssigned);
+                        const isEditBus = (b.line === line && String(b.busNo) === String(busNo));
+                        if (m === cleanSelectedName) {
+                            if (!(isEditBus && shift === 'morning')) {
+                                __pushDup(b.line, b.busNo, '오전');
+                            }
+                        }
+                        if (a === cleanSelectedName) {
+                            if (!(isEditBus && shift === 'afternoon')) {
+                                __pushDup(b.line, b.busNo, '오후');
+                            }
+                        }
+                    });
+                    try {
+                        const __after = (typeof getDailyAssignment === 'function')
+                            ? getDailyAssignment(dateKey) : null;
+                        ((__after && __after.busAssignments) || []).forEach(b => {
+                            const m = norm(b.morningAssigned);
+                            const a = norm(b.afternoonAssigned);
+                            if (m === cleanSelectedName) __pushDup(b.line, b.busNo, '오전');
+                            if (a === cleanSelectedName) __pushDup(b.line, b.busNo, '오후');
+                        });
+                    } catch (e2) {}
+                    // 운행차 기준 2곳 이상일 때만 안내 (쉬는차만 겹치면 표시 안 함)
+                    if (__dupPlaces.length >= 2) {
+                        __dupMsg = '\n\n⚠ 중복 배차: [' + __disp(cleanSelectedName) + '] 기사가 같은 날 '
+                            + __dupPlaces.length + '곳에 배정되어 있습니다.\n'
+                            + '· ' + __dupPlaces.join('\n· ')
+                            + '\n(중복 상태로 유지됩니다)';
+                    }
+                }
+            } catch (e) { console.warn('[중복안내]', e); }
+
+            const __baseMsg = cleanSelectedName === '운행종료'
+                ? `선택한 데이터 셀만 ${__msgJoLabel}로 변경했습니다.`
+                : `${__disp(currentDriver) || '기존기사'} → ${__disp(cleanSelectedName)} 변경 완료.`;
+            // 자동 닫기 시간 없음 — 사용자가 직접 닫음
             showModal(
-                '기사 변경 완료',
-                cleanSelectedName === '운행종료'
-                    ? `선택한 데이터 셀만 ${__msgJoLabel}로 변경했습니다.`
-                    : `${__disp(currentDriver) || '기존기사'} → ${__disp(cleanSelectedName)} 변경 완료.`
+                __dupMsg ? '중복 배차 안내' : '기사 변경 완료',
+                __baseMsg + __dupMsg,
+                !!__dupMsg,
+                0
             );
         }
 
@@ -10498,13 +11411,29 @@ function getMonthlyOffAllDriverNames(){
                             const __plateShow = String(__unit.busNo || '').replace('부산70자','');
                             let __mShow = bMatch.morningAssigned;
                             let __aShow = bMatch.afternoonAssigned;
-                            // 화면 검증: 오전=오후 동일 & 정규 2명이 다르면 정규 조로 표시 보정
+                            // 화면 검증: 오전=오후 동일 보정
+                            //  - 스페어(또는 수동 배정)로 오전·오후 같은 이름인 경우는 그대로 표시
+                            //  - 정규기사 오염(같은 정규 이름이 오전·오후 잘못 들어간 경우)만 정규 2인으로 복구
                             {
                                 const cm = String(__mShow||'').replace('(S)','').trim();
                                 const ca = String(__aShow||'').replace('(S)','').trim();
                                 const n1 = String(bMatch.morningRegular||'').replace('(S)','').trim();
                                 const n2 = String(bMatch.afternoonRegular||'').replace('(S)','').trim();
-                                if (cm && ca && cm === ca && n1 && n2 && n1 !== n2 && cm !== '운행종료') {
+                                const isSpShow = (n) => {
+                                    if (!n) return false;
+                                    try {
+                                        if ((appData.spares || []).some(s => String(s).replace('(S)','').trim() === n)) return true;
+                                        if (typeof getAuthoritativeSpareDriverNames === 'function') {
+                                            return getAuthoritativeSpareDriverNames().some(s => String(s).replace('(S)','').trim() === n);
+                                        }
+                                    } catch (e) {}
+                                    return false;
+                                };
+                                // 같은 스페어로 오전·오후 배정 → 표시 유지 (정규로 덮지 않음)
+                                if (cm && ca && cm === ca && isSpShow(cm)) {
+                                    // keep __mShow / __aShow
+                                } else if (cm && ca && cm === ca && n1 && n2 && n1 !== n2 && cm !== '운행종료' && !isSpShow(cm)) {
+                                    // 정규 오염만 복구
                                     __mShow = n1;
                                     __aShow = n2;
                                 }
@@ -10591,10 +11520,10 @@ function getMonthlyOffAllDriverNames(){
                     const typeOrder = (typeof MONTHLY_OFF_DAY_TYPES !== 'undefined' && Array.isArray(MONTHLY_OFF_DAY_TYPES))
                         ? MONTHLY_OFF_DAY_TYPES.slice() : ['휴무','위로','연차','결근','유급','휴직','기타'];
                     offNames.forEach(n => {
-                        if (patternOffSet.has(n)) return;
                         if (String(n).includes('조휴무')) return;
                         if (typeof isDriverGroupValue === 'function' && isDriverGroupValue(n)) return;
                         const typ = typeByDriver[n] || '휴무';
+                        if (patternOffSet.has(n) && (typ === '휴무' || !typ)) return;
                         if (!byType[typ]) byType[typ] = [];
                         let label = n;
                         if (!WEEKLY_HIDE_JO_CODE && typeof getJoCodeForDriverName === 'function') {
@@ -10622,19 +11551,44 @@ function getMonthlyOffAllDriverNames(){
                         displayParts.push({ kind: 'type', type: typ, names: byType[typ] });
                     });
 
+                    // 휴무자명단과 동일: 구분별 이름 + 구분별 인원수 + 합계
+                    // 예) 휴무:김영호. 김임헌.
+                    //     연차:이승민.
+                    //     휴무:2명. 위로:0명. 연차:1명.
+                    //     합계:3명.
+                    let offTotalCount = 0;
+                    const typeCountParts = [];
+                    displayParts.forEach(p => {
+                        if (p.kind === 'type' && Array.isArray(p.names)) {
+                            offTotalCount += p.names.length;
+                            typeCountParts.push(p.type + ':' + p.names.length + '명');
+                        }
+                    });
+                    const typeCountLine = typeCountParts.length
+                        ? typeCountParts.join('. ') + '.'
+                        : '';
                     const offText = displayParts.length
-                        ? displayParts.map(p => p.kind === 'jo' ? p.text : (p.type + ': ' + p.names.join(', '))).join(' / ')
+                        ? displayParts.map(p => p.kind === 'jo' ? p.text : (p.type + ':' + p.names.join('. ') + (p.names.length ? '.' : ''))).join(' / ')
+                            + (typeCountLine ? (' / ' + typeCountLine) : '')
+                            + (offTotalCount ? (' / 합계:' + offTotalCount + '명.') : '')
                         : '-';
                     const offHtml = displayParts.length
-                        ? displayParts.map(p => {
+                        ? (displayParts.map(p => {
                             if (p.kind === 'jo') {
-                                return '<div class="weekly-offday-pair"><span class="weekly-offday-driver-name font-black text-red-600">' + escOff(p.text) + '</span></div>';
+                                return '<div class="weekly-offday-pair weekly-offday-jo"><span class="weekly-offday-driver-name font-black text-red-600">' + escOff(p.text) + '</span></div>';
                             }
-                            return '<div class="weekly-offday-pair"><span class="weekly-offday-type text-emerald-900 font-extrabold">' + escOff(p.type) + '</span><span class="weekly-offday-gap">: </span><span class="weekly-offday-driver-name">' + escOff(p.names.join(', ')) + '</span></div>';
+                            const namesStr = p.names.join('. ') + (p.names.length ? '.' : '');
+                            return '<div class="weekly-offday-pair"><span class="weekly-offday-type text-emerald-900 font-extrabold">' + escOff(p.type) + '</span><span class="weekly-offday-gap">:</span><span class="weekly-offday-driver-name">' + escOff(namesStr) + '</span></div>';
                           }).join('')
+                          + (typeCountLine
+                            ? '<div class="weekly-offday-pair weekly-offday-type-counts"><span class="weekly-offday-driver-name" style="color:#1e40af;font-weight:800;">' + escOff(typeCountLine) + '</span></div>'
+                            : '')
+                          + (offTotalCount
+                            ? '<div class="weekly-offday-pair weekly-offday-total"><span class="weekly-offday-type font-extrabold" style="color:#b91c1c;">합계</span><span class="weekly-offday-gap">:</span><span class="weekly-offday-driver-name font-black" style="color:#b91c1c;">' + offTotalCount + '명.</span></div>'
+                            : ''))
                         : '<div class="weekly-offday-pair">-</div>';
-                    offRowHtml += `<td colspan="3" style="min-width: ${dayColWidth * 3}px; padding:10px 8px !important; font-size:0.75rem !important; color:#15803d !important; vertical-align:middle; text-align:center; height:auto !important; min-height:64px !important; overflow:visible !important;" class="weekly-offday-name text-xs align-middle border-r border-slate-300 font-bold">` +
-                        `<div class="weekly-offday-inner" style="display:block;white-space:normal;overflow:visible;line-height:1.45;font-size:0.75rem;font-weight:700;text-align:center;height:auto;padding:2px 0;" title="${offText}">${offHtml}</div></td>`;
+                    offRowHtml += `<td colspan="3" style="min-width: ${dayColWidth * 3}px; padding:10px 8px !important; font-size:0.75rem !important; color:#15803d !important; vertical-align:middle; text-align:left; height:auto !important; min-height:64px !important; overflow:visible !important;" class="weekly-offday-name text-xs align-middle border-r border-slate-300 font-bold">` +
+                        `<div class="weekly-offday-inner" style="display:block;white-space:normal;overflow:visible;line-height:1.45;font-size:0.75rem;font-weight:700;text-align:left;height:auto;padding:2px 0 2px 4px;" title="${offText}">${offHtml}</div></td>`;
                 }
                 offRowHtml += `</tr>`;
                 tbodyHtml += offRowHtml;
@@ -12927,34 +13881,62 @@ function getWeeklyScheduleCards() {
                 || offNames.some(n => patternOffSet.has(n) || String(n).includes('조휴무'));
             const typeOrder = (typeof MONTHLY_OFF_DAY_TYPES !== 'undefined' && Array.isArray(MONTHLY_OFF_DAY_TYPES))
                 ? MONTHLY_OFF_DAY_TYPES.slice() : ['휴무','위로','연차','결근','유급','휴직','기타'];
+            // 주별통합 휴무셀과 동일 형식 (조별코드 없음, 좌측 정렬용 HTML)
             const byType = {};
             offNames.forEach(n => {
-                if (patternOffSet.has(n)) return;
                 if (String(n).includes('조휴무')) return;
                 if (typeof isDriverGroupValue === 'function' && isDriverGroupValue(n)) return;
+                const __typ0 = (typeByDriver && typeByDriver[n]) ? typeByDriver[n] : '휴무';
+                if (patternOffSet.has(n) && (__typ0 === '휴무' || !__typ0)) return;
                 const typ = typeByDriver[n] || '휴무';
                 if (!byType[typ]) byType[typ] = [];
-                let label = n;
-                if (typeof getJoCodeForDriverName === 'function') {
-                    const jo = getJoCodeForDriverName(n);
-                    if (jo) label = n + '(' + jo + ')';
-                }
+                // 조별코드 제거: 이름만
+                const label = n;
                 if (label && !byType[typ].includes(label)) byType[typ].push(label);
             });
-            if (typeof addOffEntryNamesToByType === 'function') addOffEntryNamesToByType(byType, typeByDriver, patternOffSet);
-            const offParts = [];
-            if (hasJoOffDrivers) offParts.push(joOffLabel);
+            if (typeof addOffEntryNamesToByType === 'function') {
+                // hideJoCode=true → 조별코드 없이 이름만
+                addOffEntryNamesToByType(byType, typeByDriver, patternOffSet, true);
+            }
+            const displayParts = [];
+            if (hasJoOffDrivers) displayParts.push({ kind: 'jo', text: joOffLabel });
             typeOrder.forEach(typ => {
                 const list = byType[typ];
                 if (!list || !list.length) return;
-                offParts.push(typ + ': ' + list.join(', '));
+                displayParts.push({ kind: 'type', type: typ, names: list });
             });
             Object.keys(byType).forEach(typ => {
                 if (typeOrder.includes(typ)) return;
                 if (!byType[typ].length) return;
-                offParts.push(typ + ': ' + byType[typ].join(', '));
+                displayParts.push({ kind: 'type', type: typ, names: byType[typ] });
             });
-            const offText = offParts.length ? offParts.join(' / ') : '-';
+            let offTotalCount = 0;
+            const typeCountParts = [];
+            displayParts.forEach(p => {
+                if (p.kind === 'type' && p.names && p.names.length) {
+                    offTotalCount += p.names.length;
+                    typeCountParts.push(p.type + ':' + p.names.length + '명');
+                }
+            });
+            const typeCountLine = typeCountParts.length ? (typeCountParts.join('. ') + '.') : '';
+            const offHtml = displayParts.length
+                ? (displayParts.map(p => {
+                    if (p.kind === 'jo') {
+                        return '<div style="line-height:1.3;margin:0;text-align:left;"><span style="font-weight:900;color:#dc2626;">' + esc(p.text) + '</span></div>';
+                    }
+                    const namesStr = p.names.join('. ') + (p.names.length ? '.' : '');
+                    return '<div style="line-height:1.3;margin:0;text-align:left;"><span style="font-weight:900;color:#14532d;">' + esc(p.type) + '</span><span>:</span><span style="font-weight:700;color:#15803d;">' + esc(namesStr) + '</span></div>';
+                  }).join('')
+                  + ((typeCountLine || offTotalCount)
+                    ? '<div style="border-top:1.5px solid #86efac;margin:5px 0 3px;padding:0;"></div>'
+                    : '')
+                  + (typeCountLine
+                    ? '<div style="line-height:1.35;margin:0;text-align:center;"><span style="font-weight:800;color:#1e40af;">' + esc(typeCountLine) + '</span></div>'
+                    : '')
+                  + (offTotalCount
+                    ? '<div style="line-height:1.35;margin:0;text-align:center;"><span style="font-weight:900;color:#b91c1c;">합계</span><span>:</span><span style="font-weight:900;color:#b91c1c;">' + offTotalCount + '명.</span></div>'
+                    : ''))
+                : '<div style="color:#94a3b8;">-</div>';
 
             let allBuses = [];
             try {
@@ -13080,18 +14062,23 @@ function getWeeklyScheduleCards() {
                 rowsHtml = '<tr><td colspan="6" style="text-align:center;padding:10px;color:#94a3b8;font-weight:700;border:1px solid #e2e8f0;">배차 데이터 없음</td></tr>';
             }
 
+            // 휴무자 셀: 이름 + 인원수 + 합계까지 포함 (캡처 시 공통 높이로 맞춤)
+            const OFF_CELL_MIN = 120;
+            const offRowHtml =
+                '<tr class="daily-offday-row">' +
+                '<td colspan="6" style="text-align:left;vertical-align:top;padding:5px 8px;border:1px solid #86efac;background:#f0fdf4;font-size:10px;line-height:1.35;min-height:' + OFF_CELL_MIN + 'px;height:auto;overflow:visible;white-space:normal;box-sizing:border-box;">' +
+                '<div style="font-size:10px;font-weight:900;color:#15803d;margin-bottom:2px;">휴무자</div>' +
+                '<div class="daily-offday-body" style="text-align:left;color:#15803d;font-weight:700;overflow:visible;white-space:normal;word-break:keep-all;">' + offHtml + '</div>' +
+                '</td></tr>';
+
             const html =
-                '<div class="daily-day-panel" style="flex:1 1 0;min-width:0;width:50%;min-height:0;display:flex;flex-direction:column;border:1px solid #cbd5e1;border-radius:10px;overflow:hidden;background:#fff;box-sizing:border-box;">' +
-                '<div style="flex:0 0 auto;padding:6px 8px;background:' + headBg + ';border-bottom:1px solid #cbd5e1;text-align:center;">' +
-                '<div style="font-size:14px;font-weight:900;color:' + dateColor + ';letter-spacing:-0.02em;line-height:1.15;">' +
+                '<div class="daily-day-panel" style="flex:1 1 0;min-width:0;width:50%;min-height:0;display:flex;flex-direction:column;border:1px solid #cbd5e1;border-radius:10px;overflow:visible;background:#fff;box-sizing:border-box;">' +
+                '<div style="flex:0 0 auto;padding:5px 8px;background:' + headBg + ';border-bottom:1px solid #cbd5e1;text-align:center;">' +
+                '<div style="font-size:13px;font-weight:900;color:' + dateColor + ';letter-spacing:-0.02em;line-height:1.15;">' +
                 currentYear + '년 ' + currentMonth + '월 ' + d + '일 (' + esc(dow) + ')</div>' +
                 '</div>' +
-                '<div style="flex:0 0 auto;padding:4px 8px;background:#f0fdf4;border-bottom:1px solid #bbf7d0;text-align:center;">' +
-                '<span style="font-size:10px;font-weight:900;color:#15803d;margin-right:4px;">휴무</span>' +
-                '<span style="font-size:11px;font-weight:700;color:#16a34a;line-height:1.3;word-break:keep-all;">' + esc(offText) + '</span>' +
-                '</div>' +
-                '<div style="flex:1 1 auto;padding:4px 6px 6px;min-height:0;overflow:hidden;display:flex;flex-direction:column;">' +
-                '<table style="width:100%;border-collapse:collapse;table-layout:fixed;flex:1 1 auto;">' +
+                '<div style="flex:1 1 auto;padding:3px 5px 5px;min-height:0;overflow:visible;display:flex;flex-direction:column;">' +
+                '<table style="width:100%;border-collapse:collapse;table-layout:fixed;flex:0 0 auto;">' +
                 '<thead><tr>' +
                 '<th style="width:9%;text-align:center;font-size:10px;font-weight:900;color:#0f172a;padding:3px 1px;border:1px solid #cbd5e1;background:#e0f2fe;">순번</th>' +
                 '<th style="width:12%;text-align:center;font-size:10px;font-weight:900;color:#0f172a;padding:3px 1px;border:1px solid #cbd5e1;background:#f8fafc;">차량</th>' +
@@ -13100,7 +14087,7 @@ function getWeeklyScheduleCards() {
                 '<th style="width:14%;text-align:center;font-size:10px;font-weight:900;color:#1d4ed8;padding:3px 1px;border:1px solid #cbd5e1;background:#dbeafe;">오후시간</th>' +
                 '<th style="width:20%;text-align:center;font-size:10px;font-weight:900;color:#c2410c;padding:3px 1px;border:1px solid #cbd5e1;background:#fef2f2;">오후근무</th>' +
                 '</tr></thead>' +
-                '<tbody>' + rowsHtml + '</tbody></table>' +
+                '<tbody>' + rowsHtml + offRowHtml + '</tbody></table>' +
                 '</div></div>';
 
             return { day: d, html: html };
@@ -13175,35 +14162,132 @@ function getWeeklyScheduleCards() {
             });
             document.body.appendChild(imageTarget);
 
-            // 각 패널 테이블 행 높이를 패널 높이에 맞게 축소
+            // 순번 1~29 배차 글자 잘림 방지: 최소 행높이·글자크기 보장 후 휴무자 배치
             await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
             try {
+                const MIN_BUS_ROW = 30;   // 순번 1~29 배차 행 최소 높이
+                const BUS_FONT = 11;      // 배차 기사명 글자 크기
+                const OFF_FONT = 10;
+
                 imageTarget.querySelectorAll('.daily-day-panel').forEach(panel => {
+                    panel.style.overflow = 'visible';
+                    panel.style.height = 'auto';
+                    panel.style.minHeight = '0';
+                    panel.style.flex = '0 0 auto';
+
                     const table = panel.querySelector('table');
                     const thead = table && table.querySelector('thead');
                     const tbody = table && table.querySelector('tbody');
                     if (!table || !tbody) return;
-                    const wrap = tbody.parentElement && tbody.parentElement.parentElement;
-                    const avail = Math.max(120, (wrap ? wrap.clientHeight : 400) - (thead ? thead.offsetHeight : 20) - 8);
-                    const rows = tbody.querySelectorAll('tr');
-                    const n = Math.max(1, rows.length);
-                    const rowH = Math.max(12, Math.floor(avail / n));
-                    const fontSize = rowH >= 18 ? 11 : (rowH >= 15 ? 10 : 9);
-                    rows.forEach(tr => {
-                        tr.style.height = rowH + 'px';
+                    const wrap = table.parentElement;
+                    if (wrap) {
+                        wrap.style.overflow = 'visible';
+                        wrap.style.height = 'auto';
+                        wrap.style.flex = '0 0 auto';
+                        wrap.style.minHeight = '0';
+                    }
+
+                    const allRows = Array.from(tbody.querySelectorAll('tr'));
+                    const offRows = allRows.filter(tr => tr.classList && tr.classList.contains('daily-offday-row'));
+                    const busRows = allRows.filter(tr => !(tr.classList && tr.classList.contains('daily-offday-row')));
+
+                    // 1) 배차 행(순번 1~): 글자 잘림 없이 고정 최소 높이
+                    busRows.forEach(tr => {
+                        tr.style.height = MIN_BUS_ROW + 'px';
+                        tr.style.minHeight = MIN_BUS_ROW + 'px';
+                        tr.style.maxHeight = 'none';
                         tr.querySelectorAll('td').forEach(td => {
-                            td.style.padding = '1px 1px';
-                            td.style.fontSize = fontSize + 'px';
-                            td.style.lineHeight = '1.1';
+                            td.style.padding = '1px 2px';
+                            td.style.fontSize = BUS_FONT + 'px';
+                            td.style.lineHeight = '1.2';
+                            td.style.height = MIN_BUS_ROW + 'px';
+                            td.style.minHeight = MIN_BUS_ROW + 'px';
+                            td.style.maxHeight = 'none';
+                            td.style.overflow = 'visible';
+                            td.style.whiteSpace = 'nowrap';
+                            td.style.textOverflow = 'clip';
+                            td.style.verticalAlign = 'middle';
+                        });
+                    });
+                    if (thead) {
+                        thead.querySelectorAll('th').forEach(th => {
+                            th.style.fontSize = '10px';
+                            th.style.padding = '3px 1px';
+                            th.style.height = 'auto';
+                            th.style.overflow = 'visible';
+                        });
+                    }
+
+                    // 2) 휴무자 행: 인원수·합계까지 전부 보이도록 측정 후, 패널 간 동일 높이
+                    const OFF_CELL_MIN = 120;
+                    offRows.forEach(tr => {
+                        tr.style.height = 'auto';
+                        tr.style.minHeight = OFF_CELL_MIN + 'px';
+                        tr.style.maxHeight = 'none';
+                        tr.style.overflow = 'visible';
+                        tr.querySelectorAll('td').forEach(td => {
+                            td.style.height = 'auto';
+                            td.style.minHeight = OFF_CELL_MIN + 'px';
+                            td.style.maxHeight = 'none';
+                            td.style.overflow = 'visible';
+                            td.style.padding = '5px 6px';
+                            td.style.fontSize = OFF_FONT + 'px';
+                            td.style.lineHeight = '1.35';
+                            td.style.textAlign = 'left';
+                            td.style.whiteSpace = 'normal';
+                            td.style.wordBreak = 'keep-all';
+                            td.style.boxSizing = 'border-box';
+                            td.style.verticalAlign = 'top';
+                        });
+                        tr.querySelectorAll('.daily-offday-body').forEach(el => {
+                            el.style.overflow = 'visible';
+                            el.style.whiteSpace = 'normal';
+                            el.style.maxHeight = 'none';
+                            el.style.height = 'auto';
                         });
                     });
                 });
-            } catch (e) {}
 
-            await new Promise(r => setTimeout(r, 30));
+                // 3) 모든 패널 휴무자 셀을 인원수·합계 포함 최대 높이로 통일
+                await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+                try {
+                    let maxOffH = 120;
+                    imageTarget.querySelectorAll('.daily-offday-row').forEach(tr => {
+                        const h = Math.max(tr.scrollHeight || 0, tr.offsetHeight || 0);
+                        if (h > maxOffH) maxOffH = h;
+                    });
+                    // 인원수·합계 여유 여백
+                    maxOffH = Math.max(120, maxOffH + 4);
+                    imageTarget.querySelectorAll('.daily-offday-row').forEach(tr => {
+                        tr.style.height = maxOffH + 'px';
+                        tr.style.minHeight = maxOffH + 'px';
+                        tr.style.maxHeight = maxOffH + 'px';
+                        tr.querySelectorAll('td').forEach(td => {
+                            td.style.height = maxOffH + 'px';
+                            td.style.minHeight = maxOffH + 'px';
+                            td.style.maxHeight = maxOffH + 'px';
+                            td.style.overflow = 'visible';
+                        });
+                    });
+                } catch (e2) {}
+
+
+                // 3) 내용 높이에 맞게 캡처 영역 확장 (A4보다 길면 늘려서 잘림 방지)
+                await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+                let contentH = 0;
+                imageTarget.querySelectorAll('.daily-day-panel').forEach(p => {
+                    contentH = Math.max(contentH, p.scrollHeight || p.offsetHeight || 0);
+                });
+                const needH = Math.max(A4_H, contentH + PAD * 2 + 8);
+                imageTarget.style.height = needH + 'px';
+                imageTarget.style.overflow = 'visible';
+            } catch (e) { console.warn('[일일이미지] 행높이 조정', e); }
+
+            await new Promise(r => setTimeout(r, 40));
 
             const captureWidth = A4_W;
-            const captureHeight = A4_H;
+            // 실제 렌더 높이 사용 (순번·휴무자 글자 잘림 방지)
+            const captureHeight = Math.max(A4_H, imageTarget.scrollHeight || imageTarget.offsetHeight || A4_H);
             let scale = 2;
             const maxCanvasSide = 8192;
             const maxCanvasArea = 26800000;
@@ -13409,8 +14493,8 @@ function getWeeklyScheduleCards() {
                     const [a, b] = pairs[0];
                     const blob = await captureDailyCardBlob(a, b);
                     const fileName = b
-                        ? ('일일배차표_' + currentYear + '_' + currentMonth + '월_' + a + '일-' + b + '일.png')
-                        : ('일일배차표_' + currentYear + '_' + currentMonth + '월_' + a + '일.png');
+                        ? (currentYear + '_' + currentMonth + '월_' + a + '일-' + b + '일_배차표.png')
+                        : (currentYear + '_' + currentMonth + '월_' + a + '일_배차표.png');
                     await downloadFile(blob, fileName);
                     showDailyImageSaveToast('일일배차표 이미지 저장이 완료되었습니다.');
                 } else {
@@ -13422,12 +14506,12 @@ function getWeeklyScheduleCards() {
                     for (const [a, b] of pairs) {
                         const blob = await captureDailyCardBlob(a, b);
                         const fileName = b
-                            ? ('일일배차표_' + currentYear + '_' + currentMonth + '월_' + a + '일-' + b + '일.png')
-                            : ('일일배차표_' + currentYear + '_' + currentMonth + '월_' + a + '일.png');
+                            ? (currentYear + '_' + currentMonth + '월_' + a + '일-' + b + '일_배차표.png')
+                            : (currentYear + '_' + currentMonth + '월_' + a + '일_배차표.png');
                         zip.file(fileName, blob);
                     }
                     const zipBlob = await zip.generateAsync({ type: 'blob' });
-                    const zipFileName = '일일배차표_' + currentYear + '_' + currentMonth + '월_' + startD + '일-' + endD + '일.zip';
+                    const zipFileName = currentYear + '_' + currentMonth + '월_' + startD + '일-' + endD + '일_배차표.zip';
                     closeDailyImageSelectModal();
                     await downloadFile(zipBlob, zipFileName);
                     showDailyImageSaveToast('일일배차표 이미지 저장이 완료되었습니다.');
@@ -13445,7 +14529,7 @@ function getWeeklyScheduleCards() {
             if (btn) btn.disabled = true;
             try {
                 const blob = await captureDailyCardBlob(day, null);
-                const fileName = '일일배차표_' + currentYear + '_' + currentMonth + '월_' + day + '일.png';
+                const fileName = currentYear + '_' + currentMonth + '월_' + day + '일_배차표.png';
                 await downloadFile(blob, fileName);
                 showDailyImageSaveToast('일일배차표 이미지 저장이 완료되었습니다.');
             } catch (e) {
@@ -13472,12 +14556,12 @@ function getWeeklyScheduleCards() {
                     const b = (d + 1 <= totalDays) ? d + 1 : null;
                     const blob = await captureDailyCardBlob(a, b);
                     const fileName = b
-                        ? ('일일배차표_' + currentYear + '_' + currentMonth + '월_' + a + '일-' + b + '일.png')
-                        : ('일일배차표_' + currentYear + '_' + currentMonth + '월_' + a + '일.png');
+                        ? (currentYear + '_' + currentMonth + '월_' + a + '일-' + b + '일_배차표.png')
+                        : (currentYear + '_' + currentMonth + '월_' + a + '일_배차표.png');
                     zip.file(fileName, blob);
                 }
                 const zipBlob = await zip.generateAsync({ type: 'blob' });
-                const zipFileName = '일일배차표_' + currentYear + '_' + currentMonth + '월_전체.zip';
+                const zipFileName = currentYear + '_' + currentMonth + '월_전체_배차표.zip';
                 closeDailyImageSelectModal();
                 await downloadFile(zipBlob, zipFileName);
                 showDailyImageSaveToast('일일배차표 이미지 저장이 완료되었습니다.');
@@ -14543,11 +15627,30 @@ div[class*="rounded"][class*="border-slate"]{
 .matrix-offday-pair {
   display:block !important;
   width:100% !important;
-  white-space:nowrap !important;
+  white-space:normal !important;
   overflow:visible !important;
   line-height:1.55 !important;
   height:auto !important;
   min-height:0 !important;
+  word-break:keep-all !important;
+  overflow-wrap:anywhere !important;
+}
+.weekly-offday-name .weekly-offday-type-counts {
+  margin-top:5px !important;
+  padding-top:4px !important;
+  border-top:1px dashed #93c5fd !important;
+  color:#1e40af !important;
+  font-weight:800 !important;
+  font-size:0.72rem !important;
+}
+.weekly-offday-name .weekly-offday-total {
+  margin-top:2px !important;
+  padding-top:2px !important;
+  color:#b91c1c !important;
+  font-weight:900 !important;
+}
+.weekly-offday-name .weekly-offday-type {
+  font-weight:900 !important;
 }
 #view-monthlyOffList #monthlyOffDayTableBody .off-day-name-gap,
 .weekly-offday-name .weekly-offday-gap,
