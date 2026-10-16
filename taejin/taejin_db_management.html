@@ -1281,6 +1281,15 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
   padding:6px 11px;border-radius:9px;cursor:pointer;
 }
 .monthly-off-day-table .off-day-del:hover{background:#fecaca}
+.monthly-off-day-table .off-day-name-line{
+  display:flex;align-items:center;justify-content:flex-start;gap:6px;
+  flex-wrap:wrap;margin:2px 0;
+}
+.monthly-off-day-table .off-day-name-one-del{
+  border:0;background:#fecaca;color:#991b1b;font-weight:800;font-size:11px;
+  padding:2px 7px;border-radius:7px;cursor:pointer;line-height:1.2;flex-shrink:0;
+}
+.monthly-off-day-table .off-day-name-one-del:hover{background:#fca5a5}
 .monthly-off-day-table .off-day-empty td{color:#94a3b8;font-weight:600;height:48px}
 @media(max-width:639px){
   .monthly-off-day-controls{padding:14px 12px 6px;gap:12px}
@@ -7634,6 +7643,72 @@ function getMonthlyOffAllDriverNames(){
             if (typeof renderMonthlyOffListView === 'function') renderMonthlyOffListView();
         }
 
+        /** 휴무자명단 테이블: 해당 날짜의 기사 1명만 제거 (전체제거는 removeMonthlyOffDayEntry) */
+        function removeMonthlyOffDayDriver(dateIso, driverName) {
+            const d = String(dateIso || '').trim();
+            const name = String(driverName || '').replace('(S)', '').trim();
+            if (!d || !name) return;
+            const norm = (n) => String(n || '').replace('(S)', '').trim();
+            monthlyOffDayEntries = (monthlyOffDayEntries || []).map(e => {
+                if (!e || String(e.date) !== d) return e;
+                const drivers = (e.drivers || []).filter(x => norm(x) !== name);
+                if (!drivers.length) return null;
+                return Object.assign({}, e, { drivers: drivers });
+            }).filter(Boolean);
+
+            // appData.offDays / 표시 오버라이드에서도 제거
+            try {
+                const parts = d.split('-').map(Number);
+                if (parts.length === 3) {
+                    const yy = String(parts[0]).slice(2);
+                    const mm = String(parts[1]).padStart(2, '0');
+                    const dd = String(parts[2]).padStart(2, '0');
+                    const shortKey = yy + '-' + mm + '-' + dd;
+                    const strip = (arr) => (arr || []).filter(x => norm(x) !== name);
+                    if (appData && appData.offDays) {
+                        if (Array.isArray(appData.offDays[shortKey])) appData.offDays[shortKey] = strip(appData.offDays[shortKey]);
+                        if (Array.isArray(appData.offDays[d])) appData.offDays[d] = strip(appData.offDays[d]);
+                    }
+                    if (typeof manualOffDisplayOverrides === 'object' && manualOffDisplayOverrides) {
+                        if (Array.isArray(manualOffDisplayOverrides[shortKey])) {
+                            manualOffDisplayOverrides[shortKey] = strip(manualOffDisplayOverrides[shortKey]);
+                        }
+                        if (Array.isArray(manualOffDisplayOverrides[d])) {
+                            manualOffDisplayOverrides[d] = strip(manualOffDisplayOverrides[d]);
+                        }
+                    }
+                    // 휴무구분 저장소
+                    if (window.__offTypeStore && window.__offTypeStore[d]) {
+                        delete window.__offTypeStore[d][name];
+                        if (!Object.keys(window.__offTypeStore[d]).length) delete window.__offTypeStore[d];
+                    }
+                }
+            } catch (e) {}
+
+            window.monthlyOffListDirty = true;
+            try {
+                const sk = monthlyOffListStorageKey();
+                localStorage.setItem(sk + '_days', JSON.stringify(monthlyOffDayEntries || []));
+                localStorage.setItem(sk, JSON.stringify(monthlyOffListSelections || {}));
+            } catch (e) {}
+            if (typeof window.syncMonthlyOffToWindow === 'function') {
+                try { window.syncMonthlyOffToWindow(); } catch (e) {}
+            } else {
+                window.monthlyOffDayEntries = monthlyOffDayEntries || [];
+            }
+            // 시뮬레이션 캐시 무효화
+            try {
+                monthlySimulationCache = null;
+                monthlySimulationCacheKey = '';
+            } catch (e) {}
+            renderMonthlyOffDayTable();
+            if (typeof renderMonthlyOffListView === 'function') renderMonthlyOffListView();
+            if (typeof renderAllViews === 'function') {
+                try { renderAllViews(); } catch (e) {}
+            }
+        }
+        window.removeMonthlyOffDayDriver = removeMonthlyOffDayDriver;
+
         function formatMonthlyOffDayDisplay(iso){
             // YYYY-MM-DD → M월D일(요일)  예: 11월12일(화)
             const p = String(iso || '').split('-').map(Number);
@@ -7728,10 +7803,11 @@ function getMonthlyOffAllDriverNames(){
                 people.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
                 const nameItems = people.map(p => {
                     const label = `${esc(p.name)}(${esc(p.type)})`;
+                    const delBtn = `<button type="button" class="off-day-name-one-del" title="이 기사만 제거" onclick="event.stopPropagation();removeMonthlyOffDayDriver('${esc(dateKey)}','${esc(p.name)}')">제거</button>`;
                     if (spareSet.has(p.name)) {
-                        return `<div class="off-day-name-line"><span class="off-day-spare-name">${label}</span></div>`;
+                        return `<div class="off-day-name-line"><span class="off-day-spare-name">${label}</span>${delBtn}</div>`;
                     }
-                    return `<div class="off-day-name-line"><span>${label}</span></div>`;
+                    return `<div class="off-day-name-line"><span>${label}</span>${delBtn}</div>`;
                 });
                 const namesHtml = nameItems.join('');
                 // 휴무구분 통계: 해당 날짜 기사들의 type 집계
@@ -7765,7 +7841,7 @@ function getMonthlyOffAllDriverNames(){
                         ${typeStatsHtml}
                     </td>
                     <td class="off-day-names-cell">${namesHtml || '—'}</td>
-                    <td><button type="button" class="off-day-del" onclick="removeMonthlyOffDayEntry('${rowKey}')">제거</button></td>
+                    <td><button type="button" class="off-day-del" title="해당 날짜 휴무자 전체 제거" onclick="removeMonthlyOffDayEntry('${rowKey}')">전체제거</button></td>
                 </tr>`;
             }).join('');
             const pad = Math.max(0, 5 - sortedDates.length);
