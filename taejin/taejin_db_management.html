@@ -536,25 +536,49 @@ header .max-w-7xl>div:nth-child(2)>div .action-btn{flex:1 1 0!important;width:0!
     height: 2px; margin-top: -1px; background: #0f172a; pointer-events: none; z-index: 2;
 }
 
-/* 시프트 근무: 순번 1,5,18 평일·토요일 오후 파란색 사각형 */
-.weekly-shift-afternoon {
-    position: relative;
+/* 시프트 근무: 오후 옆 S열에 S 표시 (순번 1,5,18 평일·토요일) */
+.weekly-s-th {
+    color: #1d4ed8 !important;
+    background: #eff6ff !important;
+    font-weight: 900 !important;
 }
-.weekly-shift-afternoon .weekly-shift-box {
+.weekly-s-cell {
+    text-align: center !important;
+    vertical-align: middle !important;
+    font-weight: 900 !important;
+    /* 바탕색은 행(흰색/회색) 클래스 따름 — 강제 배경 없음 */
+    min-width: 22px !important;
+    width: 22px !important;
+    max-width: 28px !important;
+    padding: 0 2px !important;
+}
+.weekly-s-cell .weekly-s-mark {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    box-sizing: border-box !important;
-    border: 2.5px solid #2563eb !important;
-    border-radius: 5px !important;
-    background: rgba(37, 99, 235, 0.10) !important;
-    padding: 1px 4px !important;
-    min-width: 2.2em !important;
-    max-width: 100% !important;
-    box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.18) !important;
+    min-width: 1.1em !important;
+    font-size: 0.85rem !important;
+    font-weight: 900 !important;
+    color: #1d4ed8 !important;
+    line-height: 1 !important;
 }
-.weekly-shift-afternoon .weekly-shift-box > * {
-    /* 내부 이름/조코드 유지 */
+.weekly-s-cell .weekly-makcha-mark {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 0.72rem !important;
+    font-weight: 900 !important;
+    color: #c2410c !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+}
+/* 구버전 파란 사각형 스타일 비활성 유지(호환) */
+.weekly-shift-afternoon .weekly-shift-box {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    min-width: 0 !important;
 }
 </style>
 
@@ -616,18 +640,27 @@ header .max-w-7xl>div:nth-child(2)>div .action-btn{flex:1 1 0!important;width:0!
     overflow-wrap: anywhere !important;
 }
 #view-offdays #calendarGrid > div > div:first-child span:first-child {
-    font-size: 12px !important;
+    font-size: 13px !important; /* +1px */
     font-weight: 900 !important;
-    color: #0f172a !important;
+    /* color: 일/공휴=빨강, 토=파랑, 평일=검정 (인라인 스타일) */
 }
-#view-offdays #calendarGrid > div > div:first-child span:last-child {
-    font-size: 9px !important;
+#view-offdays #calendarGrid > div > div:first-child span:last-child,
+#view-offdays #calendarGrid .offdays-count-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 28px !important;
+    height: 18px !important;
+    padding: 0 7px !important;
+    box-sizing: border-box !important;
+    font-size: 10px !important;
     font-weight: 800 !important;
-    padding: 2px 6px !important;
+    line-height: 1 !important;
     background: #f1f5f9 !important;
     color: #475569 !important;
     border: 1px solid #e2e8f0 !important;
     border-radius: 999px !important;
+    white-space: nowrap !important;
 }
 #view-offdays .offdays-calendar-head {
     background: linear-gradient(180deg,#f8fafc,#eef2f7) !important;
@@ -644,8 +677,14 @@ header .max-w-7xl>div:nth-child(2)>div .action-btn{flex:1 1 0!important;width:0!
     #view-offdays #calendarGrid { gap: 3px !important; padding: 4px !important; }
     #view-offdays #calendarGrid > div { min-height: 96px !important; padding: 6px 3px !important; border-radius: 8px !important; }
     #view-offdays #calendarGrid > div > div:last-child { font-size: 9.5px !important; gap: 2px !important; }
-    #view-offdays #calendarGrid > div > div:first-child span:first-child { font-size: 10.5px !important; }
-    #view-offdays #calendarGrid > div > div:first-child span:last-child { font-size: 8px !important; padding: 1px 4px !important; }
+    #view-offdays #calendarGrid > div > div:first-child span:first-child { font-size: 11.5px !important; /* +1px */ }
+    #view-offdays #calendarGrid > div > div:first-child span:last-child,
+    #view-offdays #calendarGrid .offdays-count-badge {
+        min-width: 24px !important;
+        height: 16px !important;
+        padding: 0 5px !important;
+        font-size: 9px !important;
+    }
 }
 </style>
 
@@ -1074,8 +1113,8 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
   padding:16px 16px 8px;box-sizing:border-box;
 }
 .monthly-off-day-field{display:flex;flex-direction:column;gap:6px;min-width:0}
-.monthly-off-day-field-date{flex:0 0 auto}
-.monthly-off-day-field-drivers{flex:1 1 260px;min-width:0}
+.monthly-off-day-field-date{flex:1 1 100%;min-width:0;width:100%;max-width:100%}
+.monthly-off-day-field-drivers{flex:1 1 100%;min-width:0;width:100%;max-width:100%}
 .monthly-off-day-drivers-row{
   display:flex;align-items:center;gap:8px;width:100%;min-width:0;
 }
@@ -1090,13 +1129,56 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
   letter-spacing:-0.03em;
 }
 .monthly-off-day-label-sub{font-size:11px;font-weight:700;color:#94a3b8}
+.monthly-off-dispatch-start-box{
+  width:100%;max-width:100%;box-sizing:border-box;
+  margin:0 0 12px;padding:12px 14px;
+  border:1px solid #bfdbfe;border-radius:14px;
+  background:linear-gradient(180deg,#eff6ff 0%,#fff 100%);
+  box-shadow:0 2px 8px rgba(37,99,235,.06);
+}
+.monthly-off-dispatch-start-title{
+  display:flex;align-items:center;gap:8px;
+  font-size:16px;font-weight:900;color:#dc2626;margin-bottom:10px;
+}
+.monthly-off-dispatch-start-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:3px 10px;border-radius:999px;font-size:13px;font-weight:900;
+  background:#dc2626;color:#fff;letter-spacing:.02em;
+}
+.monthly-off-dispatch-start-fields{
+  display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:8px;width:100%;
+}
+.monthly-off-dispatch-start-field{
+  display:flex;align-items:center;gap:4px;
+  padding:6px 10px;border-radius:10px;
+  background:#fff;border:1.5px solid #93c5fd;
+  box-sizing:border-box;min-width:0;
+}
+.monthly-off-dispatch-start-field select{
+  flex:1 1 auto;min-width:0;width:100%;
+  border:0;outline:none;background:transparent;
+  font-size:16px;font-weight:900;color:#0f172a;
+  height:32px;cursor:pointer;font-family:inherit;
+}
+.monthly-off-dispatch-start-unit{
+  flex:none;font-size:13px;font-weight:800;color:#64748b;white-space:nowrap;
+}
+.monthly-off-dispatch-start-preview{
+  margin-top:8px;font-size:13px;font-weight:800;color:#1d4ed8;text-align:center;
+}
+@media(max-width:639px){
+  .monthly-off-dispatch-start-fields{grid-template-columns:1fr 1fr 1fr;gap:6px}
+  .monthly-off-dispatch-start-field{padding:5px 8px}
+  .monthly-off-dispatch-start-field select{font-size:15px;height:30px}
+}
 .monthly-off-day-date{
   font-family:inherit;
-  min-width:200px;height:48px;padding:0 14px;
+  width:100%;min-width:0;max-width:100%;height:48px;padding:0 14px;
   border:2px solid #93c5fd;border-radius:12px;
   background:linear-gradient(180deg,#fff 0%,#eff6ff 100%);
   color:#0f172a;font-size:18px;font-weight:900;letter-spacing:-0.02em;
   box-shadow:0 2px 8px rgba(37,99,235,.08);
+  box-sizing:border-box;
 }
 .monthly-off-day-date:focus{
   outline:none;border-color:#2563eb;
@@ -1106,7 +1188,7 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
 /* 휴무 구분 라디오 */
 .monthly-off-type-group{
   display:grid;
-  grid-template-columns:1fr 1fr;
+  grid-template-columns:repeat(4, 1fr);
   gap:6px 8px;
   margin-top:10px;
   padding:10px 10px 8px;
@@ -1115,6 +1197,7 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
   background:linear-gradient(180deg,#f8fafc 0%,#fff 100%);
   box-sizing:border-box;
   width:100%;
+  max-width:100%;
 }
 .monthly-off-type-group-label{
   grid-column:1 / -1;
@@ -1149,10 +1232,12 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
 .monthly-off-type-badge[data-type="결근"]{background:#fee2e2;color:#b91c1c}
 .monthly-off-type-badge[data-type="유급"]{background:#ffedd5;color:#c2410c}
 .monthly-off-type-badge[data-type="휴직"]{background:#e0e7ff;color:#4338ca}
+.monthly-off-type-badge[data-type="병가"]{background:#fce7f3;color:#9d174d}
 .monthly-off-type-badge[data-type="기타"]{background:#f1f5f9;color:#475569}
 @media(max-width:639px){
-  .monthly-off-type-group{gap:5px 6px;padding:8px;grid-template-columns:1fr 1fr}
+  .monthly-off-type-group{gap:5px 6px;padding:8px;grid-template-columns:1fr 1fr;width:100%}
   .monthly-off-type-opt{padding:6px 6px;font-size:12px;min-height:34px}
+  .monthly-off-day-date{width:100%;min-width:0}
 }
 
 .monthly-off-day-date::-webkit-calendar-picker-indicator{
@@ -1253,6 +1338,7 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
 .monthly-off-day-table .off-day-type-stat-item[data-type="결근"]{background:#fee2e2;color:#b91c1c}
 .monthly-off-day-table .off-day-type-stat-item[data-type="유급"]{background:#ffedd5;color:#c2410c}
 .monthly-off-day-table .off-day-type-stat-item[data-type="휴직"]{background:#e0e7ff;color:#4338ca}
+.monthly-off-day-table .off-day-type-stat-item[data-type="병가"]{background:#fce7f3;color:#9d174d}
 .monthly-off-day-table .off-day-type-stat-item[data-type="기타"]{background:#f1f5f9;color:#475569}
 .monthly-off-day-table .off-day-type-stat-sep{
   color:#cbd5e1;font-size:9px;font-weight:700;user-select:none;
@@ -2142,15 +2228,25 @@ main{padding-top:18px !important;}
     return yy + '_' + String(mm).padStart(2, '0');
   }
 
-  // 선택 년·월 조회: 문서 ID(YYYY_MM) 우선 정확 검색 → 없으면 year/month 폴백
-  // timeout 기본 8초. 캐시 있으면 즉시 반환
+  // 선택 년·월 조회: 표준 ID(YYYY_MM) 즉시 조회 → 히트면 바로 반환
+  // 짧은 캐시(25초)로 연속 호출 중복 네트워크 방지. timeout 기본 5초.
   window.resolvetaejinMonthDoc = async function (y, m, timeoutMs) {
     const yy = Number(y);
     const mm = Number(m);
     const cacheKey = yy + '_' + String(mm).padStart(2, '0');
-    // v2_34: 문서 조회 캐시 제거 — 항상 Firestore에서 새로 조회
-    window.__taejinDocCache = {};
-    const ms = timeoutMs != null ? timeoutMs : 8000;
+    const ms = timeoutMs != null ? timeoutMs : 5000;
+    const now = Date.now();
+
+    // 짧은 TTL 캐시 (저장 직후 invalidatetaejinDocCache 로 무효화됨)
+    try {
+      window.__taejinDocCache = window.__taejinDocCache || {};
+      const hit = window.__taejinDocCache[cacheKey];
+      if (hit && hit.__cachedAt && (now - hit.__cachedAt) < 25000) {
+        console.log('[DB] 캐시 히트:', cacheKey, Math.round((now - hit.__cachedAt) / 100) / 10 + 's');
+        return hit;
+      }
+    } catch (e) {}
+
     console.log('[DB] 문서ID 우선 조회:', cacheKey, 'timeout=' + ms);
 
     function matchYearMonth(data) {
@@ -2162,65 +2258,91 @@ main{padding-top:18px !important;}
     }
     function cacheResult(result) {
       window.__taejinDocCache = window.__taejinDocCache || {};
+      if (result) result.__cachedAt = Date.now();
       window.__taejinDocCache[cacheKey] = result;
       return result;
     }
 
-    // 후보 문서 ID (저장 규칙: YYYY_MM 우선)
-    const idCandidates = [];
-    const list = window.__taejinScheduleMonths || [];
-    const listed = list.find(x => Number(x.y) === yy && Number(x.m) === mm);
-    if (listed && listed.key) idCandidates.push(String(listed.key));
-    idCandidates.push(cacheKey);
-    idCandidates.push(yy + '_' + String(mm));
-    idCandidates.push(yy + '-' + String(mm).padStart(2, '0'));
-    idCandidates.push(yy + '-' + String(mm));
-    const seenId = new Set();
-    const keys = idCandidates.filter(k => {
-      if (!k || seenId.has(k)) return false;
-      seenId.add(k);
-      return true;
-    });
-
     try {
-      // 1) 문서 ID로 직접 getDoc (가장 빠르고 정확)
-      for (const key of keys) {
+      // ===== FAST PATH: 표준 키 YYYY_MM 한 번만 먼저 조회 (문서 있으면 즉시 반환) =====
+      const primaryKey = cacheKey;
+      try {
+        const fastMs = Math.min(ms, 2500);
+        const snap0 = await withTimeout(getDoc(doc(db, 'taejinSchedules', primaryKey)), fastMs);
+        if (snap0 && snap0.exists()) {
+          const result = cacheResult({ key: snap0.id, snap: snap0, data: snap0.data() || {} });
+          console.log('[DB] 표준ID 즉시 히트:', result.key);
+          return result;
+        }
+      } catch (fe) {
+        console.warn('[DB] 표준ID 조회 지연/실패, 폴백 진행:', fe && fe.message);
+      }
+
+      // ===== FALLBACK: 보조 ID + year/month 쿼리 (병렬) =====
+      const idCandidates = [];
+      const list = window.__taejinScheduleMonths || [];
+      const listed = list.find(x => Number(x.y) === yy && Number(x.m) === mm);
+      if (listed && listed.key && String(listed.key) !== primaryKey) idCandidates.push(String(listed.key));
+      idCandidates.push(yy + '_' + String(mm));
+      idCandidates.push(yy + '-' + String(mm).padStart(2, '0'));
+      idCandidates.push(yy + '-' + String(mm));
+      const seenId = new Set([primaryKey]);
+      const keys = idCandidates.filter(k => {
+        if (!k || seenId.has(k)) return false;
+        seenId.add(k);
+        return true;
+      });
+
+      const fbMs = Math.min(ms, 3500);
+      const idPromises = keys.map(function (key) {
+        return withTimeout(getDoc(doc(db, 'taejinSchedules', key)), fbMs)
+          .then(function (snap) { return (snap && snap.exists()) ? snap : null; })
+          .catch(function (ge) {
+            console.warn('[DB] getDoc 실패:', key, ge && ge.message);
+            return null;
+          });
+      });
+      const queryPromise = (async function () {
         try {
-          const snap = await withTimeout(getDoc(doc(db, 'taejinSchedules', key)), Math.min(ms, 5000));
-          if (snap.exists()) {
-            const result = cacheResult({ key: snap.id, snap: snap, data: snap.data() || {} });
-            console.log('[DB] 문서ID 히트:', result.key);
+          const q = query(
+            collection(db, 'taejinSchedules'),
+            where('year', '==', yy),
+            where('month', '==', mm),
+            limit(5)
+          );
+          return await withTimeout(getDocs(q), fbMs);
+        } catch (qe) {
+          console.warn('[DB] year/month 쿼리 실패:', qe && qe.message);
+          return null;
+        }
+      })();
+
+      // 보조 ID 병렬 조회 (표준 키에 없을 때만 여기까지 옴)
+      if (idPromises.length) {
+        const all = await Promise.all(idPromises);
+        for (let i = 0; i < all.length; i++) {
+          if (all[i]) {
+            const result = cacheResult({ key: all[i].id, snap: all[i], data: all[i].data() || {} });
+            console.log('[DB] 보조ID 히트:', result.key);
             return result;
           }
-        } catch (ge) {
-          console.warn('[DB] getDoc 실패:', key, ge && ge.message);
         }
       }
 
-      // 2) year/month 필드 쿼리 폴백
-      try {
-        const q = query(
-          collection(db, 'taejinSchedules'),
-          where('year', '==', yy),
-          where('month', '==', mm),
-          limit(5)
-        );
-        const qSnap = await withTimeout(getDocs(q), ms);
-        if (!qSnap.empty) {
-          let hit = null;
-          qSnap.forEach((d) => {
-            if (!hit && matchYearMonth(d.data() || {})) hit = d;
-          });
-          if (!hit) hit = qSnap.docs[0];
-          const result = cacheResult(toResult(hit));
-          console.log('[DB] year/month 쿼리 히트:', result.key);
-          return result;
-        }
-      } catch (qe) {
-        console.warn('[DB] year/month 쿼리 실패:', qe && qe.message);
+      const qSnap = await queryPromise;
+      if (qSnap && !qSnap.empty) {
+        let hit = null;
+        qSnap.forEach((d) => {
+          if (!hit && matchYearMonth(d.data() || {})) hit = d;
+        });
+        if (!hit) hit = qSnap.docs[0];
+        const result = cacheResult(toResult(hit));
+        console.log('[DB] year/month 쿼리 히트:', result.key);
+        return result;
       }
 
       console.log('[DB] 문서 없음:', cacheKey);
+      cacheResult(null);
       return null;
     } catch (e) {
       console.warn('[DB] 조회 실패:', yy, mm, e && e.message);
@@ -2437,7 +2559,7 @@ main{padding-top:18px !important;}
       let resolved = (options && options.preloaded) ? options.preloaded : null;
       if (!resolved) {
         try {
-          resolved = await window.resolvetaejinMonthDoc(y, m, 8000);
+          resolved = await window.resolvetaejinMonthDoc(y, m, 4000);
         } catch (e) {
           const msg = (e && e.message) ? String(e.message) : String(e);
           console.error('[DB로드] 조회 오류:', msg);
@@ -2573,7 +2695,7 @@ main{padding-top:18px !important;}
         if (pm < 1) { pm = 12; py -= 1; }
         if (typeof window.resolvetaejinMonthDoc === 'function') {
           try {
-            const prevRes = await window.resolvetaejinMonthDoc(py, pm, 3500);
+            const prevRes = await window.resolvetaejinMonthDoc(py, pm, 1500);
             prevMap = collectTargetMonth(prevRes && prevRes.data ? prevRes.data.monthlyOffDayEntries : []);
           } catch (e) {
             console.warn('[휴무구분] 전월 문서 조회 지연:', e && e.message);
@@ -2952,6 +3074,15 @@ main{padding-top:18px !important;}
       // 저장 직후 이 월의 조회 캐시를 반드시 비워, 다음 "데이타호출" 시
       // 방금 저장한 값이 아닌 예전 캐시가 재사용되지 않도록 합니다.
       window.invalidatetaejinDocCache(y, m);
+      // 문서가 생겼으므로 서버 전체 문서 목록에 반영하고 배차시작설정(표시 여부) 판정을 다시 함
+      try {
+        window.__taejinScheduleMonths = Array.isArray(window.__taejinScheduleMonths) ? window.__taejinScheduleMonths : [];
+        if (!window.__taejinScheduleMonths.some(function (x) { return Number(x.y) === Number(y) && Number(x.m) === Number(m); })) {
+          window.__taejinScheduleMonths.push({ y: Number(y), m: Number(m), key: monthlyKey });
+        }
+        window.__dispatchStartDocState = null;
+        if (typeof window.refreshMonthlyOffDispatchStartLock === 'function') window.refreshMonthlyOffDispatchStartLock();
+      } catch (e) {}
       if (!silent && typeof showModal === 'function') {
         showModal('DB 저장 완료', `${y}년 ${m}월 배차 및 휴무 데이터를 DB에 저장했습니다.`);
       }
@@ -3086,11 +3217,191 @@ main{padding-top:18px !important;}
         window.monthlySimulationCacheKey = '';
       } catch (e) {}
 
-      // 노선·차량별 정규기사/스페어 배치를 한 달 전체(1일~말일)로 계산합니다.
-      // 그 날짜에 휴무로 등록된 정규기사는 휴무가 아닌 스페어로 자동 대체해서 저장합니다.
+      // 문서 존재 여부
+      let docExists = false;
+      try {
+        const snap0 = await withTimeout(getDoc(doc(db, 'taejinSchedules', monthlyKey)), 5000);
+        docExists = !!(snap0 && snap0.exists && snap0.exists());
+      } catch (e) { docExists = false; }
+
+      let appliedStart = null;
+      // 배차시작설정 체크 여부
+      let startSettingChecked = false;
+      try {
+        if (typeof isMonthlyOffDispatchStartChecked === 'function') {
+          startSettingChecked = !!isMonthlyOffDispatchStartChecked();
+        } else {
+          const chk = document.getElementById('monthlyOffDispatchStartCheck');
+          if (chk) startSettingChecked = !!chk.checked;
+          else startSettingChecked = (window.__monthlyOffDispatchStartEnabled === true);
+        }
+      } catch (e) {}
+
+      // 전달(기존) 패턴 기준일 해석 — 날짜가 이어지면 조휴무도 이어짐
+      // 예: 10/31 = 1조휴무 → 11/1 = 2조휴무 (epoch 고정, 일수 n만 증가)
+      function resolveContinuingPatternStart() {
+        const candidates = [];
+        try {
+          if (window.__dispatchPatternStart && window.__dispatchPatternStart.y) {
+            candidates.push(window.__dispatchPatternStart);
+          }
+        } catch (e) {}
+        try {
+          if (window.__lastLoadedDispatchPatternStart && window.__lastLoadedDispatchPatternStart.y) {
+            candidates.push(window.__lastLoadedDispatchPatternStart);
+          }
+        } catch (e) {}
+        try {
+          const raw = localStorage.getItem('taejin_dispatch_pattern_start');
+          if (raw) {
+            const o = JSON.parse(raw);
+            if (o && o.y) candidates.push(o);
+          }
+        } catch (e) {}
+        for (let i = 0; i < candidates.length; i++) {
+          const c = candidates[i];
+          const yy = Number(c.y), mm = Number(c.m), dd = Number(c.d);
+          if (yy && mm && dd) {
+            return {
+              y: yy, m: mm, d: dd,
+              iso: yy + '-' + String(mm).padStart(2, '0') + '-' + String(dd).padStart(2, '0'),
+              source: 'continue'
+            };
+          }
+        }
+        return null;
+      }
+
+      // 패턴 기준일 결정 (배차 계산 전에 적용)
+      // 1) 체크됨 + 문서 없음 → 선택한 년/월/일을 패턴 기준일로 적용
+      // 2) 체크됨 + 문서 있음 → 시작일 이전=기존 패턴 유지, 시작일부터=1조휴무 새 패턴
+      // 3) 미체크 + DB문서 0건 → 대상월 1일=1조휴무 (로컬 옛 기준일 무시, 정규 조순 패턴)
+      // 4) 미체크 + 서버문서 있음 → 전달 패턴 연결 (10/31 1조 → 11/1 2조). 기존 대상월 문서는 덮지 않음
+      if (startSettingChecked) {
+        let sy, sm, sd;
+        try {
+          const st = (typeof getMonthlyOffDispatchStart === 'function')
+            ? getMonthlyOffDispatchStart()
+            : null;
+          if (st && st.y) { sy = st.y; sm = st.m; sd = st.d; }
+        } catch (e) {}
+        if (!sy) {
+          try {
+            const def = (typeof getMonthlyOffDayDateDefaultYmd === 'function')
+              ? getMonthlyOffDayDateDefaultYmd() : null;
+            if (def) { sy = def.y; sm = def.m; sd = def.d; }
+          } catch (e) {}
+        }
+        if (!sy) { sy = y; sm = m; sd = 1; }
+        try {
+          const dateEl = document.getElementById('monthlyOffDayDate');
+          if (dateEl && /^\d{4}-\d{2}-\d{2}$/.test(dateEl.value)) {
+            const p = dateEl.value.split('-').map(Number);
+            const st2 = (typeof getMonthlyOffDispatchStart === 'function') ? getMonthlyOffDispatchStart() : null;
+            if (!(st2 && st2.userSet)) {
+              sy = p[0]; sm = p[1]; sd = p[2];
+            }
+          }
+        } catch (e) {}
+        appliedStart = {
+          y: Number(sy), m: Number(sm), d: Number(sd),
+          iso: Number(sy) + '-' + String(sm).padStart(2, '0') + '-' + String(sd).padStart(2, '0'),
+          source: 'checkbox'
+        };
+        // 문서 있음: 시작일 이전 = 전달/기존 패턴 유지, 시작일부터 = 1조휴무 새 패턴
+        // 문서 없음: 선택한 일을 기준일로 새 패턴 적용
+        try {
+          const prior = docExists
+            ? ((typeof resolveContinuingPatternStart === 'function') ? resolveContinuingPatternStart() : null)
+            : null;
+          if (docExists && typeof setDispatchPatternSplitFromYmd === 'function') {
+            setDispatchPatternSplitFromYmd(appliedStart.y, appliedStart.m, appliedStart.d, prior, false);
+          } else if (typeof setDispatchPatternEpochFromYmd === 'function') {
+            setDispatchPatternEpochFromYmd(appliedStart.y, appliedStart.m, appliedStart.d);
+          }
+        } catch (e) {
+          if (typeof setDispatchPatternEpochFromYmd === 'function') {
+            setDispatchPatternEpochFromYmd(appliedStart.y, appliedStart.m, appliedStart.d);
+          }
+        }
+        try {
+          if (typeof saveMonthlyOffDispatchStart === 'function') {
+            saveMonthlyOffDispatchStart(appliedStart.y, appliedStart.m, appliedStart.d, false);
+          }
+        } catch (e) {}
+      } else {
+        // 미체크:
+        // ★ DB에 월 문서가 하나도 없으면 → 로컬 옛 기준일 무시하고
+        //   대상월 1일 = 1조휴무, 정규 조별코드 순(1→2→3→4→5) 패턴 강제 적용
+        // ★ 서버에 문서가 있으면 → 전달 패턴 연결 (10/31 1조 → 11/1 2조)
+        // ★ 대상 월 문서가 이미 있으면 → payload 패턴은 덮어쓰지 않음
+        let anyServerDoc = false;
+        try {
+          if (typeof checkAnyScheduleDocExists === 'function') {
+            const any = await checkAnyScheduleDocExists();
+            if (any === true) anyServerDoc = true;
+            else if (any === false) anyServerDoc = false;
+          } else {
+            const list = window.__taejinScheduleMonths;
+            if (Array.isArray(list) && list.length > 0) anyServerDoc = true;
+          }
+        } catch (e) {}
+        // 목록 캐시로 한 번 더 확인
+        try {
+          const list = window.__taejinScheduleMonths;
+          if (Array.isArray(list) && list.length > 0) anyServerDoc = true;
+        } catch (e) {}
+
+        const serverHasAnyDoc = !!(docExists || anyServerDoc);
+
+        if (!serverHasAnyDoc) {
+          // ========== DB 문서 0건: 무조건 대상월 1일 = 1조휴무 ==========
+          const sy = Number(y), sm = Number(m), sd = 1;
+          appliedStart = {
+            y: sy, m: sm, d: sd,
+            iso: sy + '-' + String(sm).padStart(2, '0') + '-01',
+            source: 'default1jo'
+          };
+          // 로컬에 남은 옛 기준일/분할 패턴 전부 제거
+          try {
+            window.__dispatchPatternStart = null;
+            window.__lastLoadedDispatchPatternStart = null;
+            window.__dispatchPatternEpochUtc = null;
+            localStorage.removeItem('taejin_dispatch_pattern_start');
+          } catch (e) {}
+          try { if (typeof clearDispatchPatternSplit === 'function') clearDispatchPatternSplit(); } catch (e) {}
+          if (typeof setDispatchPatternEpochFromYmd === 'function') {
+            setDispatchPatternEpochFromYmd(sy, sm, sd);
+          }
+          try {
+            if (typeof saveMonthlyOffDispatchStart === 'function') {
+              saveMonthlyOffDispatchStart(sy, sm, sd, false);
+            }
+          } catch (e) {}
+          console.log('[패턴] DB문서 0건 →', sy + '-' + sm + '-01 = 1조휴무 강제 적용');
+        } else {
+          // ========== 서버에 문서 있음: 전달 패턴 연결 ==========
+          const cont = resolveContinuingPatternStart();
+          if (cont) {
+            appliedStart = docExists ? null : cont;
+            try { if (typeof clearDispatchPatternSplit === 'function') clearDispatchPatternSplit(); } catch (e) {}
+            if (typeof setDispatchPatternEpochFromYmd === 'function') {
+              setDispatchPatternEpochFromYmd(cont.y, cont.m, cont.d);
+            }
+            console.log('[패턴] 전달 연결:', cont.iso, docExists ? '(기존문서 유지)' : '(신규월 기록)');
+          } else {
+            // 문서는 있으나 기준일을 못 찾음 → 덮어쓰지 않음
+            appliedStart = null;
+            console.log('[패턴] 서버문서 있음·기준일 없음 → 기존 유지');
+          }
+        }
+      }
+
+      // 패턴 기준일 반영 후 월간 배차 계산
       const fullSchedule = (typeof buildMonthlyOffFullScheduleForTargetMonth === 'function')
         ? buildMonthlyOffFullScheduleForTargetMonth()
         : {};
+
       const payload = {
         year: Number(y),
         month: Number(m), // 9월 → 9
@@ -3102,27 +3413,145 @@ main{padding-top:18px !important;}
         manualOffDisplayOverrides: filterMapByYearMonth(window.manualOffDisplayOverrides || {}, y, m),
         offListSavedAt: serverTimestamp()
       };
+      // 체크 시 / 미체크+신규 문서 시에만 배차시작 기록. 기존 문서는 덮지 않음.
+      if (appliedStart) {
+        payload.dispatchPatternStart = appliedStart.iso;
+        payload.dispatchPatternStartYmd = {
+          y: appliedStart.y, m: appliedStart.m, d: appliedStart.d
+        };
+        // 체크 분할 적용 시: 시작일 이전 유지용 전달 기준일 함께 저장
+        try {
+          if (appliedStart.source === 'checkbox' && window.__dispatchPatternPriorStart) {
+            payload.dispatchPatternPriorStart = window.__dispatchPatternPriorStart.iso;
+            payload.dispatchPatternPriorYmd = {
+              y: window.__dispatchPatternPriorStart.y,
+              m: window.__dispatchPatternPriorStart.m,
+              d: window.__dispatchPatternPriorStart.d
+            };
+            payload.dispatchPatternEffectiveFrom = appliedStart.iso;
+            payload.dispatchPatternEffectiveFromYmd = {
+              y: appliedStart.y, m: appliedStart.m, d: appliedStart.d
+            };
+          }
+        } catch (e) {}
+      }
       await withTimeout(setDoc(doc(db, 'taejinSchedules', monthlyKey), payload, { merge: true }));
       // 저장 직후 이 월의 조회 캐시를 반드시 비워, 다음 "데이타호출" 시
       // 방금 저장한 값이 아닌 예전 캐시가 재사용되지 않도록 합니다.
       window.invalidatetaejinDocCache(y, m);
-      return { ok: true, y, m };
+      // 저장으로 문서가 존재하게 됨 → 배차시작설정 판정 캐시를 '문서 있음'으로 갱신
+      try { window.__dispatchStartDocState = { key: Number(y) + '_' + Number(m), exists: true, at: Date.now() }; } catch (e) {}
+      try {
+        window.__taejinScheduleMonths = Array.isArray(window.__taejinScheduleMonths) ? window.__taejinScheduleMonths : [];
+        if (!window.__taejinScheduleMonths.some(function (x) { return Number(x.y) === Number(y) && Number(x.m) === Number(m); })) {
+          window.__taejinScheduleMonths.push({ y: Number(y), m: Number(m), key: monthlyKey });
+        }
+      } catch (e) {}
+      return { ok: true, y, m, isNewDoc: !docExists, dispatchPatternStart: appliedStart };
     } catch (error) {
       console.error('휴무자명단 DB 저장 오류:', error);
       return { ok: false };
     }
   };
 
-  // 서버(Firestore) 월 문서 전체 삭제: taejinSchedules/YYYY_MM
+  // 서버(Firestore) 월 문서 전체 삭제
+  // - 불러오기(resolvetaejinMonthDoc)와 같은 규칙으로 문서를 찾습니다:
+  //   표준 ID(YYYY_MM) + 보조 ID(YYYY_M, YYYY-MM, YYYY-M) + year/month 필드 쿼리
+  // - 확인 중 타임아웃/네트워크 오류는 "문서 없음"이 아니라 checkFailed 로 구분합니다.
+  // - 실제로 찾은 문서 ID를 그대로 삭제하고, 삭제 후 재조회로 검증합니다.
   window.deleteMonthlyDataFromDB = async function (y, m) {
     try {
-      const monthlyKey = `${y}_${String(m).padStart(2, '0')}`;
-      await withTimeout(deleteDoc(doc(db, 'taejinSchedules', monthlyKey)));
-      window.invalidatetaejinDocCache(y, m);
-      return { ok: true, y, m };
+      const yy = Number(y);
+      const mm = Number(m);
+      const stdKey = yy + '_' + String(mm).padStart(2, '0');
+
+      const cand = [];
+      const listed = (window.__taejinScheduleMonths || []).find(function (x) {
+        return Number(x.y) === yy && Number(x.m) === mm;
+      });
+      if (listed && listed.key) cand.push(String(listed.key));
+      cand.push(stdKey, yy + '_' + String(mm), yy + '-' + String(mm).padStart(2, '0'), yy + '-' + String(mm));
+      const keys = cand.filter(function (k, i) { return k && cand.indexOf(k) === i; });
+
+      const found = new Set();   // 실제로 존재하는 문서 ID
+      let stdAnswered = false;   // 표준 ID 조회가 서버 응답으로 확정되었는지
+
+      // 1) 문서 ID 직접 조회 (병렬 · 느린 망 대비 8초)
+      await Promise.all(keys.map(async function (key) {
+        try {
+          const snap = await withTimeout(getDoc(doc(db, 'taejinSchedules', key)), 8000);
+          if (key === stdKey) stdAnswered = true;
+          if (snap && snap.exists()) found.add(key);
+        } catch (e) {
+          console.warn('[삭제] 조회 실패:', key, e && e.message);
+        }
+      }));
+
+      // 2) year/month 필드 쿼리 (문서 ID 규칙이 다른 문서 대비 · 권한 없으면 무시)
+      try {
+        const q = query(
+          collection(db, 'taejinSchedules'),
+          where('year', '==', yy),
+          where('month', '==', mm),
+          limit(10)
+        );
+        const qSnap = await withTimeout(getDocs(q), 8000);
+        qSnap.forEach(function (d) { found.add(d.id); });
+      } catch (qe) {
+        console.warn('[삭제] year/month 쿼리 실패:', qe && qe.message);
+      }
+
+      if (!found.size) {
+        // 표준 ID 조차 서버 응답을 못 받았으면 "없음"이 아니라 "확인 실패"
+        if (!stdAnswered) return { ok: false, checkFailed: true, y: y, m: m };
+        return { ok: false, notFound: true, y: y, m: m };
+      }
+
+      // 3) 실제로 찾은 문서 ID 삭제
+      const ids = Array.from(found);
+      for (const id of ids) {
+        await withTimeout(deleteDoc(doc(db, 'taejinSchedules', id)), 8000);
+      }
+
+      // 4) 삭제 검증: 다시 조회해서 남아 있으면 실패 처리
+      for (const id of ids) {
+        try {
+          const chk = await withTimeout(getDoc(doc(db, 'taejinSchedules', id)), 8000);
+          if (chk && chk.exists()) {
+            console.error('[삭제] 삭제 후에도 문서가 남아 있음:', id);
+            return { ok: false, y: y, m: m };
+          }
+        } catch (e) { /* 검증 조회 실패는 삭제 성공으로 간주 */ }
+      }
+
+      // 5) 캐시/상태 정리
+      try { window.invalidatetaejinDocCache(y, m); } catch (e) {}
+      try { window.__taejinDocCache = {}; } catch (e) {}
+      try {
+        if (Array.isArray(window.__taejinScheduleMonths)) {
+          window.__taejinScheduleMonths = window.__taejinScheduleMonths.filter(function (x) {
+            return !(Number(x.y) === yy && Number(x.m) === mm);
+          });
+        }
+      } catch (e) {}
+      // 삭제한 월이 휴무자명단 대상 월이면, 남아 있는 "문서 있음" 표식을 지우고
+      // 배차시작설정 잠금을 다시 판정합니다.
+      try {
+        const tg = (typeof getOffListTargetYearMonth === 'function') ? getOffListTargetYearMonth() : null;
+        if (tg && Number(tg.y) === yy && Number(tg.m) === mm) {
+          window.__monthlyOffListSelectionsFromDB = false;
+          window.__lastLoadedDispatchPatternStart = null;
+        }
+        // 어느 월을 삭제했든 '서버 전체 문서 유무'가 바뀔 수 있으므로 배차시작설정 판정을 다시 함
+        window.__dispatchStartDocState = null;
+        if (typeof window.refreshMonthlyOffDispatchStartLock === 'function') {
+          window.refreshMonthlyOffDispatchStartLock();
+        }
+      } catch (e) {}
+      return { ok: true, y: y, m: m, deletedIds: ids };
     } catch (error) {
       console.error('월 데이터 DB 삭제 오류:', error);
-      return { ok: false };
+      return { ok: false, y: y, m: m };
     }
   };
 
@@ -3151,7 +3580,7 @@ main{padding-top:18px !important;}
       let foundKey = monthlyKey;
       try {
         if (typeof window.resolvetaejinMonthDoc === 'function') {
-          const resolved = await window.resolvetaejinMonthDoc(y, m, silent ? 8000 : 12000);
+          const resolved = await window.resolvetaejinMonthDoc(y, m, silent ? 3500 : 6000);
           if (resolved && resolved.data) {
             data = resolved.data;
             foundKey = resolved.key || monthlyKey;
@@ -3173,6 +3602,12 @@ main{padding-top:18px !important;}
           console.warn('[휴무명단] getDoc 실패:', ge && ge.message);
         }
       }
+
+      // 배차시작설정은 문서와 무관하게 항상 활성(체크박스로 적용 여부 제어)
+      try {
+        if (data) window.__monthlyOffListSelectionsFromDB = true;
+        if (typeof initMonthlyOffDispatchStartBox === 'function') initMonthlyOffDispatchStartBox();
+      } catch (e) {}
 
       // 3) 대상 월 휴무일자 수집: 엔트리 + offDays + 오버라이드 전부 병합
       //    (monthlyOffDayEntries 가 [] 이거나 일부만 있어도 offDays 의 11/3 등이 빠지지 않음)
@@ -3314,6 +3749,11 @@ main{padding-top:18px !important;}
       }
 
       console.log('[휴무명단] 서버 적용:', foundKey, '휴무일자', dayEntries.length, '건, 선택', Object.keys(selections).length);
+      // 배차시작설정은 문서와 무관하게 항상 활성(체크박스로 적용 여부 제어)
+      try {
+        if (data) window.__monthlyOffListSelectionsFromDB = true;
+        if (typeof initMonthlyOffDispatchStartBox === 'function') initMonthlyOffDispatchStartBox();
+      } catch (e) {}
 
       // 미저장 로컬 추가/수정이 있고, 로컬 테이블에 데이터가 있을 때만 서버 덮어쓰기 생략
       // (로컬이 비어 있는데 dirty만 true면 서버 데이터를 반드시 표시)
@@ -3341,6 +3781,38 @@ main{padding-top:18px !important;}
         monthlyOffListOverrideFromFile = true;
         window.__monthlyOffListSelectionsFromDB = true;
       }
+      // 배차시작(패턴 기준일) 로드 — 분할(시작일 이전=전달/이후=1조) 포함
+      try {
+        const dps = (data && data.dispatchPatternStartYmd) ? data.dispatchPatternStartYmd
+          : (data && data.dispatchPatternStart) ? data.dispatchPatternStart : null;
+        if (dps) {
+          let yy, mm, dd;
+          if (typeof dps === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dps)) {
+            const p = dps.split('-').map(Number); yy = p[0]; mm = p[1]; dd = p[2];
+          } else if (dps && dps.y) { yy = dps.y; mm = dps.m; dd = dps.d; }
+          let prior = null;
+          const dpp = (data && data.dispatchPatternPriorYmd) ? data.dispatchPatternPriorYmd
+            : (data && data.dispatchPatternPriorStart) ? data.dispatchPatternPriorStart : null;
+          if (dpp) {
+            if (typeof dpp === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dpp)) {
+              const p2 = dpp.split('-').map(Number);
+              prior = { y: p2[0], m: p2[1], d: p2[2] };
+            } else if (dpp && dpp.y) {
+              prior = { y: Number(dpp.y), m: Number(dpp.m), d: Number(dpp.d) };
+            }
+          }
+          if (yy && mm && dd) {
+            if (prior && typeof setDispatchPatternSplitFromYmd === 'function') {
+              setDispatchPatternSplitFromYmd(yy, mm, dd, prior, true);
+            } else if (typeof setDispatchPatternEpochFromYmd === 'function') {
+              try { if (typeof clearDispatchPatternSplit === 'function') clearDispatchPatternSplit(); } catch (e) {}
+              setDispatchPatternEpochFromYmd(yy, mm, dd, true);
+            }
+            window.__lastLoadedDispatchPatternStart = { y: yy, m: mm, d: dd };
+          }
+        }
+      } catch (e) { console.warn('[배차시작] 로드 실패', e); }
+
       // 휴무일자: 서버에서 1건 이상 모였을 때만 교체 (0건으로 기존 표를 지우지 않음)
       if (dayEntries.length > 0) {
         window.monthlyOffDayEntries = dayEntries;
@@ -3370,12 +3842,21 @@ main{padding-top:18px !important;}
       const hasData = dayEntries.length > 0 || Object.keys(selections).length > 0;
       // v2_45: 동일 월 탭 재진입 시 서버 재조회 생략용 키
       try { window.__monthlyOffListLoadedKey = monthlyKey; } catch (e) {}
+      // 배차시작설정은 문서 유무와 무관하게 항상 활성(체크박스로 적용 여부 제어)
+      try {
+        window.__monthlyOffListSelectionsFromDB = !!data;
+        if (typeof initMonthlyOffDispatchStartBox === 'function') {
+          initMonthlyOffDispatchStartBox();
+        }
+      } catch (e) {}
       if (!silent && typeof showModal === 'function') {
         showModal(
           hasData ? '불러오기 완료' : '데이터 없음',
           hasData
             ? (y + '년 ' + m + '월 휴무자명단 ' + dayEntries.length + '건을 표에 적용했습니다.')
-            : (y + '년 ' + m + '월 문서는 있으나 휴무일자 데이터가 없습니다.')
+            : (data
+              ? (y + '년 ' + m + '월 문서는 있으나 휴무일자 데이터가 없습니다.')
+              : (y + '년 ' + m + '월 DB 문서가 없습니다.'))
         );
       }
       return hasData;
@@ -3968,7 +4449,7 @@ main{padding-top:18px !important;}
                         <h2 class="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
                             <i data-lucide="file-text" class="w-5 h-5 text-brand-600"></i> 월간 휴무 관리 대장
                         </h2>
-                        <div id="offDaysMonthTitle" class="text-xs sm:text-sm font-bold text-brand-700 text-left mt-1 ml-7">2026년 9월</div>
+                        <div id="offDaysMonthTitle" class="text-base sm:text-lg font-black text-brand-800 text-left mt-1 ml-7 tracking-tight">2026년 9월</div>
                     </div>
                     <span class="text-xs text-slate-500">일자별 휴무자 전체 명단</span>
                 </div>
@@ -4114,6 +4595,30 @@ main{padding-top:18px !important;}
                         </div>
 
                         <div class="monthly-off-day-controls">
+                            <div class="monthly-off-dispatch-start-box" id="monthlyOffDispatchStartBox">
+                                <div class="monthly-off-dispatch-start-title">
+                                    <span class="monthly-off-dispatch-start-badge">START</span>
+                                    <label class="monthly-off-dispatch-start-check-label" for="monthlyOffDispatchStartCheck" style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;-webkit-user-select:none;">
+                                        <input type="checkbox" id="monthlyOffDispatchStartCheck" onchange="onMonthlyOffDispatchStartCheckChange()" style="width:18px;height:18px;accent-color:#dc2626;cursor:pointer;flex:none;">
+                                        <span>배차시작설정</span>
+                                    </label>
+                                </div>
+                                <div class="monthly-off-dispatch-start-fields">
+                                    <label class="monthly-off-dispatch-start-field">
+                                        <select id="monthlyOffDispatchStartYear" aria-label="배차 시작 연도" onchange="onMonthlyOffDispatchStartChange()"></select>
+                                        <span class="monthly-off-dispatch-start-unit">년</span>
+                                    </label>
+                                    <label class="monthly-off-dispatch-start-field">
+                                        <select id="monthlyOffDispatchStartMonth" aria-label="배차 시작 월" onchange="onMonthlyOffDispatchStartChange()"></select>
+                                        <span class="monthly-off-dispatch-start-unit">월</span>
+                                    </label>
+                                    <label class="monthly-off-dispatch-start-field">
+                                        <select id="monthlyOffDispatchStartDay" aria-label="배차 시작 일" onchange="onMonthlyOffDispatchStartChange()"></select>
+                                        <span class="monthly-off-dispatch-start-unit">일</span>
+                                    </label>
+                                </div>
+                                <div id="monthlyOffDispatchStartPreview" class="monthly-off-dispatch-start-preview" aria-live="polite"></div>
+                            </div>
                             <div class="monthly-off-day-field monthly-off-day-field-date">
                                 <label class="monthly-off-day-label monthly-off-day-label-lg">휴무일자</label>
                                 <input type="date" id="monthlyOffDayDate" class="monthly-off-day-date">
@@ -4126,6 +4631,7 @@ main{padding-top:18px !important;}
                                     <label class="monthly-off-type-opt"><input type="radio" name="monthlyOffDayType" value="결근">결근</label>
                                     <label class="monthly-off-type-opt"><input type="radio" name="monthlyOffDayType" value="유급">유급</label>
                                     <label class="monthly-off-type-opt"><input type="radio" name="monthlyOffDayType" value="휴직">휴직</label>
+                                    <label class="monthly-off-type-opt"><input type="radio" name="monthlyOffDayType" value="병가">병가</label>
                                     <label class="monthly-off-type-opt"><input type="radio" name="monthlyOffDayType" value="기타">기타</label>
                                 </div>
                             </div>
@@ -4258,7 +4764,7 @@ main{padding-top:18px !important;}
     </div>
 
     <!-- 범용 모달 -->
-    <div id="customModal" class="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center hidden p-4">
+    <div id="customModal" class="fixed inset-0 bg-slate-900/50 flex items-center justify-center hidden p-4" style="z-index:100001;">
         <div class="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl border border-slate-100 text-center">
             <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-3" id="modalIcon">
                 <i data-lucide="download" class="w-6 h-6"></i>
@@ -4573,9 +5079,115 @@ main{padding-top:18px !important;}
             if (k === 0) return arr.slice();
             return arr.slice(-k).concat(arr.slice(0, -k));
         }
-        /** 패턴 기준일(2026-10-01 목) 대비 일수 */
+        /** 배차/조 패턴 기준일 UTC (DB 배차시작일자 또는 기본 2026-10-01) */
+        function getDispatchPatternEpochUtc() {
+            try {
+                if (typeof window.__dispatchPatternEpochUtc === 'number' && isFinite(window.__dispatchPatternEpochUtc)) {
+                    return window.__dispatchPatternEpochUtc;
+                }
+            } catch (e) {}
+            return Date.UTC(2026, 9, 1); // 기본: 2026-10-01
+        }
+        /** 날짜별 사용할 패턴 기준일 UTC
+         *  배차시작일(effectiveFrom) 이전 → 전달(기존) 기준일
+         *  배차시작일 당일~이후 → 새 기준일(그날 = 1조휴무 n=0)
+         */
+        function getPatternEpochUtcForDate(year, month, day) {
+            const cur = Date.UTC(Number(year), Number(month) - 1, Number(day) || 1);
+            try {
+                const eff = window.__dispatchPatternEffectiveFromUtc;
+                if (typeof eff === 'number' && isFinite(eff) && cur < eff) {
+                    const prior = window.__dispatchPatternPriorEpochUtc;
+                    if (typeof prior === 'number' && isFinite(prior)) return prior;
+                }
+            } catch (e) {}
+            return getDispatchPatternEpochUtc();
+        }
+        function clearDispatchPatternSplit() {
+            try {
+                window.__dispatchPatternEffectiveFromUtc = null;
+                window.__dispatchPatternEffectiveFrom = null;
+                window.__dispatchPatternPriorEpochUtc = null;
+                window.__dispatchPatternPriorStart = null;
+            } catch (e) {}
+        }
+        /** 체크 시: 시작일 이전은 prior 유지, 시작일부터 새 기준(1조휴무)
+         *  priorYmd 없으면 현재 epoch를 prior로 보존
+         */
+        function setDispatchPatternSplitFromYmd(y, m, d, priorYmd, noPersist) {
+            const yy = Number(y), mm = Number(m), dd = Number(d);
+            if (!yy || !mm || !dd) return null;
+            let py, pm, pd;
+            if (priorYmd && priorYmd.y) {
+                py = Number(priorYmd.y); pm = Number(priorYmd.m); pd = Number(priorYmd.d);
+            } else if (window.__dispatchPatternStart && window.__dispatchPatternStart.y) {
+                py = Number(window.__dispatchPatternStart.y);
+                pm = Number(window.__dispatchPatternStart.m);
+                pd = Number(window.__dispatchPatternStart.d);
+            } else if (typeof window.__dispatchPatternEpochUtc === 'number' && isFinite(window.__dispatchPatternEpochUtc)) {
+                const dt = new Date(window.__dispatchPatternEpochUtc);
+                py = dt.getUTCFullYear(); pm = dt.getUTCMonth() + 1; pd = dt.getUTCDate();
+            }
+            if (py && pm && pd) {
+                // 새 시작일과 동일하면 분할 불필요
+                if (!(py === yy && pm === mm && pd === dd)) {
+                    window.__dispatchPatternPriorEpochUtc = Date.UTC(py, pm - 1, pd);
+                    window.__dispatchPatternPriorStart = {
+                        y: py, m: pm, d: pd,
+                        iso: py + '-' + String(pm).padStart(2, '0') + '-' + String(pd).padStart(2, '0')
+                    };
+                    window.__dispatchPatternEffectiveFromUtc = Date.UTC(yy, mm - 1, dd);
+                    window.__dispatchPatternEffectiveFrom = {
+                        y: yy, m: mm, d: dd,
+                        iso: yy + '-' + String(mm).padStart(2, '0') + '-' + String(dd).padStart(2, '0')
+                    };
+                } else {
+                    clearDispatchPatternSplit();
+                }
+            } else {
+                // prior 없음 = 전 기간 새 패턴만
+                clearDispatchPatternSplit();
+            }
+            return setDispatchPatternEpochFromYmd(yy, mm, dd, noPersist);
+        }
+        function setDispatchPatternEpochFromYmd(y, m, d, noPersist) {
+            const yy = Number(y), mm = Number(m), dd = Number(d);
+            if (!yy || !mm || !dd) return null;
+            const utc = Date.UTC(yy, mm - 1, dd);
+            window.__dispatchPatternEpochUtc = utc;
+            window.__dispatchPatternStart = {
+                y: yy, m: mm, d: dd,
+                iso: yy + '-' + String(mm).padStart(2, '0') + '-' + String(dd).padStart(2, '0')
+            };
+            if (!noPersist) {
+                try {
+                    localStorage.setItem('taejin_dispatch_pattern_start', JSON.stringify(window.__dispatchPatternStart));
+                } catch (e) {}
+            }
+            return utc;
+        }
+        window.getPatternEpochUtcForDate = getPatternEpochUtcForDate;
+        window.setDispatchPatternSplitFromYmd = setDispatchPatternSplitFromYmd;
+        window.clearDispatchPatternSplit = clearDispatchPatternSplit;
+        function loadDispatchPatternEpochFromStorage() {
+            try {
+                const raw = localStorage.getItem('taejin_dispatch_pattern_start');
+                if (!raw) return false;
+                const o = JSON.parse(raw);
+                if (o && o.y && o.m && o.d) {
+                    setDispatchPatternEpochFromYmd(o.y, o.m, o.d);
+                    return true;
+                }
+            } catch (e) {}
+            return false;
+        }
+        try { loadDispatchPatternEpochFromStorage(); } catch (e) {}
+
+        /** 패턴 기준일 대비 일수 (배차시작일자 = 0 → 1조휴무·기본 차량순서) */
         function getVehicleFlowDayIndex(year, month, day) {
-            const epoch = Date.UTC(2026, 9, 1); // 2026-10-01 목요일
+            const epoch = (typeof getPatternEpochUtcForDate === 'function')
+                ? getPatternEpochUtcForDate(year, month, day)
+                : getDispatchPatternEpochUtc();
             const cur = Date.UTC(year, month - 1, day);
             return Math.round((cur - epoch) / 86400000);
         }
@@ -4711,18 +5323,22 @@ main{padding-top:18px !important;}
          *   → 같은 조의 완전한 순환 주기 = 10일
          *   → 블록 번호 b = floor((n-(g-1))/5): b가 짝수면 교차, 홀수면 원래 근무
          */
-        const JO_PATTERN_EPOCH_UTC = Date.UTC(2026, 9, 1); // 2026-10-01
+        const JO_PATTERN_EPOCH_UTC = Date.UTC(2026, 9, 1); // 기본 기준일 2026-10-01
         function __joResolveYM(year, month) {
             let y = Number(year), m = Number(month);
             if (!y) y = (typeof currentYear !== 'undefined' && currentYear) ? currentYear : 2026;
             if (!m) m = (typeof currentMonth !== 'undefined' && currentMonth) ? currentMonth : 10;
             return { y: y, m: m };
         }
-        /** 기준일(2026-10-01)로부터의 일수 n (월이 바뀌어도 연속) */
+        /** 배차시작일(또는 기본 2026-10-01)로부터의 일수 n — n=0 이면 1조 휴무 */
         function getJoPatternDayIndex(dayOfMonth, year, month) {
             const ym = __joResolveYM(year, month);
             const d = Number(dayOfMonth) || 1;
-            return Math.round((Date.UTC(ym.y, ym.m - 1, d) - JO_PATTERN_EPOCH_UTC) / 86400000);
+            const epoch = (typeof getPatternEpochUtcForDate === 'function')
+                ? getPatternEpochUtcForDate(ym.y, ym.m, d)
+                : ((typeof getDispatchPatternEpochUtc === 'function')
+                    ? getDispatchPatternEpochUtc() : JO_PATTERN_EPOCH_UTC);
+            return Math.round((Date.UTC(ym.y, ym.m - 1, d) - epoch) / 86400000);
         }
         /** g조의 해당일 위치: phase(0=휴무, 1..4=근무), block(근무 블록 번호) — 5일 주기 */
         function getJoPatternPos(n, g) {
@@ -5506,17 +6122,32 @@ main{padding-top:18px !important;}
                 const m = Number(document.getElementById('dbDeleteMonth').value);
                 const confirmBtn = document.getElementById('dbDeleteConfirm');
                 if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = '삭제 중...'; }
+
                 if (typeof window.deleteMonthlyDataFromDB !== 'function') {
-                    close();
-                    showModal('삭제 오류', '서버 연결 모듈이 준비되지 않았습니다.', true);
+                    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = '삭제'; }
+                    showModal('삭제 오류', '서버 연결 모듈이 준비되지 않았습니다.', true, 3000);
                     return;
                 }
+
+                // 존재 확인 + 삭제를 한 번에 (없으면 notFound 즉시 반환)
                 const result = await window.deleteMonthlyDataFromDB(y, m);
+
+                if (result && result.checkFailed) {
+                    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = '삭제'; }
+                    showModal('확인 실패', y + '년 ' + m + '월 문서의 존재 여부를 서버에서 확인하지 못했습니다.\n네트워크 상태를 확인한 뒤 다시 시도해 주세요.', true, 3500);
+                    return;
+                }
+                if (result && result.notFound) {
+                    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = '삭제'; }
+                    showModal('안내', y + '년 ' + m + '월의 문서가 존재하지 않습니다.', true, 3000);
+                    return;
+                }
+
                 close();
                 if (result && result.ok) {
-                    showModal('삭제 완료', `${y}년 ${m}월 서버 데이터를 삭제했습니다.`);
+                    showModal('삭제 완료', y + '년 ' + m + '월 서버 데이터를 삭제했습니다.', false, 3000);
                 } else {
-                    showModal('삭제 오류', '서버 데이터를 삭제하지 못했습니다. 인터넷과 DB 권한을 확인하세요.', true);
+                    showModal('삭제 오류', '서버 데이터를 삭제하지 못했습니다. 인터넷과 DB 권한을 확인하세요.', true, 3000);
                 }
             };
         }
@@ -5566,7 +6197,7 @@ main{padding-top:18px !important;}
                 let preloaded = null;
                 try {
                     if (typeof window.resolvetaejinMonthDoc === 'function') {
-                        preloaded = await window.resolvetaejinMonthDoc(y, m, 8000);
+                        preloaded = await window.resolvetaejinMonthDoc(y, m, 4000);
                     }
                 } catch (e) {
                     clearInterval(searchTimer);
@@ -5804,7 +6435,10 @@ main{padding-top:18px !important;}
             const __msgEl = document.getElementById('modalMessage');
             __msgEl.innerText = msg;
             __msgEl.style.whiteSpace = 'pre-line';
-            document.getElementById('customModal').classList.remove('hidden');
+            const modal = document.getElementById('customModal');
+            // 데이타삭제 등 상위 모달(z-index:99999)보다 위에 표시
+            modal.style.zIndex = '100001';
+            modal.classList.remove('hidden');
             if (_modalAutoCloseTimer) {
                 clearTimeout(_modalAutoCloseTimer);
                 _modalAutoCloseTimer = null;
@@ -6151,7 +6785,7 @@ main{padding-top:18px !important;}
         let txtBaselineData = { routes: null, spares: null };
         // true: 사용자가 '휴무자명단불러오기'로 연 값 표시 중(기본 TXT 스냅샷 강제 적용 안 함)
         let monthlyOffListOverrideFromFile = false;
-        // 휴무일자·휴무기사 연결 목록 [{ date:'YYYY-MM-DD', type:'휴무|위로|연차|결근|유급|휴직|기타', drivers:['이름',...] }, ...]
+        // 휴무일자·휴무기사 연결 목록 [{ date:'YYYY-MM-DD', type:'휴무|위로|연차|결근|유급|휴직|병가|기타', drivers:['이름',...] }, ...]
         let monthlyOffDayEntries = [];
         // 테이블 추가/제거 후 미저장 상태 (true면 서버 로드로 덮어쓰지 않음)
         // window.monthlyOffListDirty 와 동기
@@ -7291,7 +7925,39 @@ main{padding-top:18px !important;}
                 if (typeof renderMonthlyOffListView === 'function') renderMonthlyOffListView();
                 if (typeof renderAllViews === 'function') renderAllViews();
             } catch (e) { console.warn('저장 후 화면 갱신 오류', e); }
-            showModal('저장 완료', `${result.y}년 ${result.m}월 휴무자명단을 저장했습니다.`);
+            let extra = '';
+            if (result.dispatchPatternStart) {
+                const s = result.dispatchPatternStart;
+                extra = (s.source === 'default1jo')
+                    ? ('\n\n신규 문서: ' + s.y + '년 ' + s.m + '월 1일부터\n정규 조별코드 순 1조휴무 패턴이 적용됩니다.')
+                    : (s.source === 'continue')
+                    ? ('\n\n전달 패턴 유지: 기준일 ' + s.y + '-' + String(s.m).padStart(2,'0') + '-' + String(s.d).padStart(2,'0') + '\n(예: 10/31 1조휴무 → 11/1 2조휴무로 이어짐)')
+                    : ('\n\n배차시작설정 적용: ' + s.y + '년 ' + s.m + '월 ' + s.d + '일부터\n1조 휴무·차량순서 패턴이 적용됩니다.');
+                try {
+                    if (typeof setDispatchPatternEpochFromYmd === 'function') {
+                        setDispatchPatternEpochFromYmd(s.y, s.m, s.d);
+                    }
+                    if (typeof monthlySimulationCache !== 'undefined') monthlySimulationCache = null;
+                    if (typeof renderAllViews === 'function') renderAllViews();
+                    if (typeof initMonthlyOffDispatchStartBox === 'function') initMonthlyOffDispatchStartBox();
+                } catch (e) {}
+            } else if (!result.isNewDoc) {
+                extra = '\n(기존 DB 문서 업데이트 — 배차시작 패턴 유지)';
+            } else {
+                extra = '\n(배차시작설정 미체크 — 배차시작일자는 적용하지 않았습니다)';
+            }
+            // 저장 후 배차시작설정 체크 해제 (다음 저장 시 의도치 않은 재적용 방지)
+            try {
+                if (typeof setMonthlyOffDispatchStartEnabled === 'function') {
+                    setMonthlyOffDispatchStartEnabled(false, true);
+                } else {
+                    const chk = document.getElementById('monthlyOffDispatchStartCheck');
+                    if (chk) chk.checked = false;
+                    window.__monthlyOffDispatchStartEnabled = false;
+                    try { localStorage.setItem('taejin_monthly_off_dispatch_start_checked', '0'); } catch (e0) {}
+                }
+            } catch (e) {}
+            showModal('저장 완료', `${result.y}년 ${result.m}월 휴무자명단을 저장했습니다.` + extra);
         } else {
             showModal('저장 오류', '서버에 저장하지 못했습니다. 인터넷과 DB 권한을 확인하세요.', true);
         }
@@ -7384,9 +8050,33 @@ function getMonthlyOffAllDriverNames(){
             };
             if (!el._boundChange) {
                 el._boundChange = true;
-                el.addEventListener('change', clampToTargetMonth);
+                el.addEventListener('change', function() {
+                    clampToTargetMonth();
+                    // 배차시작 디폴트 = 휴무일자 (사용자가 배차시작을 따로 안 바꾼 경우)
+                    try {
+                        const raw = localStorage.getItem(MONTHLY_OFF_DISPATCH_START_KEY);
+                        const o = raw ? JSON.parse(raw) : null;
+                        if (!(o && o.userSet) && typeof fillMonthlyOffDispatchStartSelects === 'function') {
+                            fillMonthlyOffDispatchStartSelects();
+                            // 디폴트 시작일이 바뀌었으면(활성 상태일 때) 패턴도 같이 적용
+                            if (typeof applyMonthlyOffDispatchStartPattern === 'function') applyMonthlyOffDispatchStartPattern();
+                        }
+                    } catch (e) {}
+                });
                 el.addEventListener('input', clampToTargetMonth);
             }
+            // 초기 배차시작 = 휴무일자
+            try {
+                const raw = localStorage.getItem(MONTHLY_OFF_DISPATCH_START_KEY);
+                const o = raw ? JSON.parse(raw) : null;
+                if (!(o && o.userSet) && typeof fillMonthlyOffDispatchStartSelects === 'function') {
+                    // fill 내부에서 다시 sync 호출하지 않도록 값만 반영
+                    const p = (el.value || '').split('-').map(Number);
+                    if (p.length === 3 && p[0]) {
+                        saveMonthlyOffDispatchStart(p[0], p[1], p[2], false);
+                    }
+                }
+            } catch (e) {}
         }
 
         function updateMonthlyOffDriverMultiLabel(){
@@ -7505,7 +8195,461 @@ function getMonthlyOffAllDriverNames(){
         }
 
 
-        const MONTHLY_OFF_DAY_TYPES = ['휴무','위로','연차','결근','유급','휴직','기타'];
+        const MONTHLY_OFF_DISPATCH_START_KEY = 'taejin_monthly_off_dispatch_start';
+
+        function daysInMonthForSelect(y, m) {
+            const yy = Number(y), mm = Number(m);
+            if (!yy || !mm) return 31;
+            return new Date(yy, mm, 0).getDate();
+        }
+
+        /** 휴무일자 입력값(또는 다음 달 1일) — 배차시작설정 디폴트와 동일 */
+        function getMonthlyOffDayDateDefaultYmd() {
+            const el = document.getElementById('monthlyOffDayDate');
+            if (el && /^\d{4}-\d{2}-\d{2}$/.test(el.value)) {
+                const p = el.value.split('-').map(Number);
+                return { y: p[0], m: p[1], d: p[2] };
+            }
+            // 휴무일자와 동일: 다음 달 1일
+            let y = Number(currentYear) || new Date().getFullYear();
+            let m = (Number(currentMonth) || (new Date().getMonth() + 1)) + 1;
+            if (m > 12) { m = 1; y += 1; }
+            return { y: y, m: m, d: 1 };
+        }
+
+        function getMonthlyOffDispatchStart() {
+            // 사용자가 배차시작을 직접 바꾼 경우에만 저장값 사용
+            try {
+                const raw = localStorage.getItem(MONTHLY_OFF_DISPATCH_START_KEY);
+                if (raw) {
+                    const o = JSON.parse(raw);
+                    if (o && o.userSet && o.y && o.m && o.d) {
+                        return { y: Number(o.y), m: Number(o.m), d: Number(o.d), userSet: true };
+                    }
+                }
+            } catch (e) {}
+            // 디폴트 = 휴무일자와 동일
+            const def = getMonthlyOffDayDateDefaultYmd();
+            return { y: def.y, m: def.m, d: def.d, userSet: false };
+        }
+
+        function saveMonthlyOffDispatchStart(y, m, d, userSet) {
+            const maxD = daysInMonthForSelect(y, m);
+            const dd = Math.min(Math.max(1, Number(d) || 1), maxD);
+            const obj = { y: Number(y), m: Number(m), d: dd, userSet: !!userSet };
+            try { localStorage.setItem(MONTHLY_OFF_DISPATCH_START_KEY, JSON.stringify(obj)); } catch (e) {}
+            window.__monthlyOffDispatchStart = obj;
+            return obj;
+        }
+
+        function fillMonthlyOffDispatchStartSelects() {
+            const yEl = document.getElementById('monthlyOffDispatchStartYear');
+            const mEl = document.getElementById('monthlyOffDispatchStartMonth');
+            const dEl = document.getElementById('monthlyOffDispatchStartDay');
+            if (!yEl || !mEl || !dEl) return;
+            const cur = getMonthlyOffDispatchStart();
+            const baseY = (typeof currentYear === 'number' && currentYear) ? currentYear : new Date().getFullYear();
+            const needYears = [];
+            for (let y = baseY - 1; y <= baseY + 2; y++) needYears.push(y);
+            if (!needYears.includes(cur.y)) needYears.push(cur.y);
+            needYears.sort((a, b) => a - b);
+            yEl.innerHTML = '';
+            needYears.forEach(y => {
+                const opt = document.createElement('option');
+                opt.value = String(y);
+                opt.textContent = String(y);
+                yEl.appendChild(opt);
+            });
+            if (!mEl.options.length) {
+                for (let m = 1; m <= 12; m++) {
+                    const opt = document.createElement('option');
+                    opt.value = String(m);
+                    opt.textContent = String(m);
+                    mEl.appendChild(opt);
+                }
+            }
+            yEl.value = String(cur.y);
+            mEl.value = String(cur.m);
+            const maxD = daysInMonthForSelect(cur.y, cur.m);
+            dEl.innerHTML = '';
+            for (let d = 1; d <= maxD; d++) {
+                const opt = document.createElement('option');
+                opt.value = String(d);
+                opt.textContent = String(d);
+                dEl.appendChild(opt);
+            }
+            dEl.value = String(Math.min(cur.d, maxD));
+            // 디폴트일 때는 저장만 갱신 (userSet=false)
+            if (!cur.userSet) saveMonthlyOffDispatchStart(cur.y, cur.m, Math.min(cur.d, maxD), false);
+            updateMonthlyOffDispatchStartPreview();
+        }
+
+        function onMonthlyOffDispatchStartChange() {
+            const yEl = document.getElementById('monthlyOffDispatchStartYear');
+            const mEl = document.getElementById('monthlyOffDispatchStartMonth');
+            const dEl = document.getElementById('monthlyOffDispatchStartDay');
+            if (!yEl || !mEl || !dEl) return;
+            const y = Number(yEl.value);
+            const m = Number(mEl.value);
+            let d = Number(dEl.value);
+            const maxD = daysInMonthForSelect(y, m);
+            // 일 목록 재구성
+            const prev = d;
+            dEl.innerHTML = '';
+            for (let i = 1; i <= maxD; i++) {
+                const opt = document.createElement('option');
+                opt.value = String(i);
+                opt.textContent = String(i);
+                dEl.appendChild(opt);
+            }
+            d = Math.min(prev || 1, maxD);
+            dEl.value = String(d);
+            saveMonthlyOffDispatchStart(y, m, d, true); // 사용자 직접 변경
+            updateMonthlyOffDispatchStartPreview();
+            // 선택한 시작일자부터 1조 휴무 시작 패턴을 즉시 적용
+            applyMonthlyOffDispatchStartPattern();
+            // 배차시작 년·월·일 선택 → 휴무일자 동기화
+            try {
+                const dateEl = document.getElementById('monthlyOffDayDate');
+                if (dateEl) {
+                    const iso = y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+                    // 휴무일자 선택 범위를 해당 월로 맞춤
+                    const last = daysInMonthForSelect(y, m);
+                    dateEl.min = y + '-' + String(m).padStart(2, '0') + '-01';
+                    dateEl.max = y + '-' + String(m).padStart(2, '0') + '-' + String(last).padStart(2, '0');
+                    dateEl.value = iso;
+                    const noteEl = document.getElementById('monthlyOffDayDateFixedNote');
+                    if (noteEl) {
+                        noteEl.textContent = '※ ' + y + '년 ' + m + '월 날짜 (배차시작일과 동기화)';
+                    }
+                    // 이미 등록된 기사 제외 등 갱신
+                    if (typeof getDriversAlreadyOnDate === 'function') {
+                        const already = getDriversAlreadyOnDate(iso);
+                        if (typeof monthlyOffDaySelectedDrivers !== 'undefined' && Array.isArray(monthlyOffDaySelectedDrivers)) {
+                            monthlyOffDaySelectedDrivers = monthlyOffDaySelectedDrivers.filter(n => !already.includes(n));
+                        }
+                    }
+                    const panel = document.getElementById('monthlyOffDriverMultiPanel');
+                    if (panel && !panel.classList.contains('hidden') && typeof renderMonthlyOffDriverMultiList === 'function') {
+                        renderMonthlyOffDriverMultiList();
+                    } else if (typeof updateMonthlyOffDriverMultiLabel === 'function') {
+                        updateMonthlyOffDriverMultiLabel();
+                    }
+                }
+            } catch (e) {
+                console.warn('[배차시작→휴무일자 동기화]', e);
+            }
+        }
+        window.onMonthlyOffDispatchStartChange = onMonthlyOffDispatchStartChange;
+
+        function updateMonthlyOffDispatchStartPreview() {
+            const el = document.getElementById('monthlyOffDispatchStartPreview');
+            if (!el) return;
+            const yEl = document.getElementById('monthlyOffDispatchStartYear');
+            const mEl = document.getElementById('monthlyOffDispatchStartMonth');
+            const dEl = document.getElementById('monthlyOffDispatchStartDay');
+            if (!yEl || !mEl || !dEl) { el.textContent = ''; return; }
+            const y = Number(yEl.value), m = Number(mEl.value), d = Number(dEl.value);
+            const dow = (typeof getDayOfWeekStr === 'function')
+                ? getDayOfWeekStr(y, m, d)
+                : ['일','월','화','수','목','금','토'][new Date(y, m - 1, d).getDay()];
+            el.textContent = '배차 시작일자: ' + y + '년 ' + m + '월 ' + d + '일 (' + dow + ')';
+        }
+
+        /**
+         * 배차시작설정 체크박스가 켜진 상태에서는
+         * 선택한 배차시작 년·월·일부터 1조 휴무 패턴을 즉시 적용합니다.
+         * 시작일 이전 날짜는 전달(기존) 패턴을 유지합니다.
+         * 체크 해제면 적용하지 않습니다.
+         * 미리보기 적용이므로 로컬 저장소에는 기록하지 않고, 실제 기록은 「저장」 시 수행됩니다.
+         */
+        function applyMonthlyOffDispatchStartPattern() {
+            try {
+                if (window.__monthlyOffDispatchStartEnabled !== true) return false;
+                const yEl = document.getElementById('monthlyOffDispatchStartYear');
+                const mEl = document.getElementById('monthlyOffDispatchStartMonth');
+                const dEl = document.getElementById('monthlyOffDispatchStartDay');
+                if (!yEl || !mEl || !dEl) return false;
+                const y = Number(yEl.value), m = Number(mEl.value), d = Number(dEl.value);
+                if (!y || !m || !d) return false;
+                const cur = window.__dispatchPatternStart;
+                const eff = window.__dispatchPatternEffectiveFrom;
+                if (cur && Number(cur.y) === y && Number(cur.m) === m && Number(cur.d) === d
+                    && eff && Number(eff.y) === y && Number(eff.m) === m && Number(eff.d) === d) {
+                    return false; // 이미 동일 분할 적용됨
+                }
+                // 시작일 이전 = 기존(전달) 패턴 유지, 시작일부터 1조휴무
+                let prior = null;
+                try {
+                    if (typeof resolveContinuingPatternStart === 'function') prior = resolveContinuingPatternStart();
+                } catch (e) {}
+                if (!prior && window.__dispatchPatternStart && window.__dispatchPatternStart.y) {
+                    prior = window.__dispatchPatternStart;
+                }
+                if (typeof setDispatchPatternSplitFromYmd === 'function') {
+                    setDispatchPatternSplitFromYmd(y, m, d, prior, true);
+                } else if (typeof setDispatchPatternEpochFromYmd === 'function') {
+                    setDispatchPatternEpochFromYmd(y, m, d, true);
+                } else {
+                    return false;
+                }
+                // 패턴이 바뀌었으므로 시뮬레이션 캐시를 비우고 화면 다시 그림
+                try { window.__forceClearSimCache = true; } catch (e) {}
+                try { if (typeof window.clearMonthlySimCache === 'function') window.clearMonthlySimCache(); } catch (e) {}
+                try { if (typeof monthlySimulationCache !== 'undefined') monthlySimulationCache = null; } catch (e) {}
+                try { if (typeof monthlySimulationCacheKey !== 'undefined') monthlySimulationCacheKey = ''; } catch (e) {}
+                if (typeof renderAllViews === 'function') {
+                    try { renderAllViews(); } catch (e) { console.warn('[배차시작 패턴 적용] 화면 갱신 오류', e); }
+                }
+                console.log('[배차시작] 패턴 적용(1조 휴무 시작):', y + '-' + m + '-' + d);
+                return true;
+            } catch (e) {
+                console.warn('[배차시작] 패턴 적용 실패', e);
+                return false;
+            }
+        }
+        // 렌더 도중 재진입을 피하기 위해 다음 틱에 적용 (같은 값이면 위 함수에서 즉시 종료)
+        let __applyStartPatternTimer = null;
+        function scheduleApplyMonthlyOffDispatchStartPattern() {
+            if (__applyStartPatternTimer) return;
+            __applyStartPatternTimer = setTimeout(function () {
+                __applyStartPatternTimer = null;
+                applyMonthlyOffDispatchStartPattern();
+            }, 0);
+        }
+        window.applyMonthlyOffDispatchStartPattern = applyMonthlyOffDispatchStartPattern;
+
+        // 대상 월(휴무일자 월) 식별 키 — 문서 유무 판정 캐시용
+        function monthlyOffDispatchStartDocKey() {
+            try {
+                const t = getOffListTargetYearMonth();
+                return Number(t.y) + '_' + Number(t.m);
+            } catch (e) { return ''; }
+        }
+
+        // 문서 유무와 관계없이 선택박스는 항상 활성.
+        // enabled = 체크박스 체크 여부 → 저장/패턴적용 시에만 사용.
+        // provisional 인자는 하위 호환용으로 유지(무시).
+        function setMonthlyOffDispatchStartEnabled(enabled, provisional) {
+            const box = document.getElementById('monthlyOffDispatchStartBox');
+            const ids = ['monthlyOffDispatchStartYear', 'monthlyOffDispatchStartMonth', 'monthlyOffDispatchStartDay'];
+            // 체크된 경우에만 년/월/일 선택 활성화
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.disabled = !enabled;
+                    el.style.opacity = enabled ? '1' : '0.55';
+                    el.style.cursor = enabled ? 'pointer' : 'not-allowed';
+                }
+            });
+            if (box) {
+                box.style.display = '';
+                box.style.opacity = '1';
+                box.title = '체크하면 년·월·일 선택이 활성화되고, 저장 시 선택한 배차시작일자를 패턴 기준일로 적용합니다.';
+            }
+            // 안내 문구(DB문서있음…) 제거
+            const note = document.getElementById('monthlyOffDispatchStartLockNote');
+            if (note && note.parentNode) note.parentNode.removeChild(note);
+
+            // 체크박스 UI 동기화
+            const chk = document.getElementById('monthlyOffDispatchStartCheck');
+            if (chk) chk.checked = !!enabled;
+
+            window.__monthlyOffDispatchStartEnabled = !!enabled;
+            try {
+                localStorage.setItem('taejin_monthly_off_dispatch_start_checked', enabled ? '1' : '0');
+            } catch (e) {}
+
+            // 체크되면 선택된 배차시작일자부터 1조 휴무 시작 패턴을 적용
+            if (enabled) scheduleApplyMonthlyOffDispatchStartPattern();
+        }
+
+        function isMonthlyOffDispatchStartChecked() {
+            const chk = document.getElementById('monthlyOffDispatchStartCheck');
+            if (chk) return !!chk.checked;
+            return window.__monthlyOffDispatchStartEnabled === true;
+        }
+
+        function onMonthlyOffDispatchStartCheckChange() {
+            const checked = isMonthlyOffDispatchStartChecked();
+            window.__monthlyOffDispatchStartEnabled = checked;
+            try {
+                localStorage.setItem('taejin_monthly_off_dispatch_start_checked', checked ? '1' : '0');
+            } catch (e) {}
+            // 체크 시에만 년·월·일 선택 버튼 활성화
+            ['monthlyOffDispatchStartYear', 'monthlyOffDispatchStartMonth', 'monthlyOffDispatchStartDay'].forEach(function (id) {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.disabled = !checked;
+                    el.style.opacity = checked ? '1' : '0.55';
+                    el.style.cursor = checked ? 'pointer' : 'not-allowed';
+                }
+            });
+            if (checked) {
+                scheduleApplyMonthlyOffDispatchStartPattern();
+            }
+        }
+        window.isMonthlyOffDispatchStartChecked = isMonthlyOffDispatchStartChecked;
+        window.onMonthlyOffDispatchStartCheckChange = onMonthlyOffDispatchStartCheckChange;
+
+        // 같은 대상 월에 대한 확인이 이미 진행 중이면 그 결과를 같이 사용 (중복 서버 조회 방지)
+        let __dispatchStartCheckInflight = null;
+        function checkMonthlyOffTargetDocExists() {
+            const key = monthlyOffDispatchStartDocKey();
+            if (__dispatchStartCheckInflight && __dispatchStartCheckInflight.key === key) {
+                return __dispatchStartCheckInflight.promise;
+            }
+            const promise = _checkMonthlyOffTargetDocExistsImpl().finally(function () {
+                if (__dispatchStartCheckInflight && __dispatchStartCheckInflight.promise === promise) {
+                    __dispatchStartCheckInflight = null;
+                }
+            });
+            __dispatchStartCheckInflight = { key: key, promise: promise };
+            return promise;
+        }
+
+        async function _checkMonthlyOffTargetDocExistsImpl() {
+            try {
+                const target = (typeof getOffListTargetYearMonth === 'function')
+                    ? getOffListTargetYearMonth()
+                    : null;
+                if (!target) {
+                    console.log('[배차시작] target 월 없음');
+                    return false;
+                }
+                const y = Number(target.y), m = Number(target.m);
+                console.log('[배차시작] 문서 존재 확인:', y + '년 ' + m + '월');
+
+                // 0) 이미 서버에서 불러온 적 있는 월 목록
+                try {
+                    const list = window.__taejinScheduleMonths || [];
+                    if (list.some(x => Number(x.y) === y && Number(x.m) === m)) {
+                        console.log('[배차시작] 월목록에 문서 있음 → 존재');
+                        return true;
+                    }
+                } catch (e) {}
+
+                // 1) 방금 로드한 휴무명단/플래그
+                if (window.__monthlyOffListSelectionsFromDB === true) {
+                    console.log('[배차시작] DB에서 휴무명단 로드됨 → 존재');
+                    return true;
+                }
+                if (window.__lastLoadedDispatchPatternStart && window.__lastLoadedDispatchPatternStart.y) {
+                    console.log('[배차시작] 패턴시작 로드됨 → 존재');
+                    return true;
+                }
+
+                // 2) resolvetaejinMonthDoc (문서 있으면면 null)
+                if (typeof window.resolvetaejinMonthDoc === 'function') {
+                    try {
+                        const res = await window.resolvetaejinMonthDoc(y, m, 8000);
+                        if (res) {
+                            // snap.exists 또는 key 있으면 문서 존재 (data는 빈 객체일 수 있음)
+                            const snapOk = res.snap && (typeof res.snap.exists === 'function'
+                                ? res.snap.exists()
+                                : !!res.snap.exists);
+                            if (snapOk || res.key || res.data) {
+                                console.log('[배차시작] resolve 히트:', res.key || '(key없음)');
+                                return true;
+                            }
+                        } else {
+                            console.log('[배차시작] resolve 결과 null');
+                        }
+                    } catch (re) {
+                        console.warn('[배차시작] resolve 오류', re && re.message);
+                    }
+                }
+
+                // 3) window.getDoc 경로 (Firebase 모듈이 window에 노출된 경우)
+                try {
+                    const _db = window.db || (typeof db !== 'undefined' ? db : null);
+                    const _getDoc = window.getDoc || (typeof getDoc !== 'undefined' ? getDoc : null);
+                    const _doc = window.doc || (typeof doc !== 'undefined' ? doc : null);
+                    if (_db && _getDoc && _doc) {
+                        const keys = [
+                            y + '_' + String(m).padStart(2, '0'),
+                            y + '_' + String(m),
+                            y + '-' + String(m).padStart(2, '0')
+                        ];
+                        for (let i = 0; i < keys.length; i++) {
+                            try {
+                                const snap = await _getDoc(_doc(_db, 'taejinSchedules', keys[i]));
+                                if (snap && ((typeof snap.exists === 'function' && snap.exists()) || snap.exists === true)) {
+                                    console.log('[배차시작] getDoc 히트:', keys[i]);
+                                    return true;
+                                }
+                            } catch (ge) {}
+                        }
+                    }
+                } catch (e) {}
+
+                console.log('[배차시작] 문서 없음으로 판정');
+                return false;
+            } catch (e) {
+                console.warn('[배차시작] 문서 존재 확인 실패', e);
+                // 확인 실패 시 안전하게 잠금 (문서 있을 가능성)
+                return true;
+            }
+        }
+
+        /**
+         * 서버(taejinSchedules)에 월 문서가 하나라도 있는지 확인
+         * true: 있음 / false: 하나도 없음(확정) / null: 확인 실패(연결 오류 등)
+         */
+        let __anyDocCheckInflight = null;
+        function checkAnyScheduleDocExists() {
+            if (__anyDocCheckInflight) return __anyDocCheckInflight;
+            const promise = (async function () {
+                try {
+                    const cached = window.__taejinScheduleMonths;
+                    if (Array.isArray(cached) && cached.length > 0) return true;
+                    if (typeof window.listtaejinScheduleMonths !== 'function') return null;
+                    const list = await window.listtaejinScheduleMonths(); // null = 연결 실패
+                    if (Array.isArray(list)) return list.length > 0;
+                    return null;
+                } catch (e) {
+                    console.warn('[배차시작] 전체 문서 유무 확인 실패', e && e.message);
+                    return null;
+                }
+            })().finally(function () { __anyDocCheckInflight = null; });
+            __anyDocCheckInflight = promise;
+            return promise;
+        }
+        window.checkAnyScheduleDocExists = checkAnyScheduleDocExists;
+
+        async function refreshMonthlyOffDispatchStartLock() {
+            // 문서 유무로 잠그지 않음. 선택박스는 항상 활성, 체크 상태는 로컬 유지.
+            try {
+                fillMonthlyOffDispatchStartSelects();
+                let checked = false;
+                try {
+                    const raw = localStorage.getItem('taejin_monthly_off_dispatch_start_checked');
+                    if (raw === '1') checked = true;
+                    const chk = document.getElementById('monthlyOffDispatchStartCheck');
+                    if (chk) checked = !!chk.checked;
+                } catch (e) {}
+                setMonthlyOffDispatchStartEnabled(checked, true);
+            } catch (e) {
+                console.warn('[배차시작] refresh 실패', e);
+            }
+        }
+
+        function initMonthlyOffDispatchStartBox() {
+            try { fillMonthlyOffDispatchStartSelects(); } catch (e) {}
+            // 문서 유무와 관계없이 선택박스는 항상 활성.
+            // 체크 여부는 로컬 저장값을 따르고, 기본은 미체크.
+            let checked = false;
+            try {
+                const raw = localStorage.getItem('taejin_monthly_off_dispatch_start_checked');
+                if (raw === '1') checked = true;
+            } catch (e) {}
+            try { setMonthlyOffDispatchStartEnabled(checked, true); } catch (e) {}
+        }
+        window.initMonthlyOffDispatchStartBox = initMonthlyOffDispatchStartBox;
+        window.refreshMonthlyOffDispatchStartLock = refreshMonthlyOffDispatchStartLock;
+        window.setMonthlyOffDispatchStartEnabled = setMonthlyOffDispatchStartEnabled;
+
+        const MONTHLY_OFF_DAY_TYPES = ['휴무','위로','연차','결근','유급','휴직','병가','기타'];
         function getSelectedMonthlyOffDayType(){
             const el = document.querySelector('input[name="monthlyOffDayType"]:checked');
             const v = el ? String(el.value || '').trim() : '휴무';
@@ -7720,6 +8864,7 @@ function getMonthlyOffAllDriverNames(){
         }
 
         function renderMonthlyOffDayTable(){
+            try { if (typeof initMonthlyOffDispatchStartBox === 'function') initMonthlyOffDispatchStartBox(); } catch (e) {}
             const body = document.getElementById('monthlyOffDayTableBody');
             if (!body) return;
             const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -7813,7 +8958,7 @@ function getMonthlyOffAllDriverNames(){
                 // 휴무구분 통계: 해당 날짜 기사들의 type 집계
                 const typeOrder = (typeof MONTHLY_OFF_DAY_TYPES !== 'undefined' && Array.isArray(MONTHLY_OFF_DAY_TYPES))
                     ? MONTHLY_OFF_DAY_TYPES
-                    : ['휴무','위로','연차','결근','유급','휴직','기타'];
+                    : ['휴무','위로','연차','결근','유급','휴직','병가','기타'];
                 const typeCounts = {};
                 people.forEach(p => {
                     const t = (typeof normalizeMonthlyOffDayType === 'function')
@@ -8631,11 +9776,30 @@ function getMonthlyOffAllDriverNames(){
                     : '전체 기간';
                 showModal('환경설정 저장', '운행차량대수·배차시간이 저장되었습니다.\n적용 시작: ' + __fromMsg + '\n평일 ' + counts.weekday + ' · 토 ' + counts.saturday + ' · 일/공휴 ' + counts.sundayHoliday + ' · 방학 ' + counts.vacation);
             }
-            // 설정 변경 후 화면 갱신 (필요 시 배차 로직에서 getDispatchEnvVehicleCounts 사용)
+            // 환경설정 저장 → 각 탭 화면 새로고침
+            try {
+                window.__forceClearSimCache = true;
+                if (typeof window.clearMonthlySimCache === 'function') window.clearMonthlySimCache();
+                if (typeof monthlySimulationCache !== 'undefined') monthlySimulationCache = null;
+                if (typeof monthlySimulationCacheKey !== 'undefined') monthlySimulationCacheKey = '';
+                if (typeof window.stripSundayCrossOverrides === 'function') {
+                    try { window.stripSundayCrossOverrides(); } catch (e) {}
+                }
+            } catch (e) {}
             try {
                 if (typeof renderAllViews === 'function') renderAllViews();
-                else if (typeof renderAllWeeklyView === 'function') renderAllWeeklyView();
-            } catch (e) {}
+                else {
+                    if (typeof renderAllWeeklyView === 'function') renderAllWeeklyView();
+                    if (typeof renderDailyView === 'function') renderDailyView();
+                    if (typeof renderMonthlyView === 'function') renderMonthlyView();
+                }
+                if (typeof renderMonthlyOffDayTable === 'function') renderMonthlyOffDayTable();
+                if (typeof renderMonthlyOffListView === 'function') renderMonthlyOffListView();
+                if (typeof updateWeeklyDbSaveButton === 'function') updateWeeklyDbSaveButton();
+                if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+            } catch (e) {
+                console.warn('[환경설정] 탭 새로고침 오류', e);
+            }
         }
 
         window.getDispatchEnvVehicleCounts = getDispatchEnvVehicleCounts;
@@ -8951,11 +10115,17 @@ function getMonthlyOffAllDriverNames(){
                 if (m) mark(span, Number(m[2]));
             });
 
-            // 월간 휴무 대장 달력: 토=파랑, 일/공휴=빨강, 평일=검정
+            // 월간 휴무 대장 달력: 토=파랑, 일/공휴=빨강, 평일=검정 (일자만 표시)
             document.querySelectorAll('#calendarGrid > div > div:first-child span:first-child').forEach(span => {
-                const m = (span.textContent || '').trim().match(/^(\d{1,2})\.(\d{1,2})$/);
-                if (!m) return;
-                const day = Number(m[2]);
+                const raw = (span.textContent || '').trim();
+                let day = null;
+                const m1 = raw.match(/^(\d{1,2})\.(\d{1,2})$/);
+                if (m1) day = Number(m1[2]);
+                else {
+                    const m2 = raw.match(/^(\d{1,2})$/);
+                    if (m2) day = Number(m2[1]);
+                }
+                if (!day || day < 1 || day > 31) return;
                 const dow = new Date(year, month - 1, day).getDay();
                 const hol = isKoreanPublicHoliday(year, month, day);
                 if (dow === 0 || hol) {
@@ -10570,11 +11740,12 @@ function getMonthlyOffAllDriverNames(){
                         '결근': 'bg-red-100 text-red-800 font-bold',
                         '유급': 'bg-orange-100 text-orange-700 font-bold',
                         '휴직': 'bg-indigo-100 text-indigo-700 font-bold',
+                        '병가': 'bg-pink-100 text-pink-800 font-bold',
                         '기타': 'bg-slate-100 text-slate-700 font-bold'
                     };
                     badge = typeBadgeMap[offTyp] || 'bg-rose-100 text-rose-700 font-bold';
                     const typeOrderArr = (typeof MONTHLY_OFF_DAY_TYPES !== 'undefined' && Array.isArray(MONTHLY_OFF_DAY_TYPES))
-                        ? MONTHLY_OFF_DAY_TYPES : ['휴무','위로','연차','결근','유급','휴직','기타'];
+                        ? MONTHLY_OFF_DAY_TYPES : ['휴무','위로','연차','결근','유급','휴직','병가','기타'];
                     const ti = typeOrderArr.indexOf(offTyp);
                     sortSub = (ti >= 0 ? ti : 99);
                     items.push({ cleanName, isOff: true, isSpare, blocked: false, group, sortSub, statusText, badge, order });
@@ -11308,15 +12479,16 @@ function getMonthlyOffAllDriverNames(){
                     // 평일 검정 / 토 파랑 / 일·공휴 빨강
                     let dateColor = (dow === '일' || isHoliday) ? 'text-rose-600' : ((dow === '토') ? 'text-blue-600' : 'text-slate-900');
 
-                    topHeader += `<th colspan="3" style="min-width: ${dayColWidth * 3}px; height:40px;" class="px-1 py-1 text-center border-r border-slate-300 align-middle bg-sky-100">
+                    topHeader += `<th colspan="4" style="min-width: ${dayColWidth * 3 + 24}px; height:40px;" class="px-1 py-1 text-center border-r border-slate-300 align-middle bg-sky-100">
                         <div class="flex items-center justify-center w-full gap-0.5">
                             <span class="text-[17px] font-black ${dateColor}">${currentMonth}.${d}</span><span class="text-[15px] font-black ${dateColor}">(${dow})</span>
                         </div>
                     </th>`;
-                    // 차량 | 오전 | 오후 (차량은 sticky에서 제거하고 일자마다 오전 앞에 표시)
+                    // 차량 | 오전 | 오후 | S (시프트)
                     subHeader += `<th style="min-width: ${Math.max(44, dayColWidth - 8)}px; height:20px;" class="px-0.5 py-0.5 font-black text-[13px] border-r border-slate-200 align-middle text-center bg-amber-50 text-amber-900">차량</th>
                                   <th style="min-width: ${dayColWidth}px; height:20px;" class="px-0.5 py-0.5 font-black text-[14px] border-r border-slate-200 align-middle text-center bg-sky-50 text-slate-900">오전</th>
-                                  <th style="min-width: ${dayColWidth}px; height:20px; color:#16a34a !important;" class="weekly-pm-th px-0.5 py-0.5 font-black text-[14px] border-r border-slate-300 align-middle text-center bg-sky-50">오후</th>`;
+                                  <th style="min-width: ${dayColWidth}px; height:20px; color:#16a34a !important;" class="weekly-pm-th px-0.5 py-0.5 font-black text-[14px] border-r border-slate-200 align-middle text-center bg-sky-50">오후</th>
+                                  <th style="min-width: 24px; width: 24px; height:20px;" class="weekly-s-th px-0.5 py-0.5 font-black text-[12px] border-r border-slate-300 align-middle text-center">S</th>`;
                     dayIndex++;
                 }
                 topHeader += `</tr>`; subHeader += `</tr>`;
@@ -11387,20 +12559,11 @@ function getMonthlyOffAllDriverNames(){
                 // isResting: 운행대수 초과(쉬는기사)면 내부 onclick 도 비활성
                 const formatWeeklyCell = (name, dateKeyStr, line, busNo, shiftType, isShiftWork, isResting) => {
                     const rawName = (name == null) ? '' : String(name);
-                    const wrapShift = (innerHtml, titleExtra) => {
-                        if (!isShiftWork) return innerHtml;
-                        // 시프트 근무: 파란 사각형으로 감쌈 (오후 전용)
-                        return innerHtml.replace(
-                            /^(<div[^>]*)(>)/,
-                            '$1 title="' + (titleExtra || '시프트 근무') + '"$2'
-                        ).replace(
-                            /^(<div[^>]*>)([\s\S]*)(<\/div>)$/,
-                            '$1<span class="weekly-shift-box" title="시프트 근무">$2</span>$3'
-                        );
-                    };
+                    // 시프트 표시는 오후 옆 S열에서 처리 (오후 셀에는 사각형/ S 미표시)
+                    const wrapShift = (innerHtml, titleExtra) => innerHtml;
                     if (!rawName || rawName === '-' || rawName === '미정') {
                         const empty = `<div class="flex items-center justify-center w-full h-full text-slate-300 text-sm font-bold">-</div>`;
-                        return isShiftWork ? `<div class="flex items-center justify-center w-full h-full"><span class="weekly-shift-box text-slate-300 text-sm font-bold" title="시프트 근무">-</span></div>` : empty;
+                        return empty;
                     }
                     if (rawName.includes('운행종료')) {
                         const __joOffLabel = (typeof formatJoOffLabel === 'function')
@@ -11538,21 +12701,40 @@ function getMonthlyOffAllDriverNames(){
                                 if (typeof isKoreanPublicHoliday === 'function' && isKoreanPublicHoliday(currentYear, currentMonth, d)) return false;
                                 return true;
                             })());
-                            const __shiftCls = __isShiftAft ? ' weekly-shift-afternoon' : '';
                             const __aCls = __overLimit ? 'cursor-default' : 'cursor-pointer';
                             const __aOnclick = __overLimit
                                 ? ''
                                 : ` onclick="openDriverSelectModal('${dateKey}', '${__unit.line}', '${__unit.busNo}', 'afternoon', '${String(__aShow||'').replace('(S)','').trim()}')"`;
                             const __aTitle = __overLimit
                                 ? ' title="쉬는기사 (운행대수 초과)"'
-                                : (__isShiftAft ? ` title="시프트 근무 (순번 ${__rowSeq})"` : '');
-                            tbodyHtml += `<td style="min-width: ${dayColWidth}px;" class="px-0.5 text-center ${shiftBg}${__cancelA}${__shiftCls} align-middle border-r border-slate-300 ${__aCls}" data-shift-work="${__isShiftAft ? '1' : '0'}"${__aTitle}${__aOnclick}>
-                                ${formatWeeklyCell(__aShow, dateKey, __unit.line, __unit.busNo, 'afternoon', __isShiftAft, __overLimit)}
+                                : '';
+                            // 오후 셀: 시프트 사각형 제거. S는 옆 S열에만 표시
+                            tbodyHtml += `<td style="min-width: ${dayColWidth}px;" class="px-0.5 text-center ${shiftBg}${__cancelA} align-middle border-r border-slate-200 ${__aCls}" data-shift-work="${__isShiftAft ? '1' : '0'}"${__aTitle}${__aOnclick}>
+                                ${formatWeeklyCell(__aShow, dateKey, __unit.line, __unit.busNo, 'afternoon', false, __overLimit)}
                             </td>`;
+                            // S열: 시프트 S + 막차 표시
+                            // 막차: 평일·토 = 취소차 바로 앞(운행 마지막=opLimit)
+                            //       일·공휴 = 취소차 위 4칸(opLimit+1-4 = opLimit-3)
+                            const __dowS = new Date(currentYear, currentMonth - 1, d).getDay();
+                            const __holS = (typeof isKoreanPublicHoliday === 'function') && isKoreanPublicHoliday(currentYear, currentMonth, d);
+                            const __isSunHol = (__dowS === 0 || __holS);
+                            const __makchaSeq = __isSunHol ? (__opLimit - 3) : __opLimit;
+                            const __isMakcha = Number(__rowSeq) === Number(__makchaSeq) && __makchaSeq >= 1;
+                            let __sParts = [];
+                            if (__isShiftAft) {
+                                __sParts.push('<span class="weekly-s-mark" title="시프트 근무">S</span>');
+                            }
+                            if (__isMakcha) {
+                                __sParts.push('<span class="weekly-makcha-mark" title="막차">막차</span>');
+                            }
+                            const __sHtml = __sParts.join('<br>');
+                            const __sTitle = __isMakcha ? '막차' : (__isShiftAft ? ('시프트 근무 (순번 ' + __rowSeq + ')') : '');
+                            tbodyHtml += `<td class="weekly-s-cell border-r border-slate-300 ${shiftBg}" data-shift-work="${__isShiftAft ? '1' : '0'}" data-makcha="${__isMakcha ? '1' : '0'}" title="${__sTitle}">${__sHtml}</td>`;
                         } else {
                             tbodyHtml += `<td style="min-width: ${Math.max(44, dayColWidth - 8)}px;" class="px-0.5 text-center ${shiftBg} border-r border-slate-200 align-middle">-</td>
                                           <td style="min-width: ${dayColWidth}px;" class="px-0.5 text-center ${shiftBg} border-r border-slate-200 align-middle">-</td>
-                                          <td style="min-width: ${dayColWidth}px;" class="px-0.5 text-center ${shiftBg} border-r border-slate-300 align-middle">-</td>`;
+                                          <td style="min-width: ${dayColWidth}px;" class="px-0.5 text-center ${shiftBg} border-r border-slate-200 align-middle">-</td>
+                                          <td class="weekly-s-cell border-r border-slate-300 ${shiftBg}"></td>`;
                         }
                         colIndex++;
                     }
@@ -11594,7 +12776,7 @@ function getMonthlyOffAllDriverNames(){
                     // 조휴무 제외한 일반 휴무 → 구분별 그룹
                     const byType = {};
                     const typeOrder = (typeof MONTHLY_OFF_DAY_TYPES !== 'undefined' && Array.isArray(MONTHLY_OFF_DAY_TYPES))
-                        ? MONTHLY_OFF_DAY_TYPES.slice() : ['휴무','위로','연차','결근','유급','휴직','기타'];
+                        ? MONTHLY_OFF_DAY_TYPES.slice() : ['휴무','위로','연차','결근','유급','휴직','병가','기타'];
                     offNames.forEach(n => {
                         if (String(n).includes('조휴무')) return;
                         if (typeof isDriverGroupValue === 'function' && isDriverGroupValue(n)) return;
@@ -11663,7 +12845,7 @@ function getMonthlyOffAllDriverNames(){
                             ? '<div class="weekly-offday-pair weekly-offday-total"><span class="weekly-offday-type font-extrabold" style="color:#b91c1c;">합계</span><span class="weekly-offday-gap">:</span><span class="weekly-offday-driver-name font-black" style="color:#b91c1c;">' + offTotalCount + '명.</span></div>'
                             : ''))
                         : '<div class="weekly-offday-pair">-</div>';
-                    offRowHtml += `<td colspan="3" style="min-width: ${dayColWidth * 3}px; padding:10px 8px !important; font-size:0.75rem !important; color:#15803d !important; vertical-align:middle; text-align:left; height:auto !important; min-height:64px !important; overflow:visible !important;" class="weekly-offday-name text-xs align-middle border-r border-slate-300 font-bold">` +
+                    offRowHtml += `<td colspan="4" style="min-width: ${dayColWidth * 3 + 24}px; padding:10px 8px !important; font-size:0.75rem !important; color:#15803d !important; vertical-align:middle; text-align:left; height:auto !important; min-height:64px !important; overflow:visible !important;" class="weekly-offday-name text-xs align-middle border-r border-slate-300 font-bold">` +
                         `<div class="weekly-offday-inner" style="display:block;white-space:normal;overflow:visible;line-height:1.45;font-size:0.75rem;font-weight:700;text-align:left;height:auto;padding:2px 0 2px 4px;" title="${offText}">${offHtml}</div></td>`;
                 }
                 offRowHtml += `</tr>`;
@@ -11866,13 +13048,24 @@ function getMonthlyOffAllDriverNames(){
             // 기존 표용 offDaysTableBody가 없어도 달력 데이터는 반드시 렌더링합니다.
             if (!gridEl) return;
 
+            // 헤더: 2026년 12월 형식
+            const monthTitleEl = document.getElementById('offDaysMonthTitle');
+            if (monthTitleEl) {
+                monthTitleEl.textContent = currentYear + '년 ' + currentMonth + '월';
+            }
+
             let gridHtml = '', totalDays = getDaysInMonth(currentYear, currentMonth), firstDow = new Date(currentYear, currentMonth - 1, 1).getDay();
             for (let i = 0; i < firstDow; i++) {
                 gridHtml += `<div class="bg-transparent border-0 shadow-none min-h-0"></div>`;
             }
             for (let d = 1; d <= totalDays; d++) {
                 const dateKey = `${String(currentYear).substring(2)}-${currentMonth < 10 ? '0'+currentMonth : currentMonth}-${d < 10 ? '0'+d : d}`;
-                const offList = expandOffListToDriverNames(getDailyAssignment(dateKey).offList || []);
+                const dayData = getDailyAssignment(dateKey);
+                const offList = expandOffListToDriverNames(dayData.offList || []);
+                const patternOffSet = new Set((dayData.patternOffNames || []).map(n => String(n || '').replace('(S)','').trim()).filter(Boolean));
+                const offGrp = (typeof getPatternOffGroup === 'function')
+                    ? (Number(getPatternOffGroup(d, currentYear, currentMonth)) || 0)
+                    : 0;
                 const dow = new Date(currentYear, currentMonth - 1, d).getDay();
                 // 토=파랑, 일/공휴=빨강, 평일=검정
                 const isHoliday = isKoreanPublicHoliday(currentYear, currentMonth, d);
@@ -11880,15 +13073,25 @@ function getMonthlyOffAllDriverNames(){
                 if (dow === 0 || isHoliday) dateStyle = 'color:#dc2626;font-weight:900;'; // 일/공휴 빨강
                 else if (dow === 6) dateStyle = 'color:#2563eb;font-weight:900;'; // 토 파랑
 
-                let formattedListHtml = offList.map(n => {
-                    const isS = appData.spares.includes(n);
-                    return `<span class="${isS ? 'text-blue-600 font-bold blue-underline' : 'text-slate-700 font-semibold'}">${n}</span>`;
-                }).join('');
+                // N조휴무자 → 'N조휴무'로 통일 표기, 나머지는 기사 이름
+                const displayParts = [];
+                if (offGrp >= 1 && patternOffSet.size > 0) {
+                    displayParts.push('<span class="text-green-700 font-black" style="color:#15803d;">' + offGrp + '조휴무</span>');
+                }
+                offList.forEach(n => {
+                    const cn = String(n || '').replace('(S)','').trim();
+                    if (!cn) return;
+                    if (patternOffSet.has(cn)) return; // N조휴무로 통합
+                    if (String(cn).includes('조휴무')) return;
+                    const isS = (appData.spares || []).some(s => String(s).replace('(S)','').trim() === cn);
+                    displayParts.push('<span class="' + (isS ? 'text-blue-600 font-bold blue-underline' : 'text-slate-700 font-semibold') + '">' + cn + '</span>');
+                });
+                const formattedListHtml = displayParts.join('');
 
                 gridHtml += `<div>
                     <div class="flex justify-between items-center w-full">
-                        <span style="${dateStyle}">${currentMonth}.${d}</span>
-                        <span>${offList.length}명</span>
+                        <span style="${dateStyle}">${d}</span>
+                        <span class="offdays-count-badge">${offList.length}명</span>
                     </div>
                     <div>${formattedListHtml || '<span class="text-slate-300">-</span>'}</div>
                 </div>`;
@@ -13609,10 +14812,10 @@ function getMonthlyOffAllDriverNames(){
             if (subRow) {
                 Array.from(subRow.children).forEach((th, i) => {
                     const t = (th.textContent || '').replace(/\s+/g, '').trim();
-                    // 잘못된 "순번"이 들어갔으면 복구 (3열 주기: 차량,오전,오후)
+                    // 잘못된 "순번"이 들어갔으면 복구 (4열 주기: 차량,오전,오후,S)
                     if (t === '순번' || t.indexOf('순') === 0) {
-                        const mod = i % 3;
-                        th.textContent = mod === 0 ? '차량' : (mod === 1 ? '오전' : '오후');
+                        const mod = i % 4;
+                        th.textContent = mod === 0 ? '차량' : (mod === 1 ? '오전' : (mod === 2 ? '오후' : 'S'));
                     }
                     th.style.overflow = 'visible';
                     th.style.whiteSpace = 'nowrap';
@@ -13827,8 +15030,8 @@ function getMonthlyOffAllDriverNames(){
                                 Array.prototype.forEach.call(subRow.children, function (th, i) {
                                     var t = String(th.textContent || '').replace(/\s+/g, '').trim();
                                     if (t === '순번' || t.indexOf('순') === 0) {
-                                        var mod = i % 3;
-                                        th.textContent = mod === 0 ? '차량' : (mod === 1 ? '오전' : '오후');
+                                        var mod = i % 4;
+                                        th.textContent = mod === 0 ? '차량' : (mod === 1 ? '오전' : (mod === 2 ? '오후' : 'S'));
                                     }
                                 });
                             }
@@ -13956,7 +15159,7 @@ function getWeeklyScheduleCards() {
             const hasJoOffDrivers = patternOffSet.size > 0
                 || offNames.some(n => patternOffSet.has(n) || String(n).includes('조휴무'));
             const typeOrder = (typeof MONTHLY_OFF_DAY_TYPES !== 'undefined' && Array.isArray(MONTHLY_OFF_DAY_TYPES))
-                ? MONTHLY_OFF_DAY_TYPES.slice() : ['휴무','위로','연차','결근','유급','휴직','기타'];
+                ? MONTHLY_OFF_DAY_TYPES.slice() : ['휴무','위로','연차','결근','유급','휴직','병가','기타'];
             // 주별통합 휴무셀과 동일 형식 (조별코드 없음, 좌측 정렬용 HTML)
             const byType = {};
             offNames.forEach(n => {
@@ -14113,9 +15316,8 @@ function getWeeklyScheduleCards() {
                 const isShiftAft = (typeof isAfternoonShiftWork === 'function')
                     ? isAfternoonShiftWork(currentYear, currentMonth, d, seq)
                     : false;
-                const aHtml = isShiftAft
-                    ? (esc(a) + '<span style="display:inline-block;margin-left:2px;font-size:11px;line-height:1;vertical-align:middle;" title="시프트 근무">☑️</span>')
-                    : esc(a);
+                // 오후 근무명: 시프트 표시는 S열로 분리 (이름 옆 ☑️ 제거)
+                const aHtml = esc(a);
 
                 const cellBase = 'text-align:center;vertical-align:middle;font-size:11px;font-weight:800;padding:2px 1px;border:1px solid #cbd5e1;';
                 // 기사명 아래 취소선: 이름만 밑줄 처리
@@ -14125,6 +15327,18 @@ function getWeeklyScheduleCards() {
                 const aNameHtml = overLimit
                     ? ('<span style="border-bottom:2.5px solid #1e3a8a;padding:0 1px;line-height:1.2;">' + aHtml + '</span>')
                     : aHtml;
+                // 막차: 평일·토=취소차 앞(opLimit), 일·공휴=취소차 위 4칸(opLimit-3)
+                const __dowD = new Date(currentYear, currentMonth - 1, d).getDay();
+                const __holD = (typeof isKoreanPublicHoliday === 'function') && isKoreanPublicHoliday(currentYear, currentMonth, d);
+                const __isSunHolD = (__dowD === 0 || __holD);
+                const __makchaSeqD = __isSunHolD ? (opLimit - 3) : opLimit;
+                const __isMakchaD = Number(seq) === Number(__makchaSeqD) && __makchaSeqD >= 1;
+                let sParts = [];
+                if (isShiftAft) sParts.push('<span style="font-weight:900;color:#1d4ed8;" title="시프트 근무">S</span>');
+                if (__isMakchaD) sParts.push('<span style="font-weight:900;color:#c2410c;font-size:10px;" title="막차">막차</span>');
+                const sCellHtml = sParts.join('<br>');
+                // S셀 바탕: 행과 동일 (흰색/회색), 쉬는차는 restBg
+                const sBg = overLimit ? restBg : ('background:' + rowBg + ';');
                 rowsHtml += '<tr style="background:' + rowBg + ';">' +
                     '<td style="' + cellBase + 'font-weight:900;color:#0f172a;' + restBg + '">' + seq + '</td>' +
                     '<td style="' + cellBase + 'color:#0f172a;' + restBg + '">' + esc(unit.busNo) + '</td>' +
@@ -14132,17 +15346,18 @@ function getWeeklyScheduleCards() {
                     '<td style="' + cellBase + 'color:' + mColor + ';' + (overLimit ? restBg : '') + '">' + mNameHtml + '</td>' +
                     '<td style="' + cellBase + 'font-size:10px;color:#1d4ed8;' + (overLimit ? restHatch : 'background:#eff6ff;') + '">' + esc(tPm) + '</td>' +
                     '<td style="' + cellBase + 'color:' + aColor + ';' + (overLimit ? restBg : '') + '">' + aNameHtml + '</td>' +
+                    '<td style="' + cellBase + 'width:6%;min-width:22px;font-weight:900;' + sBg + '">' + sCellHtml + '</td>' +
                     '</tr>';
             });
             if (!rowsHtml) {
-                rowsHtml = '<tr><td colspan="6" style="text-align:center;padding:10px;color:#94a3b8;font-weight:700;border:1px solid #e2e8f0;">배차 데이터 없음</td></tr>';
+                rowsHtml = '<tr><td colspan="7" style="text-align:center;padding:10px;color:#94a3b8;font-weight:700;border:1px solid #e2e8f0;">배차 데이터 없음</td></tr>';
             }
 
             // 휴무자 셀: 이름 + 인원수 + 합계까지 포함 (캡처 시 공통 높이로 맞춤)
             const OFF_CELL_MIN = 120;
             const offRowHtml =
                 '<tr class="daily-offday-row">' +
-                '<td colspan="6" style="text-align:left;vertical-align:top;padding:5px 8px;border:1px solid #86efac;background:#f0fdf4;font-size:10px;line-height:1.35;min-height:' + OFF_CELL_MIN + 'px;height:auto;overflow:visible;white-space:normal;box-sizing:border-box;">' +
+                '<td colspan="7" style="text-align:left;vertical-align:top;padding:5px 8px;border:1px solid #86efac;background:#f0fdf4;font-size:10px;line-height:1.35;min-height:' + OFF_CELL_MIN + 'px;height:auto;overflow:visible;white-space:normal;box-sizing:border-box;">' +
                 '<div style="font-size:10px;font-weight:900;color:#15803d;margin-bottom:2px;">휴무자</div>' +
                 '<div class="daily-offday-body" style="text-align:left;color:#15803d;font-weight:700;overflow:visible;white-space:normal;word-break:keep-all;">' + offHtml + '</div>' +
                 '</td></tr>';
@@ -14160,8 +15375,9 @@ function getWeeklyScheduleCards() {
                 '<th style="width:12%;text-align:center;font-size:10px;font-weight:900;color:#0f172a;padding:3px 1px;border:1px solid #cbd5e1;background:#f8fafc;">차량</th>' +
                 '<th style="width:14%;text-align:center;font-size:10px;font-weight:900;color:#b45309;padding:3px 1px;border:1px solid #cbd5e1;background:#fef3c7;">오전시간</th>' +
                 '<th style="width:20%;text-align:center;font-size:10px;font-weight:900;color:#b45309;padding:3px 1px;border:1px solid #cbd5e1;background:#fffbeb;">오전근무</th>' +
-                '<th style="width:14%;text-align:center;font-size:10px;font-weight:900;color:#1d4ed8;padding:3px 1px;border:1px solid #cbd5e1;background:#dbeafe;">오후시간</th>' +
-                '<th style="width:20%;text-align:center;font-size:10px;font-weight:900;color:#c2410c;padding:3px 1px;border:1px solid #cbd5e1;background:#fef2f2;">오후근무</th>' +
+                '<th style="width:12%;text-align:center;font-size:10px;font-weight:900;color:#1d4ed8;padding:3px 1px;border:1px solid #cbd5e1;background:#dbeafe;">오후시간</th>' +
+                '<th style="width:18%;text-align:center;font-size:10px;font-weight:900;color:#c2410c;padding:3px 1px;border:1px solid #cbd5e1;background:#fef2f2;">오후근무</th>' +
+                '<th style="width:6%;text-align:center;font-size:10px;font-weight:900;color:#1d4ed8;padding:3px 1px;border:1px solid #cbd5e1;background:#eff6ff;">S</th>' +
                 '</tr></thead>' +
                 '<tbody>' + rowsHtml + offRowHtml + '</tbody></table>' +
                 '</div></div>';
