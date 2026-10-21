@@ -572,6 +572,20 @@ header .max-w-7xl>div:nth-child(2)>div .action-btn{flex:1 1 0!important;width:0!
     line-height: 1.1 !important;
     white-space: nowrap !important;
 }
+/* 막차 S셀: 검정 바탕 + 흰 글자 */
+.weekly-s-cell[data-makcha="1"],
+td.weekly-s-cell.weekly-makcha-cell {
+    background: #0f172a !important;
+    background-color: #0f172a !important;
+}
+.weekly-s-cell[data-makcha="1"] .weekly-makcha-mark,
+.weekly-s-cell.weekly-makcha-cell .weekly-makcha-mark {
+    color: #f8fafc !important;
+}
+.weekly-s-cell[data-makcha="1"] .weekly-s-mark,
+.weekly-s-cell.weekly-makcha-cell .weekly-s-mark {
+    color: #93c5fd !important;
+}
 /* 구버전 파란 사각형 스타일 비활성 유지(호환) */
 .weekly-shift-afternoon .weekly-shift-box {
     border: none !important;
@@ -1146,30 +1160,54 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
   background:#dc2626;color:#fff;letter-spacing:.02em;
 }
 .monthly-off-dispatch-start-fields{
-  display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:8px;width:100%;
+  display:grid;grid-template-columns:minmax(88px,1.8fr) minmax(56px,1fr) minmax(56px,1fr);gap:8px;width:100%;
 }
 .monthly-off-dispatch-start-field{
-  display:flex;align-items:center;gap:4px;
-  padding:6px 10px;border-radius:10px;
+  display:flex;align-items:center;gap:3px;
+  padding:6px 8px;border-radius:10px;
   background:#fff;border:1.5px solid #93c5fd;
-  box-sizing:border-box;min-width:0;
+  box-sizing:border-box;min-width:0;overflow:visible;
 }
 .monthly-off-dispatch-start-field select{
   flex:1 1 auto;min-width:0;width:100%;
   border:0;outline:none;background:transparent;
-  font-size:16px;font-weight:900;color:#0f172a;
+  font-size:15px;font-weight:900;color:#0f172a;
   height:32px;cursor:pointer;font-family:inherit;
+  -webkit-appearance:none;appearance:none;
+  text-overflow:clip;overflow:visible;
+  padding-right:2px;
+}
+/* 연도 필드: 4자리 숫자가 잘리지 않도록 */
+.monthly-off-dispatch-start-field:first-child{
+  min-width:88px;
+}
+.monthly-off-dispatch-start-field:first-child select{
+  min-width:52px;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:-0.02em;
 }
 .monthly-off-dispatch-start-unit{
-  flex:none;font-size:13px;font-weight:800;color:#64748b;white-space:nowrap;
+  flex:none;font-size:12px;font-weight:800;color:#64748b;white-space:nowrap;
 }
 .monthly-off-dispatch-start-preview{
   margin-top:8px;font-size:13px;font-weight:800;color:#1d4ed8;text-align:center;
 }
+.monthly-off-dispatch-start-hint{
+  margin-top:10px;padding:10px 12px;border-radius:10px;
+  border:1px dashed #93c5fd;background:#f0f7ff;
+  font-size:12px;font-weight:800;color:#1e40af;line-height:1.55;
+  text-align:center !important;letter-spacing:-0.02em;
+  display:block;width:100%;box-sizing:border-box;
+}
 @media(max-width:639px){
-  .monthly-off-dispatch-start-fields{grid-template-columns:1fr 1fr 1fr;gap:6px}
-  .monthly-off-dispatch-start-field{padding:5px 8px}
-  .monthly-off-dispatch-start-field select{font-size:15px;height:30px}
+  .monthly-off-dispatch-start-fields{
+    grid-template-columns:minmax(82px,1.9fr) minmax(52px,1fr) minmax(52px,1fr);gap:6px;
+  }
+  .monthly-off-dispatch-start-field{padding:5px 6px}
+  .monthly-off-dispatch-start-field select{font-size:14px;height:30px}
+  .monthly-off-dispatch-start-field:first-child{min-width:82px}
+  .monthly-off-dispatch-start-field:first-child select{min-width:48px}
+  .monthly-off-dispatch-start-hint{font-size:11px;padding:9px 10px}
 }
 .monthly-off-day-date{
   font-family:inherit;
@@ -4618,6 +4656,7 @@ main{padding-top:18px !important;}
                                     </label>
                                 </div>
                                 <div id="monthlyOffDispatchStartPreview" class="monthly-off-dispatch-start-preview" aria-live="polite"></div>
+                                <div class="monthly-off-dispatch-start-hint">배차시작일을 설정하려면 배차시작설정에<br><span style="color:#dc2626;font-size:calc(1em + 2px);font-weight:900;">체크</span>하세요.</div>
                             </div>
                             <div class="monthly-off-day-field monthly-off-day-field-date">
                                 <label class="monthly-off-day-label monthly-off-day-label-lg">휴무일자</label>
@@ -12729,7 +12768,7 @@ function getMonthlyOffAllDriverNames(){
                             }
                             const __sHtml = __sParts.join('<br>');
                             const __sTitle = __isMakcha ? '막차' : (__isShiftAft ? ('시프트 근무 (순번 ' + __rowSeq + ')') : '');
-                            tbodyHtml += `<td class="weekly-s-cell border-r border-slate-300 ${shiftBg}" data-shift-work="${__isShiftAft ? '1' : '0'}" data-makcha="${__isMakcha ? '1' : '0'}" title="${__sTitle}">${__sHtml}</td>`;
+                            tbodyHtml += `<td class="weekly-s-cell border-r border-slate-300 ${__isMakcha ? 'weekly-makcha-cell' : shiftBg}" data-shift-work="${__isShiftAft ? '1' : '0'}" data-makcha="${__isMakcha ? '1' : '0'}" title="${__sTitle}">${__sHtml}</td>`;
                         } else {
                             tbodyHtml += `<td style="min-width: ${Math.max(44, dayColWidth - 8)}px;" class="px-0.5 text-center ${shiftBg} border-r border-slate-200 align-middle">-</td>
                                           <td style="min-width: ${dayColWidth}px;" class="px-0.5 text-center ${shiftBg} border-r border-slate-200 align-middle">-</td>
@@ -15335,10 +15374,12 @@ function getWeeklyScheduleCards() {
                 const __isMakchaD = Number(seq) === Number(__makchaSeqD) && __makchaSeqD >= 1;
                 let sParts = [];
                 if (isShiftAft) sParts.push('<span style="font-weight:900;color:#1d4ed8;" title="시프트 근무">S</span>');
-                if (__isMakchaD) sParts.push('<span style="font-weight:900;color:#c2410c;font-size:10px;" title="막차">막차</span>');
+                if (__isMakchaD) sParts.push('<span style="font-weight:900;color:#f8fafc;font-size:10px;" title="막차">막차</span>');
                 const sCellHtml = sParts.join('<br>');
-                // S셀 바탕: 행과 동일 (흰색/회색), 쉬는차는 restBg
-                const sBg = overLimit ? restBg : ('background:' + rowBg + ';');
+                // S셀 바탕: 막차=검정, 쉬는차=restBg, 그 외 행색
+                const sBg = __isMakchaD
+                    ? 'background:#0f172a;color:#f8fafc;'
+                    : (overLimit ? restBg : ('background:' + rowBg + ';'));
                 rowsHtml += '<tr style="background:' + rowBg + ';">' +
                     '<td style="' + cellBase + 'font-weight:900;color:#0f172a;' + restBg + '">' + seq + '</td>' +
                     '<td style="' + cellBase + 'color:#0f172a;' + restBg + '">' + esc(unit.busNo) + '</td>' +
