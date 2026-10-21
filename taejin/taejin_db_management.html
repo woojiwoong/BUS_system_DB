@@ -572,9 +572,11 @@ header .max-w-7xl>div:nth-child(2)>div .action-btn{flex:1 1 0!important;width:0!
     line-height: 1.1 !important;
     white-space: nowrap !important;
 }
-/* 막차 S셀: 검정 바탕 + 흰 글자 */
+/* 막차·S(시프트) S셀: 검정 바탕 + 흰/밝은 글자 */
 .weekly-s-cell[data-makcha="1"],
-td.weekly-s-cell.weekly-makcha-cell {
+.weekly-s-cell[data-shift-work="1"],
+td.weekly-s-cell.weekly-makcha-cell,
+td.weekly-s-cell.weekly-shift-s-cell {
     background: #0f172a !important;
     background-color: #0f172a !important;
 }
@@ -583,8 +585,10 @@ td.weekly-s-cell.weekly-makcha-cell {
     color: #f8fafc !important;
 }
 .weekly-s-cell[data-makcha="1"] .weekly-s-mark,
-.weekly-s-cell.weekly-makcha-cell .weekly-s-mark {
-    color: #93c5fd !important;
+.weekly-s-cell.weekly-makcha-cell .weekly-s-mark,
+.weekly-s-cell[data-shift-work="1"] .weekly-s-mark,
+.weekly-s-cell.weekly-shift-s-cell .weekly-s-mark {
+    color: #f8fafc !important;
 }
 /* 구버전 파란 사각형 스타일 비활성 유지(호환) */
 .weekly-shift-afternoon .weekly-shift-box {
@@ -3370,7 +3374,7 @@ main{padding-top:18px !important;}
       } else {
         // 미체크:
         // ★ DB에 월 문서가 하나도 없으면 → 로컬 옛 기준일 무시하고
-        //   대상월 1일 = 1조휴무, 정규 조별코드 순(1→2→3→4→5) 패턴 강제 적용
+        //   대상월 1일 = 1조휴무, 정규 조별코드 순(1→2→3→4→5→6) 패턴 강제 적용
         // ★ 서버에 문서가 있으면 → 전달 패턴 연결 (10/31 1조 → 11/1 2조)
         // ★ 대상 월 문서가 이미 있으면 → payload 패턴은 덮어쓰지 않음
         let anyServerDoc = false;
@@ -5248,29 +5252,24 @@ main{padding-top:18px !important;}
         window.rotateRight = rotateRight;
 
         // ===== 정규기사 조 휴무 패턴 (6일 주기, 월 경계와 무관하게 연속) =====
-        // 기준일 2026-10-01: 1조 휴무, 10/2: 2조 … 10/5: 5조, 10/6: 휴무조 없음, 10/7: 1조 …
-        // 조휴무 다음 블록(5일)마다 오전↔오후 교차가 번갈아 적용 (12일 순환)
+        // 기준일 2026-10-01: 1조 휴무, 10/2: 2조 … 10/6: 6조, 10/7: 1조 …
+        // 조휴무 다음 블록(6일)마다 오전↔오후 교차가 번갈아 적용
         // ===== 조코드 고정 부여 =====
         // 정규/스페어 정보·TXT 불러오기 순서대로:
-        // 1-1 → 2-1 → 3-1 → 4-1 → 5-1 → 1-2 → … → 5-5 → 1-6 → 2-6 → 3-6 → 4-6
-        // (1~5조 세로 패턴, 마지막 4대는 1-6~4-6)
-        const JO_GROUP_COUNT = 5; // 조휴무 순환: 1~5조만 (6조 없음). 1-6~4-6은 조코드 순번이지 6조가 아님
-        const JO_PER_GROUP = 5;
-        const JO_MAIN_GROUPS = 5; // 1~5조 세로 패턴
+        // 1-1 → 2-1 → 3-1 → 4-1 → 5-1 → 6-1 → 1-2 → 2-2 → … → 6-2 → …
+        // (조 번호 1~6을 세로로 먼저, 그다음 순번 2, 3, …)
+        const JO_GROUP_COUNT = 6; // 조휴무 순환: 1~6조 (6일 주기)
+        const JO_PER_GROUP = 6;   // 순번(두 번째 숫자) 최대 — 6×6=36칸까지 커버
+        const JO_MAIN_GROUPS = 6; // 조코드 앞자리 1~6
         function joCodeFromIndex(i) {
             if (!(i >= 0)) return '';
             let seen = 0;
-            // 1) 1~5조 × 1~5번: 1-1,2-1,3-1,4-1,5-1, 1-2, … 5-5
+            // 1-1,2-1,…,6-1, 1-2,2-2,…,6-2, … (n=순번, g=조)
             for (let n = 1; n <= JO_PER_GROUP; n++) {
                 for (let g = 1; g <= JO_MAIN_GROUPS; g++) {
                     if (seen === i) return g + '-' + n;
                     seen++;
                 }
-            }
-            // 2) 마지막 4대: 1-6, 2-6, 3-6, 4-6
-            for (let g = 1; g <= 4; g++) {
-                if (seen === i) return g + '-6';
-                seen++;
             }
             return '';
         }
@@ -5283,7 +5282,6 @@ main{padding-top:18px !important;}
                     arr.push(g + '-' + n);
                 }
             }
-            for (let g = 1; g <= 4; g++) arr.push(g + '-6');
             return arr;
         })();
         function __joSelections() {
@@ -5329,7 +5327,7 @@ main{padding-top:18px !important;}
                     const v = String(sel[id + '|조'] || '').trim();
                     if (valid.has(v) && !used.has(v)) { map[id] = v; used.add(v); }
                 });
-                // 2) 미선택 차량 → JO_CODE_LIST 순서: 1-1, 2-1, 3-1, 4-1, 5-1, 1-2, …
+                // 2) 미선택 차량 → JO_CODE_LIST 순서: 1-1, 2-1, …, 6-1, 1-2, 2-2, …
                 const free = JO_CODE_LIST.filter(function (c) { return !used.has(c); });
                 let fi = 0;
                 list.forEach(function (b) {
@@ -5354,13 +5352,12 @@ main{padding-top:18px !important;}
         /**
          * 조 패턴 (월 경계와 무관하게 이어지는 연속 주기)
          * - 기준일 2026-10-01 = 패턴 1일차(n=0). 달력 월과 상관없이 날짜 차이로만 계산합니다.
-         * - 5일 주기: 조휴무 1일 → 4일 근무 블록 → 조휴무 1일 → …
-         * - 조는 5개(1~5조). 6조 없음. (조코드 1-6~4-6의 "6"은 순번이지 6조가 아님)
-         * - g조 휴무일: n = (g-1) + 5k  (1조 10/1, 2조 10/2 … 5조 10/5, 1조 10/6, 2조 10/7 …)
-         *   → 매일 정확히 1개 조가 휴무
+         * - 6일 주기: 조휴무 1일 → 5일 근무 블록 → 조휴무 1일 → …
+         * - 조는 6개(1~6조). 매일 정확히 1개 조가 휴무
+         * - g조 휴무일: n = (g-1) + 6k  (1조 10/1, 2조 10/2 … 6조 10/6, 1조 10/7 …)
          * - 교차근무: 근무 블록마다 오전↔오후가 번갈아 바뀜
-         *   → 같은 조의 완전한 순환 주기 = 10일
-         *   → 블록 번호 b = floor((n-(g-1))/5): b가 짝수면 교차, 홀수면 원래 근무
+         *   → 같은 조의 완전한 순환 주기 = 12일
+         *   → 블록 번호 b = floor((n-(g-1))/6): b가 짝수면 교차, 홀수면 원래 근무
          */
         const JO_PATTERN_EPOCH_UTC = Date.UTC(2026, 9, 1); // 기본 기준일 2026-10-01
         function __joResolveYM(year, month) {
@@ -5379,10 +5376,10 @@ main{padding-top:18px !important;}
                     ? getDispatchPatternEpochUtc() : JO_PATTERN_EPOCH_UTC);
             return Math.round((Date.UTC(ym.y, ym.m - 1, d) - epoch) / 86400000);
         }
-        /** g조의 해당일 위치: phase(0=휴무, 1..4=근무), block(근무 블록 번호) — 5일 주기 */
+        /** g조의 해당일 위치: phase(0=휴무, 1..5=근무), block(근무 블록 번호) — 6일 주기 */
         function getJoPatternPos(n, g) {
             const t = n - (g - 1);
-            const cycle = JO_GROUP_COUNT; // 5
+            const cycle = JO_GROUP_COUNT; // 6
             return { phase: ((t % cycle) + cycle) % cycle, block: Math.floor(t / cycle) };
         }
         function getPatternOffGroup(dayOfMonth, year, month) {
@@ -7221,16 +7218,15 @@ main{padding-top:18px !important;}
             return String(busNo || '').replace(/\s*호\s*$/g, '').trim();
         }
 
-        // 조별 항목: 1-1 → 2-1 → 3-1 → 4-1 → 5-1 → 1-2 → … → 5-5 → 1-6 → 2-6 → 3-6 → 4-6
+        // 조별 항목: 1-1 → 2-1 → … → 6-1 → 1-2 → 2-2 → … → 6-2 → …
         function getJoGroupOptions() {
             if (typeof JO_CODE_LIST !== 'undefined' && Array.isArray(JO_CODE_LIST) && JO_CODE_LIST.length) {
                 return JO_CODE_LIST.slice();
             }
             const opts = [];
-            for (let n = 1; n <= 5; n++) {
-                for (let g = 1; g <= 5; g++) opts.push(g + '-' + n);
+            for (let n = 1; n <= 6; n++) {
+                for (let g = 1; g <= 6; g++) opts.push(g + '-' + n);
             }
-            for (let g = 1; g <= 4; g++) opts.push(g + '-6');
             return opts;
         }
         function monthlyOffJoOptions(selected) {
@@ -9148,7 +9144,7 @@ function getMonthlyOffAllDriverNames(){
                     });
             }
 
-            // 차량 행 순서 = 조별코드 순: 1-1 → 2-1 → 3-1 → 4-1 → 5-1 → 1-2 → 2-2 …
+            // 차량 행 순서 = 조별코드 순: 1-1 → 2-1 → … → 6-1 → 1-2 → 2-2 …
             // 스페어 콤보/동적리스트 = TXT 파일 순번
             const rows = [];
             const flatBuses = [];
@@ -10606,7 +10602,7 @@ function getMonthlyOffAllDriverNames(){
                             if (d0 && d1 && d0 !== d1) { base1 = d0; base2 = d1; }
                         }
                         // 기본: 오전=drivers[0], 오후=drivers[1]
-                        // 교차 블록(조휴무 사이 5일, 블록마다 번갈아)이면 오전↔오후 교대
+                        // 교차 블록(조휴무 사이 6일, 블록마다 번갈아)이면 오전↔오후 교대
                         let mReg = base1;
                         let aReg = base2;
                         const __busJo = (typeof getJoGroupForBus === 'function') ? getJoGroupForBus(routeName, bus.busNo) : 0;
@@ -12768,7 +12764,8 @@ function getMonthlyOffAllDriverNames(){
                             }
                             const __sHtml = __sParts.join('<br>');
                             const __sTitle = __isMakcha ? '막차' : (__isShiftAft ? ('시프트 근무 (순번 ' + __rowSeq + ')') : '');
-                            tbodyHtml += `<td class="weekly-s-cell border-r border-slate-300 ${__isMakcha ? 'weekly-makcha-cell' : shiftBg}" data-shift-work="${__isShiftAft ? '1' : '0'}" data-makcha="${__isMakcha ? '1' : '0'}" title="${__sTitle}">${__sHtml}</td>`;
+                            const __sCellCls = (__isMakcha || __isShiftAft) ? (__isMakcha ? 'weekly-makcha-cell' : 'weekly-shift-s-cell') : shiftBg;
+                            tbodyHtml += `<td class="weekly-s-cell border-r border-slate-300 ${__sCellCls}" data-shift-work="${__isShiftAft ? '1' : '0'}" data-makcha="${__isMakcha ? '1' : '0'}" title="${__sTitle}">${__sHtml}</td>`;
                         } else {
                             tbodyHtml += `<td style="min-width: ${Math.max(44, dayColWidth - 8)}px;" class="px-0.5 text-center ${shiftBg} border-r border-slate-200 align-middle">-</td>
                                           <td style="min-width: ${dayColWidth}px;" class="px-0.5 text-center ${shiftBg} border-r border-slate-200 align-middle">-</td>
@@ -15373,11 +15370,11 @@ function getWeeklyScheduleCards() {
                 const __makchaSeqD = __isSunHolD ? (opLimit - 3) : opLimit;
                 const __isMakchaD = Number(seq) === Number(__makchaSeqD) && __makchaSeqD >= 1;
                 let sParts = [];
-                if (isShiftAft) sParts.push('<span style="font-weight:900;color:#1d4ed8;" title="시프트 근무">S</span>');
+                if (isShiftAft) sParts.push('<span style="font-weight:900;color:#f8fafc;" title="시프트 근무">S</span>');
                 if (__isMakchaD) sParts.push('<span style="font-weight:900;color:#f8fafc;font-size:10px;" title="막차">막차</span>');
                 const sCellHtml = sParts.join('<br>');
-                // S셀 바탕: 막차=검정, 쉬는차=restBg, 그 외 행색
-                const sBg = __isMakchaD
+                // S셀 바탕: 시프트S/막차=검정, 쉬는차=restBg, 그 외 행색
+                const sBg = (isShiftAft || __isMakchaD)
                     ? 'background:#0f172a;color:#f8fafc;'
                     : (overLimit ? restBg : ('background:' + rowBg + ';'));
                 rowsHtml += '<tr style="background:' + rowBg + ';">' +
