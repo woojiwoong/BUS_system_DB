@@ -4732,7 +4732,7 @@ main{padding-top:18px !important;}
             <div class="px-4 pt-3 pb-3">
                 <p id="fileGuideDescription" class="text-xs text-slate-600 leading-relaxed mb-4 whitespace-pre-line text-left bg-slate-50 p-3 rounded-xl border border-slate-200 font-medium"></p>
                 <div class="flex gap-2">
-                    <button onclick="closeFileGuideModal()" class="flex-1 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-lg transition-all">취소</button>
+                    <button type="button" onclick="shutdownSystem()" class="flex-1 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-lg transition-all">취소</button>
                     <button onclick="proceedToOpenFilePicker()" class="flex-1 py-2.5 bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5">
                         <i data-lucide="check" class="w-4 h-4"></i> 파일 선택
                     </button>
@@ -5640,14 +5640,47 @@ main{padding-top:18px !important;}
         });
 
         function shutdownSystem() {
-            document.querySelectorAll('.fixed').forEach(el => el.classList.add('hidden'));
-            try { window.close(); } catch (e) {}
-            setTimeout(() => {
-                if (!document.hidden) {
-                    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:sans-serif;background:#f8fafc;color:#334155;font-size:20px;font-weight:700;">시스템이 종료되었습니다.</div>';
+            try {
+                document.querySelectorAll('.fixed').forEach(el => el.classList.add('hidden'));
+            } catch (e) {}
+            // 타이머·인터벌 정리
+            try {
+                var maxId = setTimeout(function () {}, 0);
+                for (var i = 0; i <= maxId; i++) {
+                    clearTimeout(i);
+                    clearInterval(i);
                 }
-            }, 150);
+            } catch (e) {}
+            // 1) 스크립트로 연 창이면 바로 닫기
+            try { window.close(); } catch (e) {}
+            // 2) 일부 브라우저: 자기 자신으로 연 뒤 닫기
+            try {
+                window.open('', '_self');
+                window.close();
+            } catch (e) {}
+            // 3) 상위 프레임이 있으면 상위 창 닫기 시도
+            try {
+                if (window.top && window.top !== window) {
+                    window.top.close();
+                }
+            } catch (e) {}
+            // 4) 닫히지 않으면 빈 페이지로 이동 (창/탭 이탈)
+            try {
+                window.location.replace('about:blank');
+            } catch (e) {
+                try { window.location.href = 'about:blank'; } catch (e2) {}
+            }
+            // 5) 그래도 남아 있으면 종료 화면
+            setTimeout(function () {
+                try {
+                    if (document && document.body) {
+                        document.body.innerHTML = '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-family:\'Noto Sans KR\',sans-serif;background:#0f172a;color:#f8fafc;text-align:center;padding:24px;"><div style="font-size:22px;font-weight:900;">시스템이 종료되었습니다.</div><div style="font-size:14px;font-weight:700;color:#94a3b8;">이 창(탭)을 닫아 주세요.</div></div>';
+                        document.title = '종료됨';
+                    }
+                } catch (e) {}
+            }, 120);
         }
+        window.shutdownSystem = shutdownSystem;
 
         let welcomeModalMode = 'welcome'; // 'welcome' | 'load'
 
