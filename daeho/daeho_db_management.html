@@ -5295,6 +5295,21 @@ function getMonthlyOffAllDriverNames(){
             }
         }
 
+        // 모바일 가로 탭바: 선택된 탭을 가로 스크롤 영역의 가운데로 이동 (페이지 세로 스크롤은 건드리지 않음)
+        function centerActiveTab(btn) {
+            const box = document.getElementById('tabContainer');
+            if (!box || !btn) return;
+            const offset = btn.getBoundingClientRect().left - box.getBoundingClientRect().left;
+            const target = box.scrollLeft + offset - (box.clientWidth - btn.offsetWidth) / 2;
+            const max = box.scrollWidth - box.clientWidth;
+            const left = Math.max(0, Math.min(target, max));
+            if (typeof box.scrollTo === 'function') {
+                box.scrollTo({ left: left, behavior: 'smooth' });
+            } else {
+                box.scrollLeft = left;
+            }
+        }
+
         function switchTab(tabId) {
             currentTab = tabId;
             updateWeeklyDbSaveButton();
@@ -5310,6 +5325,7 @@ function getMonthlyOffAllDriverNames(){
             if (activeBtn) {
                 if (!activeBtn.classList.contains('premium-tab')) activeBtn.classList.add('premium-tab');
                 activeBtn.classList.add('active-tab');
+                centerActiveTab(activeBtn);
             }
             
             // 휴무자명단 탭: 서버에서 휴무일자(년·월) 기본값을 가져와 테이블에 표시
