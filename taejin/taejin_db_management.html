@@ -1749,8 +1749,8 @@ main{padding-top:18px !important;}
 </style>
 
 <style id="premium-hide-unused-tabs">
-#tab-daily,#tab-monthly,#tab-dailyList,#tab-driverGraph{display:none!important}
-#view-daily,#view-monthly,#view-dailyList,#view-driverGraph{display:none!important}
+#tab-daily,#tab-monthly,#tab-driverGraph{display:none!important}
+#view-daily,#view-monthly,#view-driverGraph{display:none!important}
 
 #weeklyDbSaveBtn{white-space:nowrap}
 #weeklyDbSaveBtn:hover{background:#b91c1c !important}
@@ -4248,6 +4248,9 @@ main{padding-top:18px !important;}
             <div class="premium-tab-container" id="tabContainer">
                 <button onclick="switchTab('weekly')" id="tab-weekly" class="tab-btn premium-tab active-tab">
                     <i data-lucide="calendar-range"></i><span>월간 배차 현황 (주별 통합)</span>
+                </button>
+                <button onclick="switchTab('dailyList')" id="tab-dailyList" class="tab-btn premium-tab">
+                    <i data-lucide="calendar-check"></i><span>월간 배차 현황 (일일배차)</span>
                 </button>
                 <button onclick="switchTab('drivers')" id="tab-drivers" class="tab-btn premium-tab">
                     <i data-lucide="users"></i><span>기사별 근무 통계</span>
@@ -9968,6 +9971,33 @@ function getMonthlyOffAllDriverNames(){
             }
         }
 
+        /** 선택한 탭 버튼을 가로 탭 바의 가운데로 이동 (모바일) */
+        function centerActiveTabButton(tabId) {
+            try {
+                const box = document.getElementById('tabContainer');
+                const btn = document.getElementById(`tab-${tabId}`);
+                if (!box || !btn) return;
+                const boxRect = box.getBoundingClientRect();
+                const btnRect = btn.getBoundingClientRect();
+                const btnCenterInBox = (btnRect.left - boxRect.left) + box.scrollLeft + btnRect.width / 2;
+                const maxScroll = Math.max(0, box.scrollWidth - box.clientWidth);
+                const target = Math.min(maxScroll, Math.max(0, btnCenterInBox - box.clientWidth / 2));
+                box.scrollTo({ left: target, behavior: 'smooth' });
+            } catch (e) { console.warn('[탭 가운데 정렬] 실패', e); }
+        }
+        window.centerActiveTabButton = centerActiveTabButton;
+
+        /** 일일배차 탭을 열면 오늘 날짜 카드로 이동 */
+        (function () {
+            const __baseSwitchTab = switchTab;
+            switchTab = function (tabId) {
+                __baseSwitchTab(tabId);
+                centerActiveTabButton(tabId);
+                if (tabId === 'dailyList') setTimeout(scrollDailyListToToday, 80);
+            };
+            window.switchTab = switchTab;
+        })();
+
         /* 스페어 기사 이름 전체 적용: 현재 화면에 표시되는 모든 텍스트에서 스페어 이름을 찾아
            파란색 + 밑줄로 표시합니다. (전 탭 공통, 입력값/스크립트/스타일 영역은 제외) */
         function applySpareDriverGlobalStyle() {
@@ -10095,6 +10125,7 @@ function getMonthlyOffAllDriverNames(){
                 // 일자별·일자별목록·월간·근무그래프 화면은 CSS(display:none!important)로 항상 숨김 → 탭 전환 시 생략
                 // (전체 재렌더 renderAllViews()에서는 그대로 갱신됨)
                 weekly: [renderAllWeeklyView],
+                dailyList: [renderDailyListView],
                 drivers: [renderDriverStatsView],
                 monthlyOff: [renderMonthlyOffView],
                 offdays: [renderOffDaysView],
@@ -12382,81 +12413,202 @@ function getMonthlyOffAllDriverNames(){
             if (window.lucide) lucide.createIcons();
         }
 
+        /** 일일배차 탭: 오늘 날짜 카드로 스크롤 (보고 있는 월이 오늘 월일 때) */
+        function scrollDailyListToToday() {
+            try {
+                const now = new Date();
+                if (now.getFullYear() !== Number(currentYear) || (now.getMonth() + 1) !== Number(currentMonth)) {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    return;
+                }
+                const yy = String(now.getFullYear()).slice(2);
+                const mm = String(now.getMonth() + 1).padStart(2, '0');
+                const dd = String(now.getDate()).padStart(2, '0');
+                const el = document.getElementById(`daily-card-${yy}-${mm}-${dd}`);
+                if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+            } catch (e) { console.warn('[일일배차] 오늘 이동 실패', e); }
+        }
+        window.scrollDailyListToToday = scrollDailyListToToday;
+
         function renderDailyListView() {
             const container = document.getElementById('dailyListContainer');
             if (!container) return;
             const totalDays = getDaysInMonth(currentYear, currentMonth);
             document.getElementById('totalDaysCountSpan').innerText = totalDays;
 
-            let yyStr = String(currentYear).substring(2);
-            let mStr = currentMonth < 10 ? `0${currentMonth}` : `${currentMonth}`;
+            const yyStr = String(currentYear).substring(2);
+            const mStr = currentMonth < 10 ? `0${currentMonth}` : `${currentMonth}`;
+            const norm = (v) => String(v == null ? '' : v).replace('(S)', '').trim();
+            const hasName = (v) => { const t = norm(v); return !!t && t !== '-' && t !== '미정'; };
+            const isSpareName = (n) => !!n && (appData.spares || []).some(s => norm(s) === n);
+
+            // ===== 주별통합과 동일한 순번(슬롯) 기준 차량 목록 =====
+            const routes = (appData && appData.routes) ? appData.routes : {};
+            let baseList = [];
+            try {
+                (getOrderedBusList(routes) || []).forEach(b => {
+                    if (b && !String(b.line || '').includes('169')) baseList.push({ line: b.line, busNo: b.busNo });
+                });
+                if (!baseList.length) {
+                    (getOrderedBusList(routes) || []).forEach(b => { if (b) baseList.push({ line: b.line, busNo: b.busNo }); });
+                }
+                if (!baseList.length) {
+                    Object.keys(routes).forEach(rn => (routes[rn] || []).forEach(bus => {
+                        if (bus && bus.busNo) baseList.push({ line: rn, busNo: bus.busNo });
+                    }));
+                }
+                if (baseList.length > 1 && typeof compareWeeklyJoOrder === 'function') baseList.sort(compareWeeklyJoOrder);
+            } catch (e) { console.warn('[일일배차] 차량 목록 구성 오류', e); }
+            const base = baseList.map((b, i) => ({ line: b.line, busNo: b.busNo, seq: i + 1 }));
+
+            const bnCore = (s) => String(s || '').replace(/^부산\s*70\s*자/, '').replace(/\s/g, '');
+            const matchBus = (list, line, busNo) => {
+                const ln = String(line || ''), bn = String(busNo || '');
+                const hit = list.find(b => String(b.line) === ln && String(b.busNo) === bn);
+                if (hit) return hit;
+                const bc = bnCore(bn);
+                return list.find(b => {
+                    const bl = String(b.line || ''), bb = String(b.busNo || '');
+                    const lineOk = bl === ln || bl.replace(/번$/, '') === ln.replace(/번$/, '');
+                    const bbc = bnCore(bb);
+                    const busOk = bb === bn || bbc === bc || bbc.endsWith(bc) || bc.endsWith(bbc);
+                    return lineOk && busOk;
+                }) || null;
+            };
+
+            // 기사명 → 조 번호 (예: '1-2' → 1)
+            const joGroupOfName = (n) => { const c = String(getJoCodeForDriverName(n) || '').split('-')[0]; const g = parseInt(c, 10); return isNaN(g) ? 0 : g; };
+            const joLabelHtml = (g) => `<span class="font-black text-red-600 text-[14px]">${g}조휴무</span>`;
+            const nameHtml = (raw, overLimit, dayJo) => {
+                const v = norm(raw);
+                if (dayJo && dayJo.label && v.includes('운행종료')) return joLabelHtml(dayJo.group);
+                if (!hasName(raw)) return `<span class="text-slate-300 font-bold text-[14px]">-</span>`;
+                if (v.includes('운행종료')) return `<span class="inline-flex items-center justify-center bg-rose-600 text-white font-bold px-2 py-0.5 rounded text-[12px] shadow-xs">운행종료</span>`;
+                const cls = isSpareName(v) ? 'font-extrabold text-blue-600 blue-underline' : 'font-bold text-slate-900';
+                // 운행대수 초과(쉬는차) 기사명 → 취소선
+                const strike = overLimit ? ' text-decoration:line-through;text-decoration-thickness:2px;color:#64748b;' : '';
+                return `<span class="inline-block ${cls} text-[14px]" style="${strike}">${v}</span>`;
+            };
 
             let html = '';
             for (let d = 1; d <= totalDays; d++) {
-                let dayStr = d < 10 ? `0${d}` : `${d}`;
-                let dateKey = `${yyStr}-${mStr}-${dayStr}`;
-                let dow = getDayOfWeekStr(currentYear, currentMonth, d);
-                
+                const dayStr = d < 10 ? `0${d}` : `${d}`;
+                const dateKey = `${yyStr}-${mStr}-${dayStr}`;
+                const dow = getDayOfWeekStr(currentYear, currentMonth, d);
+                const dowNum = new Date(currentYear, currentMonth - 1, d).getDay();
+                const isHol = (typeof isKoreanPublicHoliday === 'function') && isKoreanPublicHoliday(currentYear, currentMonth, d);
+
                 let dowBadgeClass = 'bg-slate-100 text-slate-800 border-slate-200';
                 if (dow === '일') dowBadgeClass = 'bg-rose-500 text-white border-rose-600 shadow-xs';
                 else if (dow === '토') dowBadgeClass = 'bg-blue-500 text-white border-blue-600 shadow-xs';
 
-                let dayAssign = getDailyAssignment(dateKey);
+                // 운행대수 / 막차 / 패턴 회전 (주별통합과 동일 규칙)
+                const limit = getOperatingVehicleLimitForDate(currentYear, currentMonth, d);
+                const makchaSeq = (dowNum === 0 || isHol) ? (limit - 3) : limit;
+                let dayOffGroup = 0;
+                try { dayOffGroup = Number(getPatternOffGroup(d, currentYear, currentMonth)) || 0; } catch (e) { dayOffGroup = 0; }
+                const shift = getVehicleFlowShift(getVehicleFlowDayIndex(currentYear, currentMonth, d));
+                const rotated = rotateRight(base, shift);
 
-                let rowsHtml = dayAssign.busAssignments.map((item, idx) => {
-                    let lineTextColor = item.line.includes('15') ? 'text-red-600' : 'text-blue-600';
-                    let rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50';
-                    
-                    function formatCell(name) {
-                        if (name.includes('운행종료')) return `<span class="inline-flex items-center justify-center bg-rose-600 text-white font-bold px-2 py-0.5 rounded text-[11px] shadow-xs">운행종료</span>`;
-                        let clean = name.replace('(S)', '').trim();
-                        let isS = appData.spares.includes(clean);
-                        if (isS) return `<span class="inline-block font-extrabold text-blue-600 text-xs blue-underline">${clean}</span>`;
-                        return `<span class="inline-block font-bold text-slate-900 text-xs">${clean}</span>`;
+                const dayAssign = getDailyAssignment(dateKey) || {};
+                const assigns = dayAssign.busAssignments || [];
+
+                const rowsHtml = base.map((slot, idx) => {
+                    const seq = slot.seq;
+                    const unit = rotated[idx] || slot;
+                    const overLimit = seq > limit;
+                    const b = matchBus(assigns, unit.line, unit.busNo) || matchBus(assigns, slot.line, slot.busNo);
+
+                    const plate = String(unit.busNo || '').replace('부산70자', '').trim();
+                    let mName = b ? b.morningAssigned : '';
+                    let aName = b ? b.afternoonAssigned : '';
+                    if (b) {
+                        // 오전=오후 동일 정규기사 오염만 복구 (주별통합과 동일)
+                        const cm = norm(mName), ca = norm(aName);
+                        const n1 = norm(b.morningRegular), n2 = norm(b.afternoonRegular);
+                        if (cm && ca && cm === ca && !isSpareName(cm) && n1 && n2 && n1 !== n2 && cm !== '운행종료') {
+                            mName = n1; aName = n2;
+                        }
                     }
 
+                    const isShiftAft = (typeof isAfternoonShiftWork === 'function') ? isAfternoonShiftWork(currentYear, currentMonth, d, seq) : false;
+                    const isMakcha = seq === makchaSeq && makchaSeq >= 1;
+                    const sMark = [
+                        isShiftAft ? `<span class="font-black text-white text-[14px]" title="시프트 근무">S</span>` : '',
+                        isMakcha ? `<span class="font-black text-white text-[12px]" title="막차">막차</span>` : ''
+                    ].filter(Boolean).join('<br>');
+                    const sCellBg = (isShiftAft || isMakcha) ? 'bg-slate-900' : '';
+
+                    const dayJo = { label: !!(b && b.joOff), group: dayOffGroup };
+                    const rowBg = overLimit ? 'bg-sky-100' : (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60');
+                    const cellBase = overLimit ? 'cursor-default' : 'cursor-pointer hover:bg-brand-50/50 transition-colors';
+                    const clickAm = overLimit ? '' : ` onclick="openDriverSelectModal('${dateKey}', '${unit.line}', '${unit.busNo}', 'morning', '${norm(mName)}')"`;
+                    const clickPm = overLimit ? '' : ` onclick="openDriverSelectModal('${dateKey}', '${unit.line}', '${unit.busNo}', 'afternoon', '${norm(aName)}')"`;
+
                     return `
-                        <tr class="${rowBg} hover:bg-brand-50/40 transition-all border-b border-slate-100">
-                            <td class="px-2 py-2 text-center font-black ${lineTextColor} w-[15%] align-middle text-xs whitespace-nowrap">${item.line}</td>
-                            <td class="px-2 py-2 text-center font-bold text-slate-800 w-[15%] align-middle text-xs whitespace-nowrap">${item.busNo}</td>
-                            <td class="px-2 py-2 text-center /20 w-[35%] align-middle cursor-pointer hover:/50 transition-colors" onclick="openDriverSelectModal('${dateKey}', '${item.line}', '${item.busNo}', 'morning', '${item.morningAssigned.replace('(S)','')} ')">${formatCell(item.morningAssigned)}</td>
-                            <td class="px-2 py-2 text-center bg-indigo-50/20 w-[35%] align-middle cursor-pointer hover:bg-indigo-100/50 transition-colors" onclick="openDriverSelectModal('${dateKey}', '${item.line}', '${item.busNo}', 'afternoon', '${item.afternoonAssigned.replace('(S)','')} ')">${formatCell(item.afternoonAssigned)}</td>
-                        </tr>
-                    `;
+                        <tr class="${rowBg} border-b border-slate-100">
+                            <td class="px-1 py-2 text-center font-black text-green-600 text-[15px] align-middle">${seq}</td>
+                            <td class="px-1 py-2 text-center font-black text-slate-900 text-[14px] align-middle whitespace-nowrap">${plate || '-'}</td>
+                            <td class="px-1 py-2 text-center align-middle ${cellBase}"${clickAm}>${nameHtml(mName, overLimit, dayJo)}</td>
+                            <td class="px-1 py-2 text-center align-middle ${cellBase}"${clickPm}>${nameHtml(aName, overLimit, dayJo)}</td>
+                            <td class="px-0.5 py-2 text-center align-middle leading-tight ${sCellBg}">${sMark}</td>
+                        </tr>`;
                 }).join('');
 
-                let offNames = dayAssign.offList.map(n => {
-                    let clean = n.replace('(S)','').trim();
-                    let isS = appData.spares.includes(clean);
-                    return `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold ${isS ? 'text-blue-600 border border-blue-200 blue-underline' : 'bg-rose-50 text-rose-800 border border-rose-200'}">${clean}</span>`;
-                }).join('');
+                // 휴무자: 조별코드·N조 값은 'N조휴무' 한 번만, 개인 기사는 이름으로 표시
+                const offJoGroups = new Set();
+                const offPersonNames = [];
+                (dayAssign.offList || []).forEach(n => {
+                    const raw = norm(n);
+                    if (!raw) return;
+                    if (/^\d+\s*조$/.test(raw)) { offJoGroups.add(parseInt(raw, 10)); return; }
+                    if (/^\d+\s*-\s*\d+$/.test(raw)) {
+                        const g = parseInt(raw.split('-')[0], 10);
+                        if (dayOffGroup && g === dayOffGroup) { offJoGroups.add(g); return; }
+                        let names = [];
+                        try { names = resolveGroupValueToDriverNames(raw) || []; } catch (e) { names = []; }
+                        names.forEach(nm => { if (nm && !offPersonNames.includes(nm)) offPersonNames.push(nm); });
+                        return;
+                    }
+                    if (dayOffGroup && joGroupOfName(raw) === dayOffGroup) { offJoGroups.add(dayOffGroup); return; }
+                    if (!offPersonNames.includes(raw)) offPersonNames.push(raw);
+                });
+                const offNames = [
+                    ...[...offJoGroups].sort((a, b) => a - b).map(g =>
+                        `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[13px] font-black bg-red-50 text-red-600 border border-red-200">${g}조휴무</span>`),
+                    ...offPersonNames.map(nm => {
+                        const isS = isSpareName(nm);
+                        return `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[13px] font-bold ${isS ? 'text-blue-600 border border-blue-200 blue-underline' : 'bg-rose-50 text-rose-800 border border-rose-200'}">${nm}</span>`;
+                    })
+                ].join('');
 
                 html += `
-                    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                    <div id="daily-card-${dateKey}" style="scroll-margin-top:150px;" class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
                         <div class="px-3 py-2.5 bg-slate-100/80 border-b border-slate-200 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
                             <div class="flex items-center gap-2">
-                                <span class="px-2.5 py-0.5 rounded-lg ${dowBadgeClass} text-xs font-bold border flex items-center gap-1 shadow-2xs">
-                                    <i data-lucide="calendar" class="w-3 h-3"></i> ${currentMonth}월 ${d}일 (${dow})
+                                <span class="px-2.5 py-0.5 rounded-lg ${dowBadgeClass} text-[14px] font-bold border flex items-center gap-1 shadow-2xs">
+                                    <i data-lucide="calendar" class="w-3.5 h-3.5"></i> ${currentMonth}월 ${d}일 (${dow})
                                 </span>
                                 <div class="flex items-center gap-1 flex-wrap">
-                                    <span class="text-[11px] font-bold text-slate-500 uppercase">휴무자:</span>
-                                    <div class="flex flex-wrap gap-1">${offNames || '<span class="text-[11px] text-slate-400 font-normal italic">없음</span>'}</div>
+                                    <span class="text-[13px] font-bold text-slate-500 uppercase">휴무자:</span>
+                                    <div class="flex flex-wrap gap-1">${offNames || '<span class="text-[13px] text-slate-400 font-normal italic">없음</span>'}</div>
                                 </div>
                             </div>
-                            <span class="text-[10px] font-mono text-slate-400 font-bold bg-white px-2 py-0.5 rounded border border-slate-200">20${dateKey}</span>
+                            <span class="text-[12px] font-mono text-slate-400 font-bold bg-white px-2 py-0.5 rounded border border-slate-200">20${dateKey}</span>
                         </div>
 
                         <div class="w-full">
-                            <table class="w-full text-xs text-left text-slate-700 border-collapse table-fixed">
-                                <thead class="bg-slate-50 text-slate-700 uppercase border-b border-slate-200 text-[10px] font-bold">
+                            <table class="w-full text-[14px] text-left text-slate-700 border-collapse table-fixed">
+                                <thead class="bg-slate-50 text-slate-700 border-b border-slate-200 text-[12px] font-black">
                                     <tr>
-                                        <th class="px-2 py-2 text-center w-[15%]">노선</th>
-                                        <th class="px-2 py-2 text-center w-[15%]">차량</th>
-                                        <th class="px-2 py-2 text-center /70  w-[35%]">오전 근무</th>
-                                        <th class="px-2 py-2 text-center bg-indigo-100/70 text-red-600 w-[35%]">오후 근무</th>
+                                        <th class="px-1 py-2 text-center w-[13%]">순번</th>
+                                        <th class="px-1 py-2 text-center w-[17%] bg-amber-50 text-amber-900">차량</th>
+                                        <th class="px-1 py-2 text-center w-[31%]">오전</th>
+                                        <th class="px-1 py-2 text-center w-[31%] text-green-600">오후</th>
+                                        <th class="px-0.5 py-2 text-center w-[8%] text-blue-700">S</th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-slate-100 bg-white">
+                                <tbody class="bg-white">
                                     ${rowsHtml}
                                 </tbody>
                             </table>
@@ -12680,7 +12832,7 @@ function getMonthlyOffAllDriverNames(){
                     tbodyHtml += `<tr class="${rowBg} hover:bg-brand-50/30 border-b border-slate-100 transition-colors">
                         <td style="width: ${colWidthLabel}px; min-width: ${colWidthLabel}px; max-width: ${colWidthLabel}px; left: 0; background:#ffffff;" class="weekly-seq-td px-0.5 py-1.5 text-center bg-white border-r border-slate-300 align-middle sticky z-10 font-black shadow-xs">
                             <div class="flex items-center justify-center w-full h-full" style="font-size:16px;line-height:1.2;">
-                                <span class="text-slate-800 font-black" style="font-size:16px;">${busItem.seq}</span>
+                                <span class="text-green-600 font-black" style="font-size:16px;">${busItem.seq}</span>
                             </div>
                         </td>`;
 
