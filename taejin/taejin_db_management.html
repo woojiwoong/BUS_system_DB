@@ -123,6 +123,7 @@
             .weekly-export-card,
             #weeklyDbSaveBtn,
             #offListDbSaveBtn,
+            #infoProgramCredit,
             .export-card,
             .action-btn {
                 display: none !important;
@@ -406,7 +407,14 @@
                 margin: 5mm;
             }
         }
-        #view-weekly table td {
+        /* 주별통합 차량번호: 호 제거 후 표시 + 글자 +2px 강조 */
+#view-weekly .weekly-bus-plate,
+#allWeeklyTablesContainer .weekly-bus-plate {
+  font-size: 14px !important; /* 기존 12px → +2px */
+  font-weight: 900 !important;
+  letter-spacing: -0.02em;
+}
+#view-weekly table td {
             vertical-align: middle !important;
             text-align: center !important;
             line-height: 1.3 !important;
@@ -1758,6 +1766,35 @@ main{padding-top:18px !important;}
 #offListDbSaveBtn{white-space:nowrap}
 #offListDbSaveBtn:hover{background:#b91c1c !important}
 @media(max-width:640px){#offListDbSaveBtn{right:14px;bottom:14px;padding:10px 16px;font-size:13px}}
+#infoProgramCredit{
+  display:none;
+  position:fixed;
+  left:50%;
+  right:auto;
+  bottom:24px;
+  transform:translateX(-50%);
+  z-index:9997;
+  pointer-events:none;
+  user-select:none;
+  -webkit-user-select:none;
+  padding:8px 12px;
+  border-radius:0;
+  background:transparent !important;
+  color:#64748b;
+  border:none !important;
+  box-shadow:none !important;
+  font-family:'Noto Sans KR',sans-serif;
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:0.04em;
+  white-space:nowrap;
+  line-height:1.2;
+  text-align:center;
+  opacity:0.85;
+}
+@media(max-width:640px){
+  #infoProgramCredit{bottom:16px;padding:6px 10px;font-size:11px}
+}
 </style>
 
 <style id="info-route-bus-jo-display">
@@ -4144,6 +4181,9 @@ main{padding-top:18px !important;}
 <button id="offListDbSaveBtn" type="button" onclick="commitMonthlyOffListSelections()"
  style="display:none;position:fixed;bottom:24px;right:24px;z-index:9998;background:#dc2626;color:white;border:1px solid rgba(255,255,255,.25);border-radius:50px;padding:12px 22px;font-size:15px;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,.18);cursor:pointer;font-family:'Noto Sans KR',sans-serif;">저장</button>
 
+<!-- 정규/스페어 정보 탭 전용 프로그램 크레딧 (하단 중앙, 투명) -->
+<div id="infoProgramCredit" class="no-print" aria-hidden="true">Program by w. j. w</div>
+
 <!-- 접근 제한 화면 -->
 <div id="access-gate" style="display: none; position: fixed; inset: 0; background: linear-gradient(135deg, #f0f5fa 0%, #e1ebf5 100%); z-index: 99999; display: flex; align-items: center; justify-content: center; font-family: 'Noto Sans KR', sans-serif;">
   <div style="background: white; width: 90%; max-width: 380px; border-radius: 16px; box-shadow: 0 20px 40px rgba(30, 60, 109, 0.12); overflow: hidden;">
@@ -4157,7 +4197,7 @@ main{padding-top:18px !important;}
       </div>
       <h1 style="color: white; font-size: 1.25rem; font-weight: 700; margin: 0 0 4px 0;">태진여객</h1>
       <p style="color: rgba(255,255,255,0.8); font-size: 0.875rem; margin: 0;">배차 및 휴무 관리 시스템</p>
-      <p style="color: rgba(255,255,255,0.55); font-size: 0.7rem; margin: 4px 0 0 0; letter-spacing: 0.02em;">DB Ver 2.0</p>
+      <p style="color: rgba(255,255,255,0.55); font-size: 0.7rem; margin: 4px 0 0 0; letter-spacing: 0.02em;">DB Ver 2.5</p>
     </div>
 
     <div style="padding: 28px 24px 24px;">
@@ -4209,7 +4249,7 @@ main{padding-top:18px !important;}
                                 배차 및 휴무 관리 시스템
                             </span>
                         </div>
-                        <span class="text-[10px] sm:text-xs text-brand-300 font-semibold tracking-wide pl-0.5">DB Ver 2.0</span>
+                        <span class="text-[10px] sm:text-xs text-brand-300 font-semibold tracking-wide pl-0.5">DB Ver 2.5</span>
                     </div>
                 </div>
             </div>
@@ -9902,6 +9942,11 @@ function getMonthlyOffAllDriverNames(){
                 offBtn.style.pointerEvents = showOff ? 'auto' : 'none';
                 offBtn.style.opacity = showOff ? '1' : '0.45';
             }
+            const credit = document.getElementById('infoProgramCredit');
+            if (credit) {
+                const showCredit = !modalOpen && currentTab === 'info';
+                credit.style.display = showCredit ? 'block' : 'none';
+            }
         }
 
         function switchTab(tabId) {
@@ -9993,7 +10038,12 @@ function getMonthlyOffAllDriverNames(){
             switchTab = function (tabId) {
                 __baseSwitchTab(tabId);
                 centerActiveTabButton(tabId);
-                if (tabId === 'dailyList') setTimeout(scrollDailyListToToday, 80);
+                if (tabId === 'dailyList') {
+                    try {
+                        if (typeof ensureScrollDailyListToToday === 'function') ensureScrollDailyListToToday();
+                        else setTimeout(scrollDailyListToToday, 120);
+                    } catch (e) { setTimeout(scrollDailyListToToday, 120); }
+                }
             };
             window.switchTab = switchTab;
         })();
@@ -12417,209 +12467,433 @@ function getMonthlyOffAllDriverNames(){
         function scrollDailyListToToday() {
             try {
                 const now = new Date();
-                if (now.getFullYear() !== Number(currentYear) || (now.getMonth() + 1) !== Number(currentMonth)) {
+                const y = now.getFullYear();
+                const m = now.getMonth() + 1;
+                const d = now.getDate();
+                if (y !== Number(currentYear) || m !== Number(currentMonth)) {
                     window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return;
+                    return false;
                 }
-                const yy = String(now.getFullYear()).slice(2);
-                const mm = String(now.getMonth() + 1).padStart(2, '0');
-                const dd = String(now.getDate()).padStart(2, '0');
-                const el = document.getElementById(`daily-card-${yy}-${mm}-${dd}`);
-                if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
-            } catch (e) { console.warn('[일일배차] 오늘 이동 실패', e); }
+                const yy = String(y).slice(2);
+                const mm = String(m).padStart(2, '0');
+                const dd = String(d).padStart(2, '0');
+                // 실제 카드 id: dl-card-YY-MM-DD
+                const el = document.getElementById('dl-card-' + yy + '-' + mm + '-' + dd)
+                    || document.getElementById('daily-card-' + yy + '-' + mm + '-' + dd);
+                if (!el) return false;
+                const hd = document.querySelector('header');
+                const tabNav = document.getElementById('mainTabNav');
+                const hdrH = (hd ? Math.ceil(hd.getBoundingClientRect().height) : 0)
+                    + (tabNav ? Math.ceil(tabNav.getBoundingClientRect().height) : 0);
+                const top = el.getBoundingClientRect().top + window.scrollY - hdrH - 8;
+                window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+                try {
+                    document.querySelectorAll('#dailyListContainer .daily-list-card').forEach(c => {
+                        c.style.outline = '';
+                        c.style.boxShadow = '';
+                    });
+                    el.style.outline = '2px solid #2563eb';
+                    el.style.boxShadow = '0 0 0 4px rgba(37,99,235,.15)';
+                    setTimeout(function () {
+                        try { el.style.outline = ''; el.style.boxShadow = ''; } catch (e2) {}
+                    }, 1800);
+                } catch (e3) {}
+                return true;
+            } catch (e) {
+                console.warn('[일일배차] 오늘 이동 실패', e);
+                return false;
+            }
         }
         window.scrollDailyListToToday = scrollDailyListToToday;
 
+        function ensureScrollDailyListToToday() {
+            let tries = 0;
+            const maxTries = 12;
+            const tick = function () {
+                tries++;
+                const ok = (typeof scrollDailyListToToday === 'function') && scrollDailyListToToday();
+                if (!ok && tries < maxTries) setTimeout(tick, 50 + tries * 25);
+            };
+            setTimeout(tick, 30);
+        }
+        window.ensureScrollDailyListToToday = ensureScrollDailyListToToday;
+
         function renderDailyListView() {
             const container = document.getElementById('dailyListContainer');
-            if (!container) return;
-            const totalDays = getDaysInMonth(currentYear, currentMonth);
-            document.getElementById('totalDaysCountSpan').innerText = totalDays;
+            if (!container) {
+                console.warn('[일일배차] dailyListContainer 없음');
+                return;
+            }
+            try {
+            const totalDays = (typeof getDaysInMonth === 'function')
+                ? getDaysInMonth(currentYear, currentMonth)
+                : new Date(currentYear, currentMonth, 0).getDate();
+            const countSpan = document.getElementById('totalDaysCountSpan');
+            if (countSpan) countSpan.innerText = String(totalDays);
 
             const yyStr = String(currentYear).substring(2);
-            const mStr = currentMonth < 10 ? `0${currentMonth}` : `${currentMonth}`;
-            const norm = (v) => String(v == null ? '' : v).replace('(S)', '').trim();
-            const hasName = (v) => { const t = norm(v); return !!t && t !== '-' && t !== '미정'; };
-            const isSpareName = (n) => !!n && (appData.spares || []).some(s => norm(s) === n);
+            const mStr = String(currentMonth).padStart(2, '0');
+            const esc = (v) => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
-            // ===== 주별통합과 동일한 순번(슬롯) 기준 차량 목록 =====
-            const routes = (appData && appData.routes) ? appData.routes : {};
-            let baseList = [];
+            // ===== 주별통합과 동일: 차량 목록 1회 구성 =====
+            let allBuses = [];
             try {
-                (getOrderedBusList(routes) || []).forEach(b => {
-                    if (b && !String(b.line || '').includes('169')) baseList.push({ line: b.line, busNo: b.busNo });
-                });
-                if (!baseList.length) {
-                    (getOrderedBusList(routes) || []).forEach(b => { if (b) baseList.push({ line: b.line, busNo: b.busNo }); });
+                const _routes = (typeof appData !== 'undefined' && appData && appData.routes)
+                    ? appData.routes
+                    : ((window.appData && window.appData.routes) ? window.appData.routes : {});
+                if (typeof getOrderedBusList === 'function') {
+                    (getOrderedBusList(_routes) || []).forEach(b => {
+                        if (!b) return;
+                        if (String(b.line || '').includes('169')) return;
+                        allBuses.push({ line: b.line, busNo: b.busNo });
+                    });
                 }
-                if (!baseList.length) {
-                    Object.keys(routes).forEach(rn => (routes[rn] || []).forEach(bus => {
-                        if (bus && bus.busNo) baseList.push({ line: rn, busNo: bus.busNo });
-                    }));
+                if (!allBuses.length && typeof getOrderedBusList === 'function') {
+                    (getOrderedBusList(_routes) || []).forEach(b => {
+                        if (b) allBuses.push({ line: b.line, busNo: b.busNo });
+                    });
                 }
-                if (baseList.length > 1 && typeof compareWeeklyJoOrder === 'function') baseList.sort(compareWeeklyJoOrder);
-            } catch (e) { console.warn('[일일배차] 차량 목록 구성 오류', e); }
-            const base = baseList.map((b, i) => ({ line: b.line, busNo: b.busNo, seq: i + 1 }));
+                if (!allBuses.length && _routes && typeof _routes === 'object') {
+                    Object.keys(_routes).forEach(rn => {
+                        (_routes[rn] || []).forEach(bus => {
+                            if (bus && bus.busNo) allBuses.push({ line: rn, busNo: bus.busNo });
+                        });
+                    });
+                }
+                if (typeof compareWeeklyJoOrder === 'function' && allBuses.length > 1) {
+                    try { allBuses.sort(compareWeeklyJoOrder); } catch (e) {}
+                }
+                if (typeof alignWeeklyJoBaseToStartCode === 'function' && allBuses.length > 1) {
+                    try { allBuses = alignWeeklyJoBaseToStartCode(allBuses, (typeof WEEKLY_JO_START_CODE !== 'undefined' ? WEEKLY_JO_START_CODE : '2-3')); } catch (e) {}
+                }
+                allBuses.forEach((b, i) => { b.seq = i + 1; });
+            } catch (e) {
+                console.warn('[일일배차] 차량목록 구성 오류', e);
+                allBuses = [];
+            }
+            const baseUnits = allBuses.map((b, i) => ({
+                line: b.line, busNo: b.busNo, seq: b.seq || (i + 1), slotIndex: i
+            }));
+            console.log('[일일배차] 기준 차량수=', baseUnits.length, '월=', currentYear, currentMonth);
 
-            const bnCore = (s) => String(s || '').replace(/^부산\s*70\s*자/, '').replace(/\s/g, '');
-            const matchBus = (list, line, busNo) => {
-                const ln = String(line || ''), bn = String(busNo || '');
-                const hit = list.find(b => String(b.line) === ln && String(b.busNo) === bn);
+            function matchBus(list, line, busNo) {
+                if (!Array.isArray(list) || !list.length) return null;
+                const ln = String(line || '').trim();
+                const bn = String(busNo || '').trim();
+                const bnCore = bn.replace(/^부산\s*70\s*자/, '').replace(/\s/g, '');
+                let hit = list.find(x => String(x.line || '').trim() === ln && String(x.busNo || '').trim() === bn);
                 if (hit) return hit;
-                const bc = bnCore(bn);
-                return list.find(b => {
-                    const bl = String(b.line || ''), bb = String(b.busNo || '');
-                    const lineOk = bl === ln || bl.replace(/번$/, '') === ln.replace(/번$/, '');
-                    const bbc = bnCore(bb);
-                    const busOk = bb === bn || bbc === bc || bbc.endsWith(bc) || bc.endsWith(bbc);
-                    return lineOk && busOk;
+                hit = list.find(x => {
+                    const bl = String(x.line || '').trim();
+                    const bb = String(x.busNo || '').trim();
+                    const bbCore = bb.replace(/^부산\s*70\s*자/, '').replace(/\s/g, '');
+                    const lineOk = !ln || bl === ln || bl.replace(/번$/, '') === ln.replace(/번$/, '');
+                    const busOk = bb === bn || bbCore === bnCore || (bnCore && (bb.endsWith(bnCore) || bn.endsWith(bbCore)));
+                    return busOk && lineOk;
+                });
+                if (hit) return hit;
+                // 차량번호만으로 최종 폴백
+                return list.find(x => {
+                    const bb = String(x.busNo || '').trim();
+                    const bbCore = bb.replace(/^부산\s*70\s*자/, '').replace(/\s/g, '');
+                    return bb === bn || bbCore === bnCore || (bnCore && bb.endsWith(bnCore));
                 }) || null;
-            };
+            }
 
-            // 기사명 → 조 번호 (예: '1-2' → 1)
-            const joGroupOfName = (n) => { const c = String(getJoCodeForDriverName(n) || '').split('-')[0]; const g = parseInt(c, 10); return isNaN(g) ? 0 : g; };
-            const joLabelHtml = (g) => `<span class="font-black text-red-600 text-[14px]">${g}조휴무</span>`;
-            const nameHtml = (raw, overLimit, dayJo) => {
-                const v = norm(raw);
-                if (dayJo && dayJo.label && v.includes('운행종료')) return joLabelHtml(dayJo.group);
-                if (!hasName(raw)) return `<span class="text-slate-300 font-bold text-[14px]">-</span>`;
-                if (v.includes('운행종료')) return `<span class="inline-flex items-center justify-center bg-rose-600 text-white font-bold px-2 py-0.5 rounded text-[12px] shadow-xs">운행종료</span>`;
-                const cls = isSpareName(v) ? 'font-extrabold text-blue-600 blue-underline' : 'font-bold text-slate-900';
-                // 운행대수 초과(쉬는차) 기사명 → 취소선
-                const strike = overLimit ? ' text-decoration:line-through;text-decoration-thickness:2px;color:#64748b;' : '';
-                return `<span class="inline-block ${cls} text-[14px]" style="${strike}">${v}</span>`;
-            };
+            function formatDriverCell(name, line, busNo, dateKey, strike) {
+                const strikeStyle = strike ? ' style="text-decoration:line-through !important;text-decoration-thickness:2px !important;"' : '';
+                let raw = (name == null) ? '' : String(name);
+                if (!raw || raw === '-' || raw === '미정') {
+                    return '<span class="text-slate-300 font-bold">-</span>';
+                }
+                if (raw.includes('운행종료') || /\d*조휴무/.test(raw) || raw === '조휴무') {
+                    let label = raw;
+                    try {
+                        if (typeof formatJoOffLabel === 'function') {
+                            const lab = formatJoOffLabel(line, busNo, dateKey);
+                            if (lab) label = lab;
+                        }
+                    } catch (e) {}
+                    return '<span class="inline-flex items-center justify-center bg-rose-600 text-white font-bold px-2 py-0.5 rounded text-[11px]">' + esc(label) + '</span>';
+                }
+                const clean = raw.replace('(S)', '').trim();
+                let isS = false;
+                try {
+                    isS = (appData.spares || []).some(s => String(s).replace('(S)','').trim() === clean);
+                } catch (e) {}
+                if (isS) {
+                    return '<span class="inline-block font-extrabold text-blue-600 text-xs blue-underline"' + strikeStyle + '>' + esc(clean) + '</span>';
+                }
+                return '<span class="inline-block font-bold text-slate-900 text-xs"' + strikeStyle + '>' + esc(clean) + '</span>';
+            }
+
+            function buildOffNamesHtml(dayAssign, d) {
+                try {
+                    const patternOffSet = new Set((dayAssign.patternOffNames || []).map(n => String(n || '').replace('(S)','').trim()).filter(Boolean));
+                    let offRaw = (dayAssign.offList || []).map(name => String(name || '').replace('(S)','').trim()).filter(Boolean);
+                    if (typeof expandOffListToDriverNames === 'function') {
+                        offRaw = expandOffListToDriverNames(offRaw);
+                    }
+                    const offNames = offRaw.filter((n, i, arr) => n && arr.indexOf(n) === i);
+                    const typeByDriver = (typeof getOffTypeByDriverMap === 'function')
+                        ? (getOffTypeByDriverMap(currentYear, currentMonth, d) || {}) : {};
+                    const joOffGroup = (typeof getPatternOffGroup === 'function')
+                        ? (Number(getPatternOffGroup(d, currentYear, currentMonth)) || 0) : 0;
+                    const joOffLabel = joOffGroup >= 1 ? (joOffGroup + '조휴무') : '조휴무';
+                    const hasJoOff = patternOffSet.size > 0
+                        || offNames.some(n => patternOffSet.has(n) || String(n).includes('조휴무'));
+                    const typeOrder = ['휴무','위로','연차','결근','유급','휴직','병가','기타'];
+                    const byType = {};
+                    offNames.forEach(n => {
+                        if (String(n).includes('조휴무')) return;
+                        if (typeof isDriverGroupValue === 'function' && isDriverGroupValue(n)) return;
+                        const typ0 = typeByDriver[n] || '휴무';
+                        if (patternOffSet.has(n) && (typ0 === '휴무' || !typ0)) return;
+                        const typ = typeByDriver[n] || '휴무';
+                        if (!byType[typ]) byType[typ] = [];
+                        if (n && !byType[typ].includes(n)) byType[typ].push(n);
+                    });
+                    try {
+                        if (typeof addOffEntryNamesToByType === 'function') {
+                            addOffEntryNamesToByType(byType, typeByDriver, patternOffSet, true);
+                        }
+                    } catch (e) {}
+                    const parts = [];
+                    if (hasJoOff) {
+                        parts.push('<span class="inline-flex items-center px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[11px] font-black border border-rose-200">' + esc(joOffLabel) + '</span>');
+                    }
+                    typeOrder.forEach(typ => {
+                        (byType[typ] || []).forEach(n => {
+                            let isSp = false;
+                            try { isSp = (appData.spares || []).some(s => String(s).replace('(S)','').trim() === n); } catch (e) {}
+                            const cls = isSp
+                                ? 'inline-flex items-center px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[11px] font-extrabold border border-blue-200 blue-underline'
+                                : 'inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 text-[11px] font-bold border border-emerald-200';
+                            const label = (typ && typ !== '휴무') ? (n + '(' + typ + ')') : n;
+                            parts.push('<span class="' + cls + '">' + esc(label) + '</span>');
+                        });
+                    });
+                    return parts.length ? parts.join(' ') : '';
+                } catch (e) {
+                    console.warn('[일일배차] 휴무자', e);
+                    return '';
+                }
+            }
 
             let html = '';
             for (let d = 1; d <= totalDays; d++) {
-                const dayStr = d < 10 ? `0${d}` : `${d}`;
-                const dateKey = `${yyStr}-${mStr}-${dayStr}`;
-                const dow = getDayOfWeekStr(currentYear, currentMonth, d);
-                const dowNum = new Date(currentYear, currentMonth - 1, d).getDay();
-                const isHol = (typeof isKoreanPublicHoliday === 'function') && isKoreanPublicHoliday(currentYear, currentMonth, d);
-
+                const dayStr = String(d).padStart(2, '0');
+                const dateKey = yyStr + '-' + mStr + '-' + dayStr;
+                const dow = (typeof getDayOfWeekStr === 'function')
+                    ? getDayOfWeekStr(currentYear, currentMonth, d) : '';
+                let isHoliday = false;
+                try {
+                    isHoliday = (typeof isKoreanPublicHoliday === 'function') && isKoreanPublicHoliday(currentYear, currentMonth, d);
+                } catch (e) {}
                 let dowBadgeClass = 'bg-slate-100 text-slate-800 border-slate-200';
-                if (dow === '일') dowBadgeClass = 'bg-rose-500 text-white border-rose-600 shadow-xs';
-                else if (dow === '토') dowBadgeClass = 'bg-blue-500 text-white border-blue-600 shadow-xs';
+                let dowBadgeStyle = 'color:#0f172a;';
+                if (dow === '일' || isHoliday) {
+                    dowBadgeClass = 'bg-red-600 border-red-700 shadow-xs';
+                    dowBadgeStyle = 'color:#ffffff !important;background-color:#dc2626 !important;';
+                } else if (dow === '토') {
+                    dowBadgeClass = 'bg-blue-500 border-blue-600 shadow-xs';
+                    dowBadgeStyle = 'color:#ffffff !important;background-color:#3b82f6 !important;';
+                }
 
-                // 운행대수 / 막차 / 패턴 회전 (주별통합과 동일 규칙)
-                const limit = getOperatingVehicleLimitForDate(currentYear, currentMonth, d);
-                const makchaSeq = (dowNum === 0 || isHol) ? (limit - 3) : limit;
-                let dayOffGroup = 0;
-                try { dayOffGroup = Number(getPatternOffGroup(d, currentYear, currentMonth)) || 0; } catch (e) { dayOffGroup = 0; }
-                const shift = getVehicleFlowShift(getVehicleFlowDayIndex(currentYear, currentMonth, d));
-                const rotated = rotateRight(base, shift);
-
-                const dayAssign = getDailyAssignment(dateKey) || {};
-                const assigns = dayAssign.busAssignments || [];
-
-                const rowsHtml = base.map((slot, idx) => {
-                    const seq = slot.seq;
-                    const unit = rotated[idx] || slot;
-                    const overLimit = seq > limit;
-                    const b = matchBus(assigns, unit.line, unit.busNo) || matchBus(assigns, slot.line, slot.busNo);
-
-                    const plate = String(unit.busNo || '').replace('부산70자', '').trim();
-                    let mName = b ? b.morningAssigned : '';
-                    let aName = b ? b.afternoonAssigned : '';
-                    if (b) {
-                        // 오전=오후 동일 정규기사 오염만 복구 (주별통합과 동일)
-                        const cm = norm(mName), ca = norm(aName);
-                        const n1 = norm(b.morningRegular), n2 = norm(b.afternoonRegular);
-                        if (cm && ca && cm === ca && !isSpareName(cm) && n1 && n2 && n1 !== n2 && cm !== '운행종료') {
-                            mName = n1; aName = n2;
+                // 일 단위 회전 (주별통합과 동일)
+                let ordered = [];
+                try {
+                    if (baseUnits.length) {
+                        let shift = 0;
+                        if (typeof getVehicleFlowDayIndex === 'function' && typeof getVehicleFlowShift === 'function') {
+                            shift = Number(getVehicleFlowShift(getVehicleFlowDayIndex(currentYear, currentMonth, d))) || 0;
                         }
+                        ordered = (shift && typeof rotateRight === 'function')
+                            ? rotateRight(baseUnits, shift)
+                            : baseUnits.slice();
+                    } else if (typeof getWeeklyTableDisplayBusOrder === 'function') {
+                        ordered = getWeeklyTableDisplayBusOrder(currentYear, currentMonth, d) || [];
                     }
+                } catch (e) {
+                    console.warn('[일일배차] 순서 계산', d, e);
+                    ordered = baseUnits.slice();
+                }
 
-                    const isShiftAft = (typeof isAfternoonShiftWork === 'function') ? isAfternoonShiftWork(currentYear, currentMonth, d, seq) : false;
-                    const isMakcha = seq === makchaSeq && makchaSeq >= 1;
-                    const sMark = [
-                        isShiftAft ? `<span class="font-black text-white text-[14px]" title="시프트 근무">S</span>` : '',
-                        isMakcha ? `<span class="font-black text-white text-[12px]" title="막차">막차</span>` : ''
-                    ].filter(Boolean).join('<br>');
-                    const sCellBg = (isShiftAft || isMakcha) ? 'bg-slate-900' : '';
-
-                    const dayJo = { label: !!(b && b.joOff), group: dayOffGroup };
-                    const rowBg = overLimit ? 'bg-sky-100' : (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60');
-                    const cellBase = overLimit ? 'cursor-default' : 'cursor-pointer hover:bg-brand-50/50 transition-colors';
-                    const clickAm = overLimit ? '' : ` onclick="openDriverSelectModal('${dateKey}', '${unit.line}', '${unit.busNo}', 'morning', '${norm(mName)}')"`;
-                    const clickPm = overLimit ? '' : ` onclick="openDriverSelectModal('${dateKey}', '${unit.line}', '${unit.busNo}', 'afternoon', '${norm(aName)}')"`;
-
-                    return `
-                        <tr class="${rowBg} border-b border-slate-100">
-                            <td class="px-1 py-2 text-center font-black text-green-600 text-[15px] align-middle">${seq}</td>
-                            <td class="px-1 py-2 text-center font-black text-slate-900 text-[14px] align-middle whitespace-nowrap">${plate || '-'}</td>
-                            <td class="px-1 py-2 text-center align-middle ${cellBase}"${clickAm}>${nameHtml(mName, overLimit, dayJo)}</td>
-                            <td class="px-1 py-2 text-center align-middle ${cellBase}"${clickPm}>${nameHtml(aName, overLimit, dayJo)}</td>
-                            <td class="px-0.5 py-2 text-center align-middle leading-tight ${sCellBg}">${sMark}</td>
-                        </tr>`;
-                }).join('');
-
-                // 휴무자: 조별코드·N조 값은 'N조휴무' 한 번만, 개인 기사는 이름으로 표시
-                const offJoGroups = new Set();
-                const offPersonNames = [];
-                (dayAssign.offList || []).forEach(n => {
-                    const raw = norm(n);
-                    if (!raw) return;
-                    if (/^\d+\s*조$/.test(raw)) { offJoGroups.add(parseInt(raw, 10)); return; }
-                    if (/^\d+\s*-\s*\d+$/.test(raw)) {
-                        const g = parseInt(raw.split('-')[0], 10);
-                        if (dayOffGroup && g === dayOffGroup) { offJoGroups.add(g); return; }
-                        let names = [];
-                        try { names = resolveGroupValueToDriverNames(raw) || []; } catch (e) { names = []; }
-                        names.forEach(nm => { if (nm && !offPersonNames.includes(nm)) offPersonNames.push(nm); });
-                        return;
+                let dayAssign = { busAssignments: [], offList: [], patternOffNames: [] };
+                try {
+                    if (typeof getDailyAssignment === 'function') {
+                        dayAssign = getDailyAssignment(dateKey) || dayAssign;
                     }
-                    if (dayOffGroup && joGroupOfName(raw) === dayOffGroup) { offJoGroups.add(dayOffGroup); return; }
-                    if (!offPersonNames.includes(raw)) offPersonNames.push(raw);
-                });
-                const offNames = [
-                    ...[...offJoGroups].sort((a, b) => a - b).map(g =>
-                        `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[13px] font-black bg-red-50 text-red-600 border border-red-200">${g}조휴무</span>`),
-                    ...offPersonNames.map(nm => {
-                        const isS = isSpareName(nm);
-                        return `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[13px] font-bold ${isS ? 'text-blue-600 border border-blue-200 blue-underline' : 'bg-rose-50 text-rose-800 border border-rose-200'}">${nm}</span>`;
-                    })
-                ].join('');
+                } catch (e) {
+                    console.warn('[일일배차] getDailyAssignment', dateKey, e);
+                }
+                const assignList = Array.isArray(dayAssign.busAssignments) ? dayAssign.busAssignments : [];
 
-                html += `
-                    <div id="daily-card-${dateKey}" style="scroll-margin-top:150px;" class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-                        <div class="px-3 py-2.5 bg-slate-100/80 border-b border-slate-200 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
-                            <div class="flex items-center gap-2">
-                                <span class="px-2.5 py-0.5 rounded-lg ${dowBadgeClass} text-[14px] font-bold border flex items-center gap-1 shadow-2xs">
-                                    <i data-lucide="calendar" class="w-3.5 h-3.5"></i> ${currentMonth}월 ${d}일 (${dow})
-                                </span>
-                                <div class="flex items-center gap-1 flex-wrap">
-                                    <span class="text-[13px] font-bold text-slate-500 uppercase">휴무자:</span>
-                                    <div class="flex flex-wrap gap-1">${offNames || '<span class="text-[13px] text-slate-400 font-normal italic">없음</span>'}</div>
-                                </div>
-                            </div>
-                            <span class="text-[12px] font-mono text-slate-400 font-bold bg-white px-2 py-0.5 rounded border border-slate-200">20${dateKey}</span>
-                        </div>
+                // 차량 목록이 비었으면 배정 목록으로 폴백
+                if (!ordered.length && assignList.length) {
+                    ordered = assignList.map((b, i) => ({
+                        line: b.line, busNo: b.busNo, seq: i + 1, slotIndex: i
+                    }));
+                }
 
-                        <div class="w-full">
-                            <table class="w-full text-[14px] text-left text-slate-700 border-collapse table-fixed">
-                                <thead class="bg-slate-50 text-slate-700 border-b border-slate-200 text-[12px] font-black">
-                                    <tr>
-                                        <th class="px-1 py-2 text-center w-[13%]">순번</th>
-                                        <th class="px-1 py-2 text-center w-[17%] bg-amber-50 text-amber-900">차량</th>
-                                        <th class="px-1 py-2 text-center w-[31%]">오전</th>
-                                        <th class="px-1 py-2 text-center w-[31%] text-green-600">오후</th>
-                                        <th class="px-0.5 py-2 text-center w-[8%] text-blue-700">S</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white">
-                                    ${rowsHtml}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                `;
+                let opLimit = 29;
+                try {
+                    if (typeof getOperatingVehicleLimitForDate === 'function') {
+                        opLimit = getOperatingVehicleLimitForDate(currentYear, currentMonth, d) || 29;
+                    }
+                } catch (e) {}
+
+                let rowsHtml = '';
+                if (!ordered.length && !assignList.length) {
+                    rowsHtml = '<tr><td colspan="5" class="px-3 py-4 text-center text-slate-400 text-xs font-bold">배차 데이터 없음 (데이타불러오기 후 확인)</td></tr>';
+                } else {
+                    const rowSource = ordered.length ? ordered : assignList.map((b, i) => ({
+                        line: b.line, busNo: b.busNo, seq: i + 1, slotIndex: i
+                    }));
+                    let dayTimes = null;
+                try {
+                    if (typeof getDispatchTimesForDay === 'function') dayTimes = getDispatchTimesForDay(currentYear, currentMonth, d);
+                    else if (typeof window.getDispatchTimesForDay === 'function') dayTimes = window.getDispatchTimesForDay(currentYear, currentMonth, d);
+                } catch (e) {}
+                const defaultAmTime = (seq) => {
+                    const mins = (4 * 60 + 45) + (Math.max(1, Number(seq) || 1) - 1) * 6;
+                    return String(Math.floor(mins / 60)).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0');
+                };
+                const defaultPmTime = (seq) => {
+                    const mins = (13 * 60 + 24) + (Math.max(1, Number(seq) || 1) - 1) * 6;
+                    return String(Math.floor(mins / 60)).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0');
+                };
+                const timeAmAt = (seq) => {
+                    try {
+                        if (dayTimes && typeof dayTimes.morningAt === 'function') {
+                            const v = dayTimes.morningAt(seq);
+                            if (v) return String(v);
+                        }
+                    } catch (e) {}
+                    return defaultAmTime(seq);
+                };
+                const timePmAt = (seq) => {
+                    try {
+                        if (dayTimes && typeof dayTimes.afternoonAt === 'function') {
+                            const v = dayTimes.afternoonAt(seq);
+                            if (v) return String(v);
+                        }
+                    } catch (e) {}
+                    return defaultPmTime(seq);
+                };
+                rowSource.forEach((unit, idx) => {
+                        const seq = idx + 1; // 일일배차: 당일 회전 후 표시 순서 그대로 순번(1..N) 부여
+                        const overLimit = seq > opLimit;
+                        const rowBg = overLimit ? 'bg-sky-100' : (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50');
+                        const bMatch = matchBus(assignList, unit.line, unit.busNo);
+                        let m = bMatch ? String(bMatch.morningAssigned || '-').replace('(S)','').trim() : '-';
+                        let a = bMatch ? String(bMatch.afternoonAssigned || '-').replace('(S)','').trim() : '-';
+                        // 배정 목록 자체가 행 소스인 경우 필드 직접 사용
+                        if (!bMatch && unit.morningAssigned != null) {
+                            m = String(unit.morningAssigned || '-').replace('(S)','').trim();
+                            a = String(unit.afternoonAssigned || '-').replace('(S)','').trim();
+                        }
+                        try {
+                            if ((m === '운행종료' || String(m).includes('운행종료')) && typeof formatJoOffLabel === 'function') {
+                                m = formatJoOffLabel(unit.line, unit.busNo, dateKey) || m;
+                            }
+                            if ((a === '운행종료' || String(a).includes('운행종료')) && typeof formatJoOffLabel === 'function') {
+                                a = formatJoOffLabel(unit.line, unit.busNo, dateKey) || a;
+                            }
+                        } catch (e) {}
+                        const plate = String(unit.busNo || '').replace('부산70자', '').replace(/호\s*$/, '').replace(/\s+/g, '').trim();
+                        let isShiftAft = false;
+                        try {
+                            isShiftAft = (typeof isAfternoonShiftWork === 'function')
+                                ? isAfternoonShiftWork(currentYear, currentMonth, d, seq) : false;
+                        } catch (e) {}
+                        let isMakcha = false;
+                        try {
+                            const dowNum = new Date(currentYear, currentMonth - 1, d).getDay();
+                            const isSunHol = (dowNum === 0 || isHoliday);
+                            const makchaSeq = isSunHol ? (opLimit - 3) : opLimit;
+                            isMakcha = Number(seq) === Number(makchaSeq) && makchaSeq >= 1;
+                        } catch (e) {}
+                        let sHtml = '';
+                        if (isShiftAft) sHtml += '<span class="font-black text-[11px]" style="color:#93c5fd;" title="시프트">S</span>';
+                        if (isMakcha) sHtml += (sHtml ? '<br>' : '') + '<span class="font-black text-[10px]" style="color:#fdba74;" title="막차">막차</span>';
+                        const sBg = (isShiftAft || isMakcha) ? 'background:#0f172a;color:#f8fafc;' : '';
+                        const nameCancel = overLimit ? 'opacity-60' : '';
+                        const tAm = timeAmAt(seq);
+                        const tPm = timePmAt(seq);
+                        const timeAmCls = overLimit ? 'opacity-50' : '';
+                        const timePmCls = overLimit ? 'opacity-50' : '';
+                        rowsHtml += '<tr class="' + rowBg + ' border-b border-slate-100">' +
+                            '<td class="px-1 py-1.5 text-center font-black align-middle text-sm" style="color:#16a34a;min-width:32px;">' + seq + '</td>' +
+                            '<td class="px-1 py-1.5 text-center font-black text-slate-900 align-middle text-xs whitespace-nowrap">' + esc(plate) + '</td>' +
+                            '<td class="px-0.5 py-1.5 text-center align-middle text-[11px] font-black text-amber-800 bg-amber-50/80 ' + timeAmCls + '">' + esc(tAm || '-') + '</td>' +
+                            '<td class="px-1 py-1.5 text-center align-middle ' + nameCancel + '">' + formatDriverCell(m, unit.line, unit.busNo, dateKey, overLimit) + '</td>' +
+                            '<td class="px-0.5 py-1.5 text-center align-middle text-[11px] font-black text-blue-800 bg-blue-50/80 ' + timePmCls + '">' + esc(tPm || '-') + '</td>' +
+                            '<td class="px-1 py-1.5 text-center align-middle ' + nameCancel + '">' + formatDriverCell(a, unit.line, unit.busNo, dateKey, overLimit) + '</td>' +
+                            '<td class="px-0.5 py-1.5 text-center align-middle font-black text-[11px]" style="min-width:28px;' + sBg + '">' + sHtml + '</td>' +
+                            '</tr>';
+                    });
+                }
+
+                const offNames = buildOffNamesHtml(dayAssign, d);
+                html += '<div id="dl-card-' + dateKey + '" class="daily-list-card bg-white rounded-2xl border border-slate-200 shadow-2xs mb-3">' +
+                    '<div class="px-3 py-2.5 bg-slate-100/80 border-b border-slate-200 flex flex-col sm:flex-row justify-between sm:items-center gap-2">' +
+                    '<div class="flex items-center gap-2 flex-wrap">' +
+                    '<span class="px-2.5 py-0.5 rounded-lg ' + dowBadgeClass + ' text-xs font-black border flex items-center gap-1" style="' + dowBadgeStyle + '">' +
+                    currentMonth + '월 ' + d + '일 (' + esc(dow) + ')</span>' +
+                    '<div class="flex items-center gap-1 flex-wrap">' +
+                    '<span class="text-[11px] font-bold text-slate-500">휴무자:</span>' +
+                    '<div class="flex flex-wrap gap-1">' + (offNames || '<span class="text-[11px] text-slate-400 italic">없음</span>') + '</div>' +
+                    '</div></div>' +
+                    '<span class="text-[10px] font-mono text-slate-400 font-bold bg-white px-2 py-0.5 rounded border border-slate-200">20' + dateKey + '</span>' +
+                    '</div>' +
+                    '<div class="daily-list-scroll w-full">' +
+                    '<table class="daily-list-table w-full text-xs text-center text-slate-700 border-collapse min-w-[300px]">' +
+                    '<thead class="daily-list-thead border-b border-slate-200 text-[11px] font-black">' +
+                    '<tr>' +
+                    '<th class="daily-th daily-th-seq px-1 py-2 text-center" style="width:10%;color:#16a34a !important;background:linear-gradient(135deg,#fdf8ec,#f6e6bc) !important;">순번</th>' +
+                    '<th class="daily-th daily-th-bus px-1 py-2 text-center" style="width:12%;color:#78350f !important;background:linear-gradient(135deg,#fef3c7,#fde68a) !important;">차량</th>' +
+                    '<th class="daily-th daily-th-am-time px-1 py-2 text-center" style="width:12%;line-height:1.15;color:#92400e !important;background:linear-gradient(135deg,#fffbeb,#fef3c7) !important;">오전<br>시간</th>' +
+                    '<th class="daily-th daily-th-am px-1 py-2 text-center" style="width:22%;color:#0f172a !important;background:linear-gradient(135deg,#f0f9ff,#e0f2fe) !important;">오전</th>' +
+                    '<th class="daily-th daily-th-pm-time px-1 py-2 text-center" style="width:12%;line-height:1.15;color:#1e40af !important;background:linear-gradient(135deg,#eff6ff,#dbeafe) !important;">오후<br>시간</th>' +
+                    '<th class="daily-th daily-th-pm px-1 py-2 text-center" style="width:22%;color:#166534 !important;background:linear-gradient(135deg,#f0fdf4,#dcfce7) !important;">오후</th>' +
+                    '<th class="daily-th daily-th-s px-0.5 py-2 text-center" style="width:10%;color:#3730a3 !important;background:linear-gradient(135deg,#eef2ff,#e0e7ff) !important;">S</th>' +
+                    '</tr></thead>' +
+                    '<tbody>' + rowsHtml + '</tbody></table></div></div>';
             }
-            container.innerHTML = html;
-            lucide.createIcons();
+
+            if (!html) {
+                html = '<div class="p-6 text-center text-slate-500 font-bold">표시할 일자가 없습니다. 데이타불러오기 후 다시 확인해 주세요.</div>';
+            }
+            const DL_STYLE = '<style>' +
+                '#dailyListContainer .text-\\[10px\\]{font-size:12px !important}' +
+                '#dailyListContainer .text-\\[11px\\]{font-size:13px !important}' +
+                '#dailyListContainer .text-xs{font-size:14px !important}' +
+                '#dailyListContainer .text-sm{font-size:16px !important}' +
+                '#dailyListContainer .daily-list-card{overflow:clip !important}' +
+                '#dailyListContainer .daily-list-scroll{overflow-x:clip !important;overflow-y:visible !important}' +
+                '#dailyListContainer .daily-list-table thead th{position:sticky !important;top:var(--dl-head-top,0px) !important;z-index:5}' +
+                '</style>';
+            let hdrH = 0;
+            try { const hd = document.querySelector('header'); hdrH = hd ? Math.ceil(hd.getBoundingClientRect().height) : 0; } catch (e) {}
+            container.style.setProperty('--dl-head-top', hdrH + 'px');
+            container.innerHTML = DL_STYLE + html;
+            try { if (typeof lucide !== 'undefined') lucide.createIcons(); } catch (e) {}
+            try { if (typeof applySpareDriverGlobalStyle === 'function') applySpareDriverGlobalStyle(); } catch (e) {}
+            console.log('[일일배차] 렌더 완료 days=', totalDays, 'htmlLen=', html.length);
+            try {
+                if (typeof currentTab !== 'undefined' && currentTab === 'dailyList') {
+                    if (typeof ensureScrollDailyListToToday === 'function') ensureScrollDailyListToToday();
+                    else if (typeof scrollDailyListToToday === 'function') setTimeout(scrollDailyListToToday, 80);
+                }
+            } catch (e) {}
+            } catch (err) {
+                console.error('[일일배차] 렌더 오류', err);
+                container.innerHTML = '<div class="p-4 text-center text-rose-600 font-bold">일일배차 표시 중 오류: ' + String(err && err.message || err) + '</div>';
+            }
         }
 
+        
         // ===== 시프트 근무: 순번 1,5,18 / 평일·토요일만 / 오후 셀 파란 사각형 =====
         // 조별이 아니라 주별통합 테이블의 "순번(슬롯)" 기준입니다.
         window.SHIFT_WORK_SEQS = window.SHIFT_WORK_SEQS || [1, 5, 18];
@@ -12867,7 +13141,7 @@ function getMonthlyOffAllDriverNames(){
 
                         if (bMatch) {
                             // 차량·오전·오후: 패턴으로 이동한 __unit 기준 (동일 shift)
-                            const __plateShow = String(__unit.busNo || '').replace('부산70자','');
+                            const __plateShow = String(__unit.busNo || '').replace('부산70자','').replace(/호\s*$/, '').replace(/\s+/g, '').trim();
                             let __mShow = bMatch.morningAssigned;
                             let __aShow = bMatch.afternoonAssigned;
                             // 화면 검증: 오전=오후 동일 보정
@@ -12898,7 +13172,7 @@ function getMonthlyOffAllDriverNames(){
                                 }
                             }
                             tbodyHtml += `<td style="min-width: ${Math.max(44, dayColWidth - 8)}px;" class="px-0.5 text-center ${shiftBg} align-middle border-r border-slate-200" title="패턴이동 차량 ${__unit.busNo} (슬롯 ${idx+1})">
-                                <div class="flex items-center justify-center w-full h-full"><span class="font-black text-[12px] text-slate-900 leading-tight">${__plateShow}</span></div>
+                                <div class="flex items-center justify-center w-full h-full"><span class="weekly-bus-plate font-black text-[14px] text-slate-900 leading-tight">${__plateShow}</span></div>
                             </td>`;
                             const __hasName = (v) => { const t = String(v == null ? '' : v).trim(); return !!t && t !== '-' && t !== '미정'; };
                             const __cancelM = (__overLimit && __hasName(__mShow)) ? ' weekly-cancel-td' : '';
@@ -15334,6 +15608,7 @@ function getWeeklyScheduleCards() {
                 }
             };
         }
+        try { window.getDispatchTimesForDay = getDispatchTimesForDay; window.getDispatchTimeDayKeyForDate = getDispatchTimeDayKeyForDate; } catch (e) {}
 
         // 하루분 패널 HTML 생성 (주별통합 화면 순번 순서)
         function buildDailyDayPanelHtml(day) {
@@ -17123,6 +17398,44 @@ div[class*="rounded"][class*="border-slate"]{
 <input type="file" id="txtFileInput" accept=".txt" class="hidden" onchange="handleFileUpload(event)">
                     
 
+<style id="daily-list-thead-style">
+/* 일일배차 날짜 뱃지: 일·공휴 흰글자 강제 */
+#dailyListContainer .daily-list-card span.bg-red-600,
+#view-dailyList .daily-list-card span.bg-red-600 {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+#dailyListContainer .daily-list-card span.bg-blue-500,
+#view-dailyList .daily-list-card span.bg-blue-500 {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* 일일배차: 일요일·공휴일 테이블 헤더 빨간바탕 흰글자 */
+#view-dailyList .daily-list-thead-hol th.daily-th,
+#dailyListContainer .daily-list-thead-hol th.daily-th {
+  color: #fff !important;
+  text-shadow: none !important;
+  border-color: #b91c1c !important;
+  background: #dc2626 !important;
+}
+
+/* 일일배차 테이블 헤더: 열별 색 구분 (스크린샷 스타일) */
+#view-dailyList .daily-list-table thead th.daily-th,
+#dailyListContainer .daily-list-table thead th.daily-th {
+  font-weight: 900 !important;
+  font-size: 11px !important;
+  vertical-align: middle !important;
+  text-align: center !important;
+  border-right: 1px solid #e2e8f0 !important;
+  border-bottom: 1px solid #e6cd93 !important;
+  text-shadow: none !important;
+}
+#view-dailyList .daily-list-table thead th.daily-th:last-child,
+#dailyListContainer .daily-list-table thead th.daily-th:last-child {
+  border-right: 0 !important;
+}
+</style>
 <style id="final-driver-name-and-offday-fix">
 /* ===== 최종 검증: 기사명/조별 분리 + 휴무기사명 넓은 칸·자연 줄바꿈 ===== */
 .monthly-off-list-table .monthly-off-jo-select {
