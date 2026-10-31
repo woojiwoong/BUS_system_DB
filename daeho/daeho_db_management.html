@@ -4614,6 +4614,89 @@ main{padding-top:18px !important;}
         }
         window.syncOffListTableToWeeklyOffCells = syncOffListTableToWeeklyOffCells;
 
+        /**
+         * 일자별 휴무자 이름 목록 (전 탭 공통)
+         * 1) 휴무자명단작성 테이블(monthlyOffDayEntries)
+         * 2) manualOffDisplayOverrides
+         * 3) getDailyAssignment().offList / appData.offDays
+         */
+        function getOffNamesForDateKey(dateKey) {
+            const norm = (n) => String(n || '').replace('(S)', '').trim();
+            const cleanList = (arr) => {
+                const out = [];
+                (arr || []).forEach(n => {
+                    const c = norm(n);
+                    if (c && c !== '운행종료' && !out.includes(c)) out.push(c);
+                });
+                return out;
+            };
+
+            let shortKey = String(dateKey || '').trim();
+            let isoFull = '';
+            if (/^\d{2}-\d{2}-\d{2}$/.test(shortKey)) {
+                isoFull = '20' + shortKey;
+            } else if (/^\d{4}-\d{2}-\d{2}$/.test(shortKey)) {
+                isoFull = shortKey;
+                shortKey = shortKey.slice(2);
+            } else {
+                return [];
+            }
+
+            // 1) 휴무자명단 테이블
+            try {
+                const entries = (typeof monthlyOffDayEntries !== 'undefined' && Array.isArray(monthlyOffDayEntries))
+                    ? monthlyOffDayEntries
+                    : (window.monthlyOffDayEntries || []);
+                const hit = (entries || []).find(e => {
+                    let ed = String((e && e.date) || '').trim();
+                    if (/^\d{2}-\d{2}-\d{2}$/.test(ed)) ed = '20' + ed;
+                    return ed === isoFull;
+                });
+                if (hit && Array.isArray(hit.drivers) && hit.drivers.length) {
+                    return cleanList(hit.drivers);
+                }
+            } catch (e) {}
+
+            // 2) 표시 오버라이드
+            try {
+                const L = (typeof manualOffDisplayOverrides === 'object' && manualOffDisplayOverrides) ? manualOffDisplayOverrides : {};
+                const W = (window.manualOffDisplayOverrides && typeof window.manualOffDisplayOverrides === 'object') ? window.manualOffDisplayOverrides : {};
+                if (Object.prototype.hasOwnProperty.call(W, shortKey) && Array.isArray(W[shortKey])) {
+                    return cleanList(W[shortKey]);
+                }
+                if (Object.prototype.hasOwnProperty.call(L, shortKey) && Array.isArray(L[shortKey])) {
+                    return cleanList(L[shortKey]);
+                }
+            } catch (e) {}
+
+            // 3) 시뮬레이션 / 원본 offDays
+            try {
+                if (typeof getDailyAssignment === 'function') {
+                    const day = getDailyAssignment(shortKey);
+                    if (day && Array.isArray(day.offList) && day.offList.length) {
+                        return cleanList(day.offList);
+                    }
+                }
+            } catch (e) {}
+            try {
+                const ad = (typeof appData === 'object' && appData) ? appData
+                    : (window.appData || null);
+                if (ad && ad.offDays && Array.isArray(ad.offDays[shortKey])) {
+                    return cleanList(ad.offDays[shortKey]);
+                }
+            } catch (e) {}
+
+            return [];
+        }
+        window.getOffNamesForDateKey = getOffNamesForDateKey;
+
+        function isDriverOffOnDate(driverName, dateKey) {
+            const name = String(driverName || '').replace('(S)', '').trim();
+            if (!name) return false;
+            return getOffNamesForDateKey(dateKey).includes(name);
+        }
+        window.isDriverOffOnDate = isDriverOffOnDate;
+
         // 날짜 키 정규화: yy-mm-dd / yyyy-mm-dd → yyyy-mm-dd
         function normalizeOffDayDateKey(raw) {
             let s = String(raw || '').trim();
@@ -5726,6 +5809,13 @@ function getMonthlyOffAllDriverNames(){
         }
 
         function renderAllViews() {
+            // 배차 시뮬레이션 캐시 항상 제거 (정규 휴무→스페어 자동배차 즉시 반영)
+            try {
+                if (typeof window.clearMonthlySimCache === 'function') window.clearMonthlySimCache();
+                if (typeof monthlySimulationCache !== 'undefined') monthlySimulationCache = null;
+                if (typeof monthlySimulationCacheKey !== 'undefined') monthlySimulationCacheKey = '';
+                window.__forceClearSimCache = true;
+            } catch (e) {}
             // DB 불러오기 직후에는 DB 값을 최우선으로 한다. 키 개수 비교로 이전 로컬값이
             // 새 DB값(특히 더 적은 키/빈 객체)을 덮어쓰지 못하게 동기화 분기를 건너뛴다.
             const __dbOverridesJustLoaded = window.__forceDbOverridesSync === true;
@@ -6180,13 +6270,13 @@ function getMonthlyOffAllDriverNames(){
         };
         function runMonthlySpareSimulation(targetYear = currentYear, targetMonth = currentMonth) {
             const cacheKey = `${targetYear}-${String(targetMonth).padStart(2, '0')}`;
-            // 저장/탭전환 후 강제 재계산
-            if (window.__forceClearSimCache) {
-                monthlySimulationCache = null;
-                monthlySimulationCacheKey = '';
-                window.__forceClearSimCache = false;
-            }
-            if (monthlySimulationCache && monthlySimulationCacheKey === cacheKey) return monthlySimulationCache;
+            // ★ 캐시 사용 안 함: 휴무자명단/offDays 변경 후에도 옛 배차(정규 유지)가 남는 문제 방지
+            // 11/8 이후 정규 휴무 → 스페어 미배차 버그 대응
+            monthlySimulationCache = null;
+            monthlySimulationCacheKey = '';
+            window.monthlySimulationCache = null;
+            window.monthlySimulationCacheKey = '';
+            window.__forceClearSimCache = false;
 
             // ★ 배차/휴무 표시용: DB에서 불러온 window 값을 로컬보다 우선 사용
             // (로컬이 {} 빈 객체여도 truthy라 window를 무시하던 버그 수정)
@@ -6227,11 +6317,33 @@ function getMonthlyOffAllDriverNames(){
             for (let d = 1; d <= totalDays; d++) {
                 const dayStr = d < 10 ? `0${d}` : `${d}`, mStr = targetMonth < 10 ? `0${targetMonth}` : `${targetMonth}`;
                 const dateKey = `${yyStr}-${mStr}-${dayStr}`;
-                // 자동 배차 계산의 휴무 기준은 원본 휴무데이터를 사용합니다.
-                // 기사변경으로 휴무자 표시가 바뀌어도 다른 차량의 기존 배차까지
-                // 연쇄적으로 바뀌지 않도록 합니다.
-                const baseOffList = [...(appData.offDays[dateKey] || [])]
-                    .map(n => normSpare(n)).filter(Boolean);
+                // 자동 배차 휴무 기준:
+                //  1) 휴무자명단작성 테이블(monthlyOffDayEntries) — 주별통합과 동일 소스
+                //  2) appData.offDays (TXT/DB 원본)
+                // ※ 기사변경용 manualOffDisplayOverrides 는 표시만 바꾸고 배차 재계산에는 넣지 않음
+                //   (다른 차량 배차가 연쇄로 바뀌는 것 방지)
+                const baseOffSet = new Set();
+                (appData.offDays[dateKey] || []).forEach(n => {
+                    const cn = normSpare(n);
+                    if (cn) baseOffSet.add(cn);
+                });
+                try {
+                    const isoFull = (Number(targetYear) >= 2000 ? String(targetYear) : ('20' + yyStr))
+                        + '-' + mStr + '-' + dayStr;
+                    const entries = (typeof monthlyOffDayEntries !== 'undefined' && Array.isArray(monthlyOffDayEntries))
+                        ? monthlyOffDayEntries
+                        : (window.monthlyOffDayEntries || []);
+                    (entries || []).forEach(e => {
+                        let ed = String((e && e.date) || '').trim();
+                        if (/^\d{2}-\d{2}-\d{2}$/.test(ed)) ed = '20' + ed;
+                        if (ed !== isoFull) return;
+                        (e.drivers || []).forEach(n => {
+                            const cn = normSpare(n);
+                            if (cn && cn !== '운행종료') baseOffSet.add(cn);
+                        });
+                    });
+                } catch (e) {}
+                const baseOffList = [...baseOffSet];
                 let offList = [...baseOffList];
                 const isSun = isSunday(dateKey, targetYear);
 
@@ -6352,19 +6464,50 @@ function getMonthlyOffAllDriverNames(){
                         const mReg = row.mReg, aReg = row.aReg, mOff = row.mOff, aOff = row.aOff;
 
                         const overrideKey = `${dateKey}_${routeName}_${bus.busNo}`;
-                        // DB manualOverrides 최우선 적용 (화면 표시 = 저장값)
+                        // manualOverrides 적용 규칙:
+                        //  - 운행종료: 그대로 유지
+                        //  - 지정 기사가 휴무가 아님: 수동값 유지 (기사변경 존중)
+                        //  - 지정 기사가 휴무(정규 휴무 등): 무시 → 자동 스페어 배차 결과 유지
+                        //    (11/8 이후 기사변경으로 고정된 정규기사가 휴무인데도 칸에 남는 버그 수정)
                         let ov = ovMap[overrideKey] || null;
+                        const personIsOff = (name) => {
+                            const cn = normSpare(name);
+                            if (!cn || cn === '운행종료') return false;
+                            return offList.includes(cn) || offList.includes(name);
+                        };
                         if (ov && typeof ov === 'object') {
                             if (Object.prototype.hasOwnProperty.call(ov, 'morning') && ov.morning !== undefined && ov.morning !== null) {
                                 const v = String(ov.morning).replace('(S)', '').trim();
-                                if (v) mAssigned = v;
-                                else if (ov.morning === '운행종료' || String(ov.morning).replace('(S)','').trim() === '운행종료') mAssigned = '운행종료';
+                                if (v === '운행종료' || ov.morning === '운행종료') {
+                                    mAssigned = '운행종료';
+                                } else if (v && !personIsOff(v)) {
+                                    mAssigned = v;
+                                }
+                                // v가 휴무자이면 위에서 채운 스페어 자동배차(mAssigned)를 유지
                             }
                             if (Object.prototype.hasOwnProperty.call(ov, 'afternoon') && ov.afternoon !== undefined && ov.afternoon !== null) {
                                 const v = String(ov.afternoon).replace('(S)', '').trim();
-                                if (v) aAssigned = v;
-                                else if (String(ov.afternoon).replace('(S)','').trim() === '운행종료') aAssigned = '운행종료';
+                                if (v === '운행종료') {
+                                    aAssigned = '운행종료';
+                                } else if (v && !personIsOff(v)) {
+                                    aAssigned = v;
+                                }
                             }
+                        }
+
+                        // 최종 보정: 배정된 사람이 휴무이면 스페어로 재배정 (캐시/오버라이드 잔존 방어)
+                        const ensureSpareIfOff = (assigned, takeFn) => {
+                            const v = normSpare(assigned);
+                            if (!v) return takeFn(2) || '운행종료';
+                            if (v === '운행종료') return '운행종료';
+                            if (personIsOff(v)) return takeFn(2) || '운행종료';
+                            return assigned;
+                        };
+                        if (mOff || personIsOff(mAssigned)) {
+                            mAssigned = ensureSpareIfOff(mAssigned, takeMorningSpare);
+                        }
+                        if (aOff || personIsOff(aAssigned)) {
+                            aAssigned = ensureSpareIfOff(aAssigned, takeAfternoonSpare);
                         }
 
                         // 최종 배차 결과를 기준으로 스페어 투입차량을 기록합니다.
@@ -7102,28 +7245,10 @@ function getMonthlyOffAllDriverNames(){
                 for (let d = weekInfo.start; d <= weekInfo.end; d++) {
                     const dateKey = `${String(currentYear).substring(2)}-${currentMonth < 10 ? '0'+currentMonth : currentMonth}-${d < 10 ? '0'+d : d}`;
                     const dayData = getDailyAssignment(dateKey);
-                    // 1순위: 휴무자명단작성 테이블(monthlyOffDayEntries) — 주별통합과 동일 월
-                    // 2순위: getDailyAssignment().offList (offDays/오버라이드 기반)
-                    let offNames = [];
-                    try {
-                        const isoFull = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-                        const entries = (typeof monthlyOffDayEntries !== 'undefined' && Array.isArray(monthlyOffDayEntries))
-                            ? monthlyOffDayEntries
-                            : (window.monthlyOffDayEntries || []);
-                        const hit = (entries || []).find(e => {
-                            let ed = String((e && e.date) || '').trim();
-                            if (/^\d{2}-\d{2}-\d{2}$/.test(ed)) ed = '20' + ed;
-                            return ed === isoFull || ed === ('20' + dateKey);
-                        });
-                        if (hit && Array.isArray(hit.drivers) && hit.drivers.length) {
-                            offNames = hit.drivers.map(n => String(n || '').replace('(S)', '').trim()).filter(Boolean);
-                        }
-                    } catch (e) {}
-                    if (!offNames.length) {
-                        offNames = (dayData.offList || [])
-                            .map(name => String(name || '').replace('(S)', '').trim())
-                            .filter(Boolean);
-                    }
+                    // 휴무자명단 → 오버라이드 → 배차 시뮬레이션 공통 헬퍼
+                    let offNames = (typeof getOffNamesForDateKey === 'function')
+                        ? getOffNamesForDateKey(dateKey)
+                        : (dayData.offList || []).map(name => String(name || '').replace('(S)', '').trim()).filter(Boolean);
                     offNames = offNames.filter((name, index, arr) => arr.indexOf(name) === index);
                     const offText = offNames.length ? offNames.join(', ') : '-';
                     // 휴무자를 3명씩 한 줄로 묶어 줄바꿈
@@ -7314,7 +7439,9 @@ function getMonthlyOffAllDriverNames(){
                 let offCount = 0, cells = '';
                 for (let d = 1; d <= totalDays; d++) {
                     const dateKey = `${String(currentYear).substring(2)}-${currentMonth < 10 ? '0'+currentMonth : currentMonth}-${d < 10 ? '0'+d : d}`;
-                    const isOff = getDailyAssignment(dateKey).offList.includes(cleanName);
+                    const isOff = (typeof isDriverOffOnDate === 'function')
+                        ? isDriverOffOnDate(cleanName, dateKey)
+                        : (getDailyAssignment(dateKey).offList || []).map(n => String(n||'').replace('(S)','').trim()).includes(cleanName);
                     if (isOff) {
                         offCount++;
                         cells += `<td class="p-0 text-center bg-rose-100 text-rose-700 font-bold text-[9px] h-3.5 align-middle">휴</td>`;
@@ -7347,7 +7474,9 @@ function getMonthlyOffAllDriverNames(){
             }
             for (let d = 1; d <= totalDays; d++) {
                 const dateKey = `${String(currentYear).substring(2)}-${currentMonth < 10 ? '0'+currentMonth : currentMonth}-${d < 10 ? '0'+d : d}`;
-                const offList = getDailyAssignment(dateKey).offList.map(n => n.replace('(S)','').trim()).filter(Boolean);
+                const offList = (typeof getOffNamesForDateKey === 'function')
+                    ? getOffNamesForDateKey(dateKey)
+                    : (getDailyAssignment(dateKey).offList || []).map(n => String(n||'').replace('(S)','').trim()).filter(Boolean);
                 const dow = new Date(currentYear, currentMonth - 1, d).getDay();
                 // 토=파랑, 일/공휴=빨강, 평일=검정
                 const isHoliday = isKoreanPublicHoliday(currentYear, currentMonth, d);
@@ -7381,7 +7510,9 @@ function getMonthlyOffAllDriverNames(){
                 ledgerDates.push(`${String(currentYear).substring(2)}-${String(currentMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
             }
             if (bodyEl) bodyEl.innerHTML = ledgerDates.map(dk => {
-                const cleanList = (getDailyAssignment(dk).offList || []).map(n => String(n).replace('(S)','').trim()).filter(Boolean);
+                const cleanList = (typeof getOffNamesForDateKey === 'function')
+                    ? getOffNamesForDateKey(dk)
+                    : (getDailyAssignment(dk).offList || []).map(n => String(n||'').replace('(S)','').trim()).filter(Boolean);
                 let formattedListHtml = cleanList.map(n => {
                     let isS = appData.spares.includes(n);
                     return `<span class="px-2 py-0.5 my-0.5 inline-block rounded ${isS ? 'text-blue-600 font-bold blue-underline' : 'bg-rose-50 text-rose-800 border border-rose-100 font-medium'}">${n}</span>`;
@@ -7439,6 +7570,16 @@ function getMonthlyOffAllDriverNames(){
                     if (rows[m]) rows[m][d-1].m = true;
                     if (rows[a]) rows[a][d-1].a = true;
                 });
+                // 휴무자명단 테이블 기준: 해당일 휴무자는 근무 표시 제거 + 휴무 반영
+                const offNames = (typeof getOffNamesForDateKey === 'function')
+                    ? getOffNamesForDateKey(dateKey)
+                    : ((dayData && dayData.offList) || []).map(n => String(n||'').replace('(S)','').trim()).filter(Boolean);
+                offNames.forEach(nm => {
+                    if (!rows[nm]) return;
+                    rows[nm][d-1].m = false;
+                    rows[nm][d-1].a = false;
+                    rows[nm][d-1].offForced = true;
+                });
             }
 
             statsHead.innerHTML = `<tr class="bg-slate-100 border-b border-slate-200">
@@ -7458,7 +7599,8 @@ function getMonthlyOffAllDriverNames(){
                 const morning = days.filter(x => x.m).length;
                 const afternoon = days.filter(x => x.a).length;
                 const work = morning + afternoon; // 근무합계 = 오전 + 오후
-                const off = days.filter(x => !x.m && !x.a).length;
+                // 휴무: 명단 강제 휴무 또는 오전·오후 미배정
+                const off = days.filter(x => x.offForced || (!x.m && !x.a)).length;
                 const isSpare = (appData.spares || []).some(s => String(s).replace('(S)','').trim() === name);
                 return {name, days, morning, afternoon, work, off, isSpare};
             }).sort((a,b) => Number(a.isSpare)-Number(b.isSpare) || a.name.localeCompare(b.name,'ko'));
