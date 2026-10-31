@@ -3317,7 +3317,7 @@ main{padding-top:18px !important;}
                     class="hidden w-full rounded-xl border border-slate-200 bg-slate-50 py-2 text-[12px] font-bold text-slate-600 hover:bg-slate-100" style="display:none!important">
                     샘플로 시작
                 </button>
-                <button type="button" id="welcomeCancelBtn" onclick="closeWelcomeModal()"
+                <button type="button" id="welcomeCancelBtn" onclick="onWelcomeCancel()"
                     class="hidden w-full rounded-lg border border-slate-200 bg-white py-1.5 text-[11px] font-bold text-slate-500 hover:bg-slate-50">
                     취소
                 </button>
@@ -3656,13 +3656,28 @@ main{padding-top:18px !important;}
 
         function applySelectedYearMonthAndRefresh(options = {}) {
             const skipRender = !!(options && options.skipRender);
-            const y = Number(document.getElementById('welcomeYearSelect')?.value || 2026);
-            const m = Number(document.getElementById('welcomeMonthSelect')?.value || 9);
+            // options.year / options.month 가 있으면 셀렉트 값보다 우선 (취소→최근문서 등)
+            let y, m;
+            if (options && options.year != null && options.month != null) {
+                y = Number(options.year);
+                m = Number(options.month);
+            } else {
+                y = Number(document.getElementById('welcomeYearSelect')?.value || currentYear || 2026);
+                m = Number(document.getElementById('welcomeMonthSelect')?.value || currentMonth || 9);
+            }
             currentYear = y;
             currentMonth = m;
             window.currentYear = y;
             window.currentMonth = m;
             selectedDailyDate = y + '-' + String(m).padStart(2, '0') + '-01';
+            // 모달 셀렉트도 표시 월과 맞춤 (재오픈 시 혼선 방지)
+            const yearEl = document.getElementById('welcomeYearSelect');
+            const monthEl = document.getElementById('welcomeMonthSelect');
+            if (yearEl) yearEl.value = String(y);
+            if (monthEl) monthEl.value = String(m);
+            if (typeof updateWelcomeMonthPreview === 'function') {
+                try { updateWelcomeMonthPreview(); } catch (e) {}
+            }
             if (typeof syncDatePickerToCurrentMonth === 'function') syncDatePickerToCurrentMonth();
             if (typeof updateMonthHeaderTitles === 'function') updateMonthHeaderTitles();
             // loadCurrentDataFromDB가 이미 성공적으로 전체 화면을 렌더링한 경우(skipRender)에는
@@ -3994,6 +4009,96 @@ main{padding-top:18px !important;}
                 status.textContent = '';
             }
             if (typeof updateWeeklyDbSaveButton === 'function') updateWeeklyDbSaveButton();
+        }
+
+        // 데이타불러오기 모달 취소:
+        // 선택한 년·월 서버 문서가 없으면 → 가장 최근(목록 첫 항목) 문서를 불러와 표시
+        // 예) 11월 문서 없음 → 10월 문서 표시
+        async function onWelcomeCancel() {
+            try {
+                if (welcomeModalMode !== 'load') {
+                    closeWelcomeModal();
+                    return;
+                }
+                const y = Number(document.getElementById('welcomeYearSelect')?.value || currentYear || 2026);
+                const m = Number(document.getElementById('welcomeMonthSelect')?.value || currentMonth || 9);
+
+                let list = window.__daehoScheduleMonths || [];
+                if ((!list || !list.length) && typeof window.listDaehoScheduleMonths === 'function') {
+                    try {
+                        const r = await window.listDaehoScheduleMonths();
+                        list = Array.isArray(r) ? r : (window.__daehoScheduleMonths || []);
+                    } catch (e) {
+                        list = window.__daehoScheduleMonths || [];
+                    }
+                }
+                list = Array.isArray(list) ? list : [];
+
+                const hasSelected = list.some(x => Number(x.y) === y && Number(x.m) === m);
+                if (!hasSelected && list.length > 0) {
+                    // 목록은 최신순 정렬 → [0]이 가장 최근 문서
+                    const latest = list[0];
+                    const ly = Number(latest.y);
+                    const lm = Number(latest.m);
+                    setWelcomeLoadStatus('loading', ly + '년 ' + lm + '월(최근 문서) 불러오는 중...');
+                    const cancelBtn = document.getElementById('welcomeCancelBtn');
+                    if (cancelBtn) { cancelBtn.disabled = true; cancelBtn.style.opacity = '0.6'; }
+
+                    let preloaded = null;
+                    try {
+                        if (typeof window.resolveDaehoMonthDoc === 'function') {
+                            preloaded = await window.resolveDaehoMonthDoc(ly, lm, 8000);
+                        }
+                    } catch (e) {
+                        console.warn('[취소→최근문서] 조회 실패:', e);
+                    }
+
+                    if (preloaded && typeof window.loadCurrentDataFromDB === 'function') {
+                        // 화면 기준 월을 최근 문서로 고정 (셀렉트가 선택 월로 다시 덮지 않도록)
+                        currentYear = ly;
+                        currentMonth = lm;
+                        window.currentYear = ly;
+                        window.currentMonth = lm;
+                        selectedDailyDate = ly + '-' + String(lm).padStart(2, '0') + '-01';
+                        const yearEl = document.getElementById('welcomeYearSelect');
+                        const monthEl = document.getElementById('welcomeMonthSelect');
+                        if (yearEl) yearEl.value = String(ly);
+                        if (monthEl) monthEl.value = String(lm);
+
+                        const ok = await window.loadCurrentDataFromDB({
+                            silent: true,
+                            year: ly,
+                            month: lm,
+                            preloaded: preloaded
+                        });
+                        if (ok) {
+                            // ★ 반드시 year/month 를 넘겨 셀렉트(선택 월)로 되돌리지 않음
+                            if (typeof applySelectedYearMonthAndRefresh === 'function') {
+                                applySelectedYearMonthAndRefresh({ skipRender: true, year: ly, month: lm });
+                            } else {
+                                if (typeof updateMonthHeaderTitles === 'function') updateMonthHeaderTitles();
+                                if (typeof syncDatePickerToCurrentMonth === 'function') syncDatePickerToCurrentMonth();
+                            }
+                            if (typeof hardRefreshAllTabsAfterDbLoad === 'function') {
+                                hardRefreshAllTabsAfterDbLoad();
+                            }
+                            if (typeof showModal === 'function') {
+                                showModal(
+                                    '최근 문서 표시',
+                                    y + '년 ' + m + '월 문서가 없어\n가장 최근인 ' + ly + '년 ' + lm + '월 데이터를 표시했습니다.',
+                                    false,
+                                    2800
+                                );
+                            }
+                        }
+                    }
+                    if (cancelBtn) { cancelBtn.disabled = false; cancelBtn.style.opacity = ''; }
+                }
+            } catch (err) {
+                console.error('onWelcomeCancel 오류:', err);
+            } finally {
+                closeWelcomeModal();
+            }
         }
 
         function openDbLoadMonthModal() {
