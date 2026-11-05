@@ -3259,9 +3259,22 @@ main{padding-top:18px !important;}
                         </table>
                     </div>
 
-                    <div class="mt-5 rounded-xl border  /60 p-3">
-                        <div class="font-bold  text-sm mb-2">스페어</div>
+                    <div class="mt-5 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                        <div class="font-bold text-slate-700 text-sm mb-2">스페어</div>
                         <div id="monthlyOffListSpare" class="monthly-off-list-spare"></div>
+                    </div>
+
+                    <div class="mt-4 rounded-xl border border-blue-200 bg-gradient-to-b from-white to-blue-50/50 p-3 sm:p-4">
+                        <div class="text-[12px] font-extrabold text-slate-700 mb-2 text-center">적용 시작일 · 정규/스페어 업데이트</div>
+                        <div class="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3">
+                            <input type="date" id="rosterApplyFromDate" class="monthly-off-day-date" style="min-width:180px;width:200px;height:42px;font-size:15px;">
+                            <button type="button" id="rosterApplyUpdateBtn" onclick="applyRosterChangesFromDate()"
+                                class="h-[42px] px-5 rounded-xl text-white text-[13px] font-black shadow-sm"
+                                style="background:linear-gradient(135deg,#2563eb,#1d4ed8);border:0;cursor:pointer;white-space:nowrap;">
+                                업데이트
+                            </button>
+                        </div>
+                        <div id="rosterApplyFromNote" class="mt-2 text-center text-[11px] font-bold text-slate-500">선택한 날짜부터 변경된 정규·스페어 기사가 배차에 적용됩니다.</div>
                     </div>
                 </div>
             </section>
@@ -6074,7 +6087,203 @@ function getMonthlyOffAllDriverNames(){
             body.innerHTML = rows;
         }
 
-        function renderMonthlyOffListView(){
+
+        // ---- 정규/스페어 적용 시작일 (선택일 이후 배차에 새 로스터 적용) ----
+        window.rosterChangeFrom = window.rosterChangeFrom || '';
+        window.rosterBeforeRoutes = window.rosterBeforeRoutes || null;
+        window.rosterAfterRoutes = window.rosterAfterRoutes || null;
+        window.rosterBeforeSpares = window.rosterBeforeSpares || null;
+        window.rosterAfterSpares = window.rosterAfterSpares || null;
+
+        function normalizeRosterDateKey(dk) {
+            let s = String(dk || '').trim();
+            if (/^\d{2}-\d{2}-\d{2}$/.test(s)) s = '20' + s;
+            if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(s)) {
+                const p = s.split('-');
+                return p[0] + '-' + String(p[1]).padStart(2, '0') + '-' + String(p[2]).padStart(2, '0');
+            }
+            return s;
+        }
+
+        function toShortDateKey(fullYmd) {
+            const s = normalizeRosterDateKey(fullYmd);
+            const p = s.split('-');
+            if (p.length !== 3) return s;
+            return String(p[0]).slice(-2) + '-' + p[1] + '-' + p[2];
+        }
+
+        function deepCloneRosterRoutes(routes) {
+            const src = routes || {};
+            const out = {};
+            Object.keys(src).forEach(rn => {
+                out[rn] = (src[rn] || []).map(b => ({
+                    busNo: b.busNo,
+                    drivers: [(b.drivers && b.drivers[0]) || '', (b.drivers && b.drivers[1]) || '']
+                }));
+            });
+            return out;
+        }
+
+        function buildRoutesSparesFromSelections(sel) {
+            const selections = sel || monthlyOffListSelections || {};
+            const baseline = (typeof getMonthlyOffBaselineRoutes === 'function')
+                ? getMonthlyOffBaselineRoutes()
+                : ((appData && appData.routes) || {});
+            const routes = deepCloneRosterRoutes(baseline);
+            // ensure buses exist from baseline; fill drivers from selections
+            Object.keys(selections).forEach(key => {
+                const val = String(selections[key] || '').replace('(S)', '').trim();
+                if (key.startsWith('스페어|')) return;
+                const parts = String(key).split('|');
+                if (parts.length !== 3) return;
+                const [routeName, busNo, shift] = parts;
+                if (!routes[routeName]) routes[routeName] = [];
+                let bus = routes[routeName].find(b => String(b.busNo) === String(busNo));
+                if (!bus) {
+                    bus = { busNo: String(busNo), drivers: ['', ''] };
+                    routes[routeName].push(bus);
+                }
+                const idx = String(shift) === '1' ? 0 : 1;
+                bus.drivers[idx] = val || bus.drivers[idx] || '';
+            });
+            const spares = [];
+            for (let i = 1; i <= 8; i++) {
+                const v = String(selections['스페어|' + i] || '').replace('(S)', '').trim();
+                if (v) spares.push(v);
+            }
+            return { routes, spares };
+        }
+
+        function collectMonthlyOffListSelectionsFromDom() {
+            document.querySelectorAll('[data-monthly-off-key]').forEach(el => {
+                monthlyOffListSelections[el.getAttribute('data-monthly-off-key')] = el.value || '';
+            });
+            document.querySelectorAll('.monthly-off-spare-input').forEach((el, idx) => {
+                monthlyOffListSelections['스페어|' + (idx + 1)] = el.value || '';
+            });
+            window.monthlyOffListSelections = monthlyOffListSelections || {};
+            if (typeof window.syncMonthlyOffToWindow === 'function') {
+                try { window.syncMonthlyOffToWindow(); } catch (e) {}
+            }
+            return monthlyOffListSelections;
+        }
+
+        function getRosterRoutesForDate(dateKey) {
+            const from = normalizeRosterDateKey(window.rosterChangeFrom || '');
+            if (!from) return (appData && appData.routes) || {};
+            const dk = normalizeRosterDateKey(dateKey);
+            if (dk >= from && window.rosterAfterRoutes) return window.rosterAfterRoutes;
+            if (dk < from && window.rosterBeforeRoutes) return window.rosterBeforeRoutes;
+            return (appData && appData.routes) || {};
+        }
+
+        function getRosterSparesForDate(dateKey) {
+            const from = normalizeRosterDateKey(window.rosterChangeFrom || '');
+            if (!from) return (appData && appData.spares) || [];
+            const dk = normalizeRosterDateKey(dateKey);
+            if (dk >= from && Array.isArray(window.rosterAfterSpares)) return window.rosterAfterSpares;
+            if (dk < from && Array.isArray(window.rosterBeforeSpares)) return window.rosterBeforeSpares;
+            return (appData && appData.spares) || [];
+        }
+
+        function syncRosterApplyDatePicker() {
+            const el = document.getElementById('rosterApplyFromDate');
+            if (!el) return;
+            const y = Number(currentYear) || 2026;
+            const m = Number(currentMonth) || 1;
+            const mStr = String(m).padStart(2, '0');
+            const last = (typeof getDaysInMonth === 'function') ? getDaysInMonth(y, m) : 30;
+            el.min = y + '-' + mStr + '-01';
+            el.max = y + '-' + mStr + '-' + String(last).padStart(2, '0');
+            if (!el.value || el.value < el.min || el.value > el.max) {
+                if (window.rosterChangeFrom) {
+                    const f = normalizeRosterDateKey(window.rosterChangeFrom);
+                    if (f >= el.min && f <= el.max) el.value = f;
+                    else el.value = el.min;
+                } else {
+                    el.value = el.min;
+                }
+            }
+            const note = document.getElementById('rosterApplyFromNote');
+            if (note && window.rosterChangeFrom) {
+                const f = normalizeRosterDateKey(window.rosterChangeFrom);
+                note.textContent = f + ' 부터 변경된 정규·스페어가 배차에 적용 중입니다.';
+                note.className = 'mt-2 text-center text-[11px] font-bold text-blue-700';
+            }
+        }
+
+        function applyRosterChangesFromDate() {
+            const dateEl = document.getElementById('rosterApplyFromDate');
+            if (!dateEl || !dateEl.value) {
+                if (typeof showModal === 'function') showModal('안내', '적용 시작 날짜를 선택해 주세요.', true);
+                return;
+            }
+            const fromFull = normalizeRosterDateKey(dateEl.value);
+            const fromShort = toShortDateKey(fromFull);
+
+            // 폼 선택값 수집
+            collectMonthlyOffListSelectionsFromDom();
+            const built = buildRoutesSparesFromSelections(monthlyOffListSelections);
+            if (!built.routes || !Object.keys(built.routes).length) {
+                if (typeof showModal === 'function') showModal('안내', '적용할 정규기사 데이터가 없습니다. TXT 또는 서버 데이터를 먼저 불러오세요.', true);
+                return;
+            }
+
+            // 변경 전 스냅샷 (최초 1회: 현재 appData)
+            if (!window.rosterBeforeRoutes) {
+                window.rosterBeforeRoutes = deepCloneRosterRoutes(appData.routes || {});
+                window.rosterBeforeSpares = (appData.spares || []).map(s => String(s).replace('(S)', '').trim()).filter(Boolean);
+            }
+
+            window.rosterAfterRoutes = built.routes;
+            window.rosterAfterSpares = built.spares.slice();
+            window.rosterChangeFrom = fromFull;
+
+            // 현재 appData 는 "이후" 로스터로 맞춤 (저장/표시 일관성)
+            appData.routes = deepCloneRosterRoutes(built.routes);
+            appData.spares = built.spares.slice();
+            window.appData = appData;
+
+            // 선택일 이후 기사변경 오버라이드 제거 → 새 정규/스페어 자동배차 적용
+            const clearOvFrom = (map) => {
+                if (!map || typeof map !== 'object') return {};
+                const next = {};
+                Object.keys(map).forEach(k => {
+                    // overrideKey: yy-mm-dd_route_bus  or date first segment
+                    const head = String(k).split('_')[0];
+                    const dk = normalizeRosterDateKey(head);
+                    if (dk && dk < fromFull) next[k] = map[k];
+                });
+                return next;
+            };
+            try {
+                manualOverrides = clearOvFrom(manualOverrides);
+                window.manualOverrides = clearOvFrom(window.manualOverrides || manualOverrides);
+                // off display overrides: keep dates before from, clear from onwards? keep all off list — only assignment overrides cleared
+            } catch (e) {}
+
+            try {
+                window.__forceClearSimCache = true;
+                if (typeof window.clearMonthlySimCache === 'function') window.clearMonthlySimCache();
+                if (typeof monthlySimulationCache !== 'undefined') monthlySimulationCache = null;
+                if (typeof monthlySimulationCacheKey !== 'undefined') monthlySimulationCacheKey = '';
+            } catch (e) {}
+
+            if (typeof renderAllViews === 'function') renderAllViews();
+            if (typeof renderInfoView === 'function') renderInfoView();
+            syncRosterApplyDatePicker();
+
+            if (typeof showModal === 'function') {
+                showModal(
+                    '업데이트 완료',
+                    fromFull + ' 부터 변경된 정규기사·스페어가 배차에 적용되었습니다.\n(이전 날짜는 기존 배치 유지)',
+                    false,
+                    2800
+                );
+            }
+        }
+
+                function renderMonthlyOffListView(){
             const body = document.getElementById('monthlyOffListBody');
             const spareWrap = document.getElementById('monthlyOffListSpare');
             if(!body || !spareWrap) return;
@@ -6148,6 +6357,7 @@ function getMonthlyOffAllDriverNames(){
             }
             spareWrap.innerHTML = spareCards.join('');
             syncMonthlyOffDayDatePicker();
+            if (typeof syncRosterApplyDatePicker === 'function') syncRosterApplyDatePicker();
             renderMonthlyOffDriverMultiList();
             renderMonthlyOffDayTable();
             lucide.createIcons();
@@ -6868,7 +7078,13 @@ function getMonthlyOffAllDriverNames(){
                 });
 
                 // 복귀일: 선호·반대 교대 모두 자격 (선호 우선, 없으면 폴백으로 무조건 배차)
-                const morningEligible = (appData.spares || []).filter(s => {
+                const daySpares = (typeof getRosterSparesForDate === 'function')
+                    ? getRosterSparesForDate(dateKey)
+                    : (appData.spares || []);
+                const dayRoutes = (typeof getRosterRoutesForDate === 'function')
+                    ? getRosterRoutesForDate(dateKey)
+                    : (appData.routes || {});
+                const morningEligible = (daySpares || []).filter(s => {
                     const name = normSpare(s);
                     if (!name || offList.includes(s) || offList.includes(name)) return false;
                     if (Object.prototype.hasOwnProperty.call(preferredAfterOff, name)) {
@@ -6877,7 +7093,7 @@ function getMonthlyOffAllDriverNames(){
                     // (규칙 제거) 전날 오후 → 당일 오전 배차 제한 없음
                     return true;
                 });
-                const afternoonEligible = (appData.spares || []).filter(s => {
+                const afternoonEligible = (daySpares || []).filter(s => {
                     const name = normSpare(s);
                     if (!name || offList.includes(s) || offList.includes(name)) return false;
                     if (Object.prototype.hasOwnProperty.call(preferredAfterOff, name)) {
@@ -6936,7 +7152,7 @@ function getMonthlyOffAllDriverNames(){
                 // 1차 배차: 선호 교대·일반만 사용 (폴백 스페어는 아직 남겨 둠)
                 let busAssignments = [], assignedSpares = [];
                 const pendingRows = [];
-                getOrderedRouteEntries(appData.routes).forEach(([routeName, buses]) => {
+                getOrderedRouteEntries(dayRoutes || appData.routes).forEach(([routeName, buses]) => {
                     buses.forEach(bus => {
                         let base1 = bus.drivers[0] || "미정", base2 = bus.drivers[1] || "미정";
                         let mReg = !isSwapped ? base1 : base2, aReg = !isSwapped ? base2 : base1;
@@ -7020,7 +7236,7 @@ function getMonthlyOffAllDriverNames(){
                         // 화면의 「스페어 대체 투입」 차량과 실제 배차표가 반드시 일치합니다.
                         const cleanM = String(mAssigned || '').replace('(S)', '').trim();
                         const cleanA = String(aAssigned || '').replace('(S)', '').trim();
-                        const isSpareName = name => appData.spares.some(s => s.replace('(S)', '').trim() === name);
+                        const isSpareName = name => (daySpares || appData.spares || []).some(s => String(s).replace('(S)', '').trim() === name);
                         if (isSpareName(cleanM)) {
                             assignedSpares.push({ spare: cleanM, busNo: bus.busNo, line: routeName, shift: '오전' });
                             spareLastWork[cleanM] = { day: d, shift: '오전' };
