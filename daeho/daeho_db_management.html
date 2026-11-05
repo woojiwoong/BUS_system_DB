@@ -1018,6 +1018,7 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
   .monthly-off-list-table .bus-cell{width:auto;font-size:13px}
   .monthly-off-driver-select{display:block;min-width:0 !important;width:100% !important;height:32px;font-size:13px;font-weight:800;padding:0 13px 0 4px;white-space:nowrap;overflow:hidden;text-overflow:clip}
   .monthly-off-list-spare .monthly-off-spare-input{font-size:11px;padding:0 5px}
+  #view-info .monthly-off-list-spare .monthly-off-spare-input{font-size:16px !important;padding:8px 12px !important}
 }
 /* ===== 휴무일자·휴무기사 고급 카드 ===== */
 .monthly-off-day-card{
@@ -1189,7 +1190,7 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
   border-bottom:1px solid #cbd5e1;letter-spacing:-0.01em;
 }
 .monthly-off-day-table thead th.monthly-off-day-th-date{
-  font-size:17px;font-weight:900;color:#0f172a;width:32%;
+  font-size:19px;font-weight:900;color:#0f172a;width:32%;
 }
 .monthly-off-day-table thead th.monthly-off-day-th-del{width:76px;font-size:13px}
 .monthly-off-day-table tbody td{
@@ -1200,7 +1201,7 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
 .monthly-off-day-table tbody tr:last-child td{border-bottom:0}
 .monthly-off-day-table tbody tr:hover td{background:#f8fafc}
 .monthly-off-day-table .off-day-date-cell{
-  color:#b91c1c;font-weight:900;font-size:11px;letter-spacing:-0.02em;white-space:nowrap;
+  color:#b91c1c;font-weight:900;font-size:13px;letter-spacing:-0.02em;white-space:nowrap;
 }
 .monthly-off-day-table .off-day-names-cell{
   text-align:left;font-weight:700;font-size:14px;color:#334155;word-break:keep-all;
@@ -1210,6 +1211,13 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
   padding:6px 11px;border-radius:9px;cursor:pointer;
 }
 .monthly-off-day-table .off-day-del:hover{background:#fecaca}
+.monthly-off-day-table .off-day-name-chip{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+.monthly-off-day-table .off-day-name-x{
+  border:0;background:#fee2e2;color:#b91c1c;font-weight:800;font-size:12px;line-height:1;
+  width:18px;height:18px;border-radius:999px;cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center;
+}
+.monthly-off-day-table .off-day-name-x:hover{background:#fecaca}
+
 .monthly-off-day-table .off-day-empty td{color:#94a3b8;font-weight:600;height:48px}
 @media(max-width:639px){
   .monthly-off-day-controls{padding:14px 12px 6px;gap:12px}
@@ -1220,8 +1228,8 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
   .monthly-off-day-btn-add{padding:0 14px}
   .monthly-off-day-btn-reset{padding:0 10px}
   .monthly-off-day-table-wrap{margin:6px 10px 12px}
-  .monthly-off-day-table thead th.monthly-off-day-th-date{font-size:15px}
-  .monthly-off-day-table .off-day-date-cell{font-size:13px}
+  .monthly-off-day-table thead th.monthly-off-day-th-date{font-size:17px}
+  .monthly-off-day-table .off-day-date-cell{font-size:15px}
 }
 </style>
 
@@ -1547,6 +1555,19 @@ main{padding-top:18px !important;}
   padding: 8px 12px !important;
   min-height: 40px !important;
   box-shadow: inset 0 1px 2px rgba(37,99,235,.06) !important;
+}
+/* 정규/스페어 정보 탭: 글자 +2px, 탭 시 화면 확대 방지(iOS는 16px 미만 확대) */
+#view-info .monthly-off-spare-input {
+  font-size: 16px !important; /* 13px + 효과적으로 확대 방지 */
+  line-height: 1.3 !important;
+  min-height: 44px !important;
+  touch-action: manipulation !important;
+}
+#view-info .monthly-off-spare-input::placeholder {
+  font-size: 16px !important;
+  color: #60a5fa !important;
+  font-weight: 600 !important;
+  text-decoration: none !important;
 }
 #view-info .monthly-off-spare-input::placeholder,
 #view-monthlyOffList .monthly-off-spare-input::placeholder {
@@ -3156,11 +3177,11 @@ main{padding-top:18px !important;}
                         <h2 class="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
                             <i data-lucide="file-text" class="w-5 h-5 text-brand-600"></i> 월간 휴무 관리 대장
                         </h2>
-                        <div id="offDaysMonthTitle" class="text-xs sm:text-sm font-bold text-brand-700 text-left mt-1 ml-7">2026년 9월</div>
                     </div>
                     <span class="text-xs text-slate-500">일자별 휴무자 전체 명단</span>
                 </div>
                 <div class="w-full max-w-6xl mx-auto">
+                    <div id="offDaysMonthTitle" class="text-[15px] sm:text-[17px] font-bold text-brand-700 text-center mb-2">2026년 9월</div>
                     <div>
                         <div class="grid grid-cols-7 gap-1 text-center text-xs font-semibold bg-slate-100 p-1.5 rounded-t-xl border border-slate-200">
                             <span class="text-rose-600">일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="text-blue-600">토</span>
@@ -3297,7 +3318,7 @@ main{padding-top:18px !important;}
                     <div class="mb-3">
                         <div class="text-sm font-bold text-slate-700 text-center">휴무일자 · 휴무기사 등록</div>
                         <div class="monthly-off-note mt-1 text-center">휴무일자는 <b>현재 화면 월</b>(주별통합과 동일) 데이터를 표시·등록합니다. 우측 하단 「저장」 시 해당 월 서버(DB) 문서에 저장됩니다.</div>
-                        <div id="monthlyOffDayMonthLabel" class="mt-2 text-center text-[13px] font-extrabold text-rose-700"></div>
+                        <div id="monthlyOffDayMonthLabel" class="mt-2 w-full text-center text-[16px] font-extrabold text-rose-700"></div>
                     </div>
 
                     <div class="monthly-off-day-card" style="margin-top:0;">
@@ -3434,6 +3455,25 @@ main{padding-top:18px !important;}
                     class="w-full rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 py-3 text-[13px] font-extrabold text-slate-600 hover:bg-slate-50 shadow-sm">
                     닫기
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 월간휴무대장: 일자별 휴무기사 변경 모달 -->
+    <div id="offDayEditModal" class="fixed inset-0 z-[70] hidden items-center justify-center p-3" style="background:rgba(15,23,42,.5);backdrop-filter:blur(6px);display:none;">
+        <div class="w-full max-w-[360px] overflow-hidden rounded-2xl border border-white/15 bg-white shadow-2xl flex flex-col" style="max-height:min(82vh,620px);">
+            <div class="px-4 pt-4 pb-3 flex items-start justify-between gap-2" style="background:linear-gradient(135deg,#1e3a5f,#2758a0);">
+                <div class="min-w-0">
+                    <div class="text-[10px] font-extrabold text-blue-100/90 tracking-wide mb-0.5">OFF DAY EDIT</div>
+                    <h3 id="offDayEditTitle" class="text-[16px] font-black text-white leading-tight">휴무기사 변경</h3>
+                    <p id="offDayEditSub" class="mt-0.5 text-[11px] font-semibold text-blue-100/85">해당 일자의 휴무기사를 선택하세요</p>
+                </div>
+                <button type="button" onclick="closeOffDayEditModal()" class="w-9 h-9 rounded-xl text-white text-xl font-bold" style="background:rgba(255,255,255,.14);border:0;cursor:pointer;">×</button>
+            </div>
+            <div id="offDayEditList" class="flex-1 overflow-y-auto px-3 py-2" style="min-height:120px;max-height:48vh;-webkit-overflow-scrolling:touch;"></div>
+            <div class="px-3 pb-3 pt-2 border-t border-slate-200 bg-white flex gap-2">
+                <button type="button" onclick="closeOffDayEditModal()" class="flex-1 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] font-extrabold text-slate-600">취소</button>
+                <button type="button" onclick="saveOffDayEditModal()" class="flex-1 py-2.5 rounded-xl text-[13px] font-extrabold text-white" style="background:linear-gradient(135deg,#2563eb,#1d4ed8);border:0;">변경</button>
             </div>
         </div>
     </div>
@@ -5975,6 +6015,38 @@ function getMonthlyOffAllDriverNames(){
             } catch (e) { console.warn('휴무 추가 후 주별통합 동기화 오류', e); }
         }
 
+        function removeMonthlyOffDriver(dateStr, driverIdx){
+            const entry = monthlyOffDayEntries.find(e => String(e.date) === String(dateStr));
+            if (!entry || !Array.isArray(entry.drivers)) return;
+            if (driverIdx < 0 || driverIdx >= entry.drivers.length) return;
+            entry.drivers.splice(driverIdx, 1);
+            // 해당 일자에 기사가 한 명도 남지 않으면 일자 행 자체를 제거
+            if (!entry.drivers.length) {
+                monthlyOffDayEntries = monthlyOffDayEntries.filter(e => String(e.date) !== String(dateStr));
+            }
+            window.monthlyOffListDirty = true;
+            try {
+                const sk = monthlyOffListStorageKey();
+                localStorage.setItem(sk + '_days', JSON.stringify(monthlyOffDayEntries || []));
+                localStorage.setItem(sk, JSON.stringify(monthlyOffListSelections || {}));
+            } catch (e) {}
+            if (typeof window.syncMonthlyOffToWindow === 'function') {
+                try { window.syncMonthlyOffToWindow(); } catch (e) {}
+            } else {
+                window.monthlyOffDayEntries = monthlyOffDayEntries || [];
+            }
+            renderMonthlyOffDayTable();
+            if (typeof renderMonthlyOffListView === 'function') renderMonthlyOffListView();
+            try {
+                const { y: ty, m: tm } = (typeof getOffListTargetYearMonth === 'function')
+                    ? getOffListTargetYearMonth()
+                    : { y: Number(currentYear), m: Number(currentMonth) };
+                if (typeof syncOffListTableToWeeklyOffCells === 'function') {
+                    syncOffListTableToWeeklyOffCells({ year: ty, month: tm, force: true, render: true });
+                }
+            } catch (e) { console.warn('휴무 기사 제거 후 주별통합 동기화 오류', e); }
+        }
+
         function removeMonthlyOffDayEntry(idxOrDate){
             // 내림차순 표시이므로 날짜 문자열로 제거하는 것을 권장
             if (typeof idxOrDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(idxOrDate)) {
@@ -6066,14 +6138,15 @@ function getMonthlyOffAllDriverNames(){
             const sortedEntries = monthEntries.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
             let rows = sortedEntries.map((entry) => {
                 // 스페어 기사는 밑줄, 정규기사는 일반 표시
-                const namesHtml = (entry.drivers || []).map(n => {
+                const dateKey = esc(entry.date);
+                const namesHtml = (entry.drivers || []).map((n, dIdx) => {
                     const clean = String(n || '').replace('(S)', '').trim();
                     if (!clean) return '';
-                    if (spareSet.has(clean)) {
-                        return `<span class="off-day-spare-name">${esc(clean)}</span>`;
-                    }
-                    return `<span>${esc(clean)}</span>`;
-                }).filter(Boolean).join(', ');
+                    const nameSpan = spareSet.has(clean)
+                        ? `<span class="off-day-spare-name">${esc(clean)}</span>`
+                        : `<span>${esc(clean)}</span>`;
+                    return `<span class="off-day-name-chip">${nameSpan}<button type="button" class="off-day-name-x" title="${esc(clean)} 제거" onclick="removeMonthlyOffDriver('${dateKey}', ${dIdx})">×</button></span>`;
+                }).filter(Boolean).join('<span class="off-day-name-sep">, </span>');
                 return `<tr>
                     <td class="off-day-date-cell">${esc(formatMonthlyOffDayDisplay(entry.date))}</td>
                     <td class="off-day-names-cell">${namesHtml || '—'}</td>
@@ -8182,7 +8255,221 @@ function getMonthlyOffAllDriverNames(){
             bodyEl.innerHTML = bodyHtml;
         }
 
-        function renderOffDaysView() {
+
+        let _offDayEditDateKey = '';
+
+        function closeOffDayEditModal() {
+            const modal = document.getElementById('offDayEditModal');
+            if (modal) {
+                modal.style.display = 'none';
+                modal.classList.add('hidden');
+            }
+            _offDayEditDateKey = '';
+        }
+
+        function getAllDriverNamesForOffEdit() {
+            const names = [];
+            const add = (n) => {
+                const c = String(n || '').replace('(S)', '').trim();
+                if (c && c !== '운행종료' && c !== '미정' && !names.includes(c)) names.push(c);
+            };
+            try {
+                const routes = (typeof getRosterRoutesForDate === 'function' && _offDayEditDateKey)
+                    ? getRosterRoutesForDate(_offDayEditDateKey)
+                    : (appData.routes || {});
+                Object.values(routes || {}).forEach(buses => {
+                    (buses || []).forEach(b => (b.drivers || []).forEach(add));
+                });
+            } catch (e) {
+                Object.values(appData.routes || {}).forEach(buses => {
+                    (buses || []).forEach(b => (b.drivers || []).forEach(add));
+                });
+            }
+            const spares = (typeof getRosterSparesForDate === 'function' && _offDayEditDateKey)
+                ? getRosterSparesForDate(_offDayEditDateKey)
+                : (appData.spares || []);
+            (spares || []).forEach(add);
+            // baseline 도 포함
+            try {
+                if (typeof getMonthlyOffBaselineRoutes === 'function') {
+                    Object.values(getMonthlyOffBaselineRoutes() || {}).forEach(buses => {
+                        (buses || []).forEach(b => (b.drivers || []).forEach(add));
+                    });
+                }
+                if (typeof getMonthlyOffBaselineSpares === 'function') {
+                    (getMonthlyOffBaselineSpares() || []).forEach(add);
+                }
+            } catch (e) {}
+            return names.sort((a, b) => a.localeCompare(b, 'ko'));
+        }
+
+        function openOffDayEditModal(dateKey) {
+            _offDayEditDateKey = String(dateKey || '').trim();
+            if (!_offDayEditDateKey) return;
+
+            const modal = document.getElementById('offDayEditModal');
+            const listEl = document.getElementById('offDayEditList');
+            const titleEl = document.getElementById('offDayEditTitle');
+            if (!modal || !listEl) return;
+
+            const parts = _offDayEditDateKey.split('-');
+            let label = _offDayEditDateKey;
+            if (parts.length === 3) {
+                const y = parts[0].length === 2 ? ('20' + parts[0]) : parts[0];
+                label = `${y}년 ${Number(parts[1])}월 ${Number(parts[2])}일`;
+            }
+            if (titleEl) titleEl.textContent = label + ' 휴무기사 변경';
+            const sub = document.getElementById('offDayEditSub');
+            if (sub) sub.textContent = '체크한 기사가 해당 일자 휴무자로 저장됩니다';
+
+            const current = (typeof getOffNamesForDateKey === 'function')
+                ? getOffNamesForDateKey(_offDayEditDateKey)
+                : ((appData.offDays && appData.offDays[_offDayEditDateKey]) || []);
+            const selected = new Set((current || []).map(n => String(n || '').replace('(S)', '').trim()).filter(Boolean));
+            const allNames = getAllDriverNamesForOffEdit();
+            // 현재 휴무자 중 목록에 없는 이름도 포함
+            selected.forEach(n => { if (!allNames.includes(n)) allNames.push(n); });
+            allNames.sort((a, b) => a.localeCompare(b, 'ko'));
+
+            const spareSet = new Set((appData.spares || []).map(s => String(s).replace('(S)', '').trim()));
+            listEl.innerHTML = allNames.map(name => {
+                const isSpare = spareSet.has(name);
+                const checked = selected.has(name) ? 'checked' : '';
+                const color = isSpare ? 'color:#2563eb;text-decoration:underline;' : 'color:#0f172a;';
+                return `<label style="display:flex;align-items:center;gap:10px;padding:9px 10px;margin-bottom:6px;border:1px solid #e2e8f0;border-radius:12px;background:#fff;cursor:pointer;">
+                    <input type="checkbox" class="offday-edit-check" value="${name.replace(/"/g, '&quot;')}" ${checked}
+                        style="width:18px;height:18px;accent-color:#2563eb;flex-shrink:0;">
+                    <span style="font-size:14px;font-weight:800;${color}">${name}${isSpare ? ' (스페어)' : ''}</span>
+                </label>`;
+            }).join('') || '<div class="py-8 text-center text-slate-400 text-sm font-bold">선택 가능한 기사가 없습니다</div>';
+
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+        }
+
+        function saveOffDayEditModal() {
+            if (!_offDayEditDateKey) return;
+            const listEl = document.getElementById('offDayEditList');
+            if (!listEl) return;
+
+            const picked = [];
+            listEl.querySelectorAll('.offday-edit-check:checked').forEach(cb => {
+                const n = String(cb.value || '').replace('(S)', '').trim();
+                if (n && !picked.includes(n)) picked.push(n);
+            });
+
+            const dateKey = _offDayEditDateKey;
+            let fullIso = dateKey;
+            if (/^\d{2}-\d{2}-\d{2}$/.test(dateKey)) fullIso = '20' + dateKey;
+            const shortKey = (/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) ? dateKey.slice(2) : dateKey;
+
+            // ★ 해당 날짜만 수정 — 다른 날짜(예: 12/1) 휴무를 지우지 않음
+            if (!appData.offDays || typeof appData.offDays !== 'object') appData.offDays = {};
+            appData.offDays[shortKey] = picked.slice();
+            if (dateKey !== shortKey) appData.offDays[dateKey] = picked.slice();
+
+            if (typeof manualOffDisplayOverrides !== 'object' || !manualOffDisplayOverrides) manualOffDisplayOverrides = {};
+            manualOffDisplayOverrides[shortKey] = picked.slice();
+            window.manualOffDisplayOverrides = Object.assign({}, window.manualOffDisplayOverrides || {}, manualOffDisplayOverrides);
+
+            if (typeof monthlyOffDayEntries === 'undefined' || !Array.isArray(monthlyOffDayEntries)) {
+                monthlyOffDayEntries = [];
+            }
+            const normEntryDate = (d) => {
+                let s = String(d || '').trim();
+                if (/^\d{2}-\d{2}-\d{2}$/.test(s)) s = '20' + s;
+                return s;
+            };
+
+            // 다른 날짜 휴무가 명단 테이블에 없으면 offDays/오버라이드에서 보강
+            // (force 동기화 시 12/1 등이 빈칸으로 지워지던 문제 방지)
+            try {
+                const parts = fullIso.split('-');
+                if (parts.length === 3) {
+                    const y = Number(parts[0]);
+                    const m = Number(parts[1]);
+                    const last = (typeof getDaysInMonth === 'function') ? getDaysInMonth(y, m) : 31;
+                    const existingIso = new Set((monthlyOffDayEntries || []).map(e => normEntryDate(e.date)));
+                    const yy = String(y).slice(-2);
+                    const mm = String(m).padStart(2, '0');
+                    for (let d = 1; d <= last; d++) {
+                        const iso = y + '-' + mm + '-' + String(d).padStart(2, '0');
+                        if (iso === fullIso) continue;
+                        if (existingIso.has(iso)) continue;
+                        const sk = yy + '-' + mm + '-' + String(d).padStart(2, '0');
+                        let names = [];
+                        if (manualOffDisplayOverrides && Array.isArray(manualOffDisplayOverrides[sk]) && manualOffDisplayOverrides[sk].length) {
+                            names = manualOffDisplayOverrides[sk].slice();
+                        } else if (appData.offDays && Array.isArray(appData.offDays[sk]) && appData.offDays[sk].length) {
+                            names = appData.offDays[sk].slice();
+                        }
+                        names = [...new Set((names || []).map(n => String(n || '').replace('(S)', '').trim()).filter(n => n && n !== '운행종료'))];
+                        if (names.length) {
+                            monthlyOffDayEntries.push({ date: iso, drivers: names });
+                            existingIso.add(iso);
+                        }
+                    }
+                }
+            } catch (e) { console.warn('offday merge preserve', e); }
+
+            let found = false;
+            monthlyOffDayEntries = monthlyOffDayEntries.map(e => {
+                if (normEntryDate(e.date) === fullIso) {
+                    found = true;
+                    return { date: fullIso, drivers: picked.slice() };
+                }
+                return e;
+            });
+            if (!found) {
+                if (picked.length) monthlyOffDayEntries.push({ date: fullIso, drivers: picked.slice() });
+            } else if (!picked.length) {
+                monthlyOffDayEntries = monthlyOffDayEntries.filter(e => normEntryDate(e.date) !== fullIso);
+            }
+            window.monthlyOffDayEntries = monthlyOffDayEntries;
+            // force 전체월 초기화 동기화 금지 (다른 날 휴무 소실 방지)
+            window.monthlyOffListDirty = false;
+
+            try {
+                if (typeof window.syncMonthlyOffToWindow === 'function') window.syncMonthlyOffToWindow();
+            } catch (e) {}
+
+            try {
+                window.__forceClearSimCache = true;
+                if (typeof window.clearMonthlySimCache === 'function') window.clearMonthlySimCache();
+                if (typeof monthlySimulationCache !== 'undefined') monthlySimulationCache = null;
+            } catch (e) {}
+
+            closeOffDayEditModal();
+
+            // 전체 force 동기화 없이 화면만 갱신
+            window.__skipOffListTableSync = true;
+            try {
+                if (typeof renderOffDaysView === 'function') renderOffDaysView();
+                if (typeof renderMonthlyOffDayTable === 'function') {
+                    try { renderMonthlyOffDayTable(); } catch (e) {}
+                }
+                if (typeof renderAllViews === 'function') {
+                    try { renderAllViews(); } catch (e) {}
+                }
+            } finally {
+                window.__skipOffListTableSync = false;
+            }
+
+            if (typeof showModal === 'function') {
+                const parts = dateKey.split('-');
+                const label = parts.length === 3
+                    ? `${parts[0].length === 2 ? '20' + parts[0] : parts[0]}년 ${Number(parts[1])}월 ${Number(parts[2])}일`
+                    : dateKey;
+                showModal(
+                    '변경',
+                    '주별통합탭에서 꼭 데이타저장을 하세요.\n(' + label + ' 휴무 ' + picked.length + '명 반영)',
+                    false,
+                    3500
+                );
+            }
+        }
+
+                function renderOffDaysView() {
             const gridEl = document.getElementById('calendarGrid');
             const bodyEl = document.getElementById('offDaysTableBody');
             // 월간 휴무 대장은 현재 달력(calendarGrid)을 사용합니다.
@@ -8206,16 +8493,23 @@ function getMonthlyOffAllDriverNames(){
                 else if (dow === 6) dateStyle = 'color:#2563eb;font-weight:900;'; // 토 파랑
 
                 let formattedListHtml = offList.map(n => {
-                    const isS = appData.spares.includes(n);
-                    return `<span class="${isS ? 'text-blue-600 font-bold blue-underline' : 'text-slate-700 font-semibold'}">${n}</span>`;
+                    const isS = (appData.spares || []).some(s => String(s).replace('(S)','').trim() === n);
+                    return isS
+                        ? `<div class="text-blue-600 font-black blue-underline" style="font-weight:900;text-decoration:underline;text-underline-offset:2px;line-height:1.35;">${n}</div>`
+                        : `<div class="text-slate-900 font-black" style="font-weight:900;line-height:1.35;">${n}</div>`;
                 }).join('');
 
-                gridHtml += `<div>
-                    <div class="flex justify-between items-center w-full">
-                        <span style="${dateStyle}">${currentMonth}.${d}</span>
-                        <span>${offList.length}명</span>
+                gridHtml += `<div class="offday-cal-cell relative rounded-lg border border-slate-200 bg-white p-1.5 min-h-[78px] flex flex-col gap-0.5 shadow-sm" style="font-size:13px;">
+                    <div class="w-full text-left">
+                        <span style="${dateStyle};font-size:14px;letter-spacing:-0.02em;">${currentMonth}.${d}</span>
                     </div>
-                    <div>${formattedListHtml || '<span class="text-slate-300">-</span>'}</div>
+                    <div class="w-full flex justify-center">
+                        <button type="button" class="offday-edit-btn" data-off-date="${dateKey}"
+                            onclick="openOffDayEditModal('${dateKey}')"
+                            style="width:100%;max-width:100%;height:23px;padding:0 4px;border:0;border-radius:7px;background:linear-gradient(180deg,#3b82f6,#1d4ed8);color:#fff;font-size:11px;font-weight:900;cursor:pointer;line-height:23px;white-space:nowrap;">변경</button>
+                    </div>
+                    <div class="w-full text-center leading-none py-0.5" style="font-size:12px;font-weight:900;color:#dc2626;">[${offList.length}명]</div>
+                    <div class="offday-driver-names" style="font-size:15px;font-weight:900;color:#0f172a;letter-spacing:-0.02em;">${formattedListHtml || '<div class="text-slate-300 font-semibold">-</div>'}</div>
                 </div>`;
             }
             gridEl.innerHTML = gridHtml;
@@ -11010,3 +11304,22 @@ div[class*="rounded"][class*="border-slate"]{
 </style>
 <input type="file" id="txtFileInput" accept=".txt" class="hidden" onchange="handleFileUpload(event)">
                     
+<style id="offdays-calendar-date-emphasis">
+/* 월간 휴무 대장 달력 날짜: 기존보다 2px 크게 + 강조 배지 */
+#view-offdays #calendarGrid > div > div:first-child span:first-child {
+    font-size: 14px !important;
+    font-weight: 900 !important;
+    color: #1e3a8a !important;
+    background: linear-gradient(180deg,#dbeafe,#bfdbfe) !important;
+    border: 1px solid #60a5fa !important;
+    border-radius: 999px !important;
+    padding: 2px 8px !important;
+    box-shadow: 0 1px 2px rgba(37,99,235,.18) !important;
+}
+@media (max-width: 639px) {
+    #view-offdays #calendarGrid > div > div:first-child span:first-child {
+        font-size: 12.5px !important;
+        padding: 1px 6px !important;
+    }
+}
+</style>
