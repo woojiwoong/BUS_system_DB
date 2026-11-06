@@ -10,7 +10,7 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>태진여객 배차 및 휴무 관리 시스템 - DB Ver 2.5</title>
+    <title>태진여객 배차 및 휴무 관리 시스템 - DB Ver 3.0</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
@@ -1190,7 +1190,7 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
   border-bottom:1px solid #cbd5e1;letter-spacing:-0.01em;
 }
 .monthly-off-day-table thead th.monthly-off-day-th-date{
-  font-size:19px;font-weight:900;color:#0f172a;width:32%;
+  font-size:17px;font-weight:900;color:#0f172a;width:32%;
 }
 .monthly-off-day-table thead th.monthly-off-day-th-del{width:76px;font-size:13px}
 .monthly-off-day-table tbody td{
@@ -1201,7 +1201,7 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
 .monthly-off-day-table tbody tr:last-child td{border-bottom:0}
 .monthly-off-day-table tbody tr:hover td{background:#f8fafc}
 .monthly-off-day-table .off-day-date-cell{
-  color:#b91c1c;font-weight:900;font-size:13px;letter-spacing:-0.02em;white-space:nowrap;
+  color:#b91c1c;font-weight:900;font-size:11px;letter-spacing:-0.02em;white-space:nowrap;
 }
 .monthly-off-day-table .off-day-names-cell{
   text-align:left;font-weight:700;font-size:14px;color:#334155;word-break:keep-all;
@@ -1211,13 +1211,6 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
   padding:6px 11px;border-radius:9px;cursor:pointer;
 }
 .monthly-off-day-table .off-day-del:hover{background:#fecaca}
-.monthly-off-day-table .off-day-name-chip{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
-.monthly-off-day-table .off-day-name-x{
-  border:0;background:#fee2e2;color:#b91c1c;font-weight:800;font-size:12px;line-height:1;
-  width:18px;height:18px;border-radius:999px;cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center;
-}
-.monthly-off-day-table .off-day-name-x:hover{background:#fecaca}
-
 .monthly-off-day-table .off-day-empty td{color:#94a3b8;font-weight:600;height:48px}
 @media(max-width:639px){
   .monthly-off-day-controls{padding:14px 12px 6px;gap:12px}
@@ -1228,8 +1221,8 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
   .monthly-off-day-btn-add{padding:0 14px}
   .monthly-off-day-btn-reset{padding:0 10px}
   .monthly-off-day-table-wrap{margin:6px 10px 12px}
-  .monthly-off-day-table thead th.monthly-off-day-th-date{font-size:17px}
-  .monthly-off-day-table .off-day-date-cell{font-size:15px}
+  .monthly-off-day-table thead th.monthly-off-day-th-date{font-size:15px}
+  .monthly-off-day-table .off-day-date-cell{font-size:13px}
 }
 </style>
 
@@ -2853,7 +2846,7 @@ main{padding-top:18px !important;}
       </div>
       <h1 style="color: white; font-size: 1.25rem; font-weight: 700; margin: 0 0 4px 0;">대호교통</h1>
       <p style="color: rgba(255,255,255,0.8); font-size: 0.875rem; margin: 0;">배차 및 휴무 관리 시스템</p>
-      <p style="color: rgba(255,255,255,0.55); font-size: 0.7rem; margin: 4px 0 0 0; letter-spacing: 0.02em;">DB Ver 2.5</p>
+      <p style="color: rgba(255,255,255,0.55); font-size: 0.7rem; margin: 4px 0 0 0; letter-spacing: 0.02em;">DB Ver 3.0</p>
     </div>
 
     <div style="padding: 28px 24px 24px;">
@@ -2905,7 +2898,7 @@ main{padding-top:18px !important;}
                                 배차 및 휴무 관리 시스템
                             </span>
                         </div>
-                        <span class="text-[10px] sm:text-xs text-brand-300 font-semibold tracking-wide pl-0.5">DB Ver 2.5</span>
+                        <span class="text-[10px] sm:text-xs text-brand-300 font-semibold tracking-wide pl-0.5">DB Ver 3.0</span>
                     </div>
                 </div>
             </div>
@@ -2946,7 +2939,7 @@ main{padding-top:18px !important;}
                 <button onclick="switchTab('drivers')" id="tab-drivers" class="tab-btn premium-tab">
                     <i data-lucide="users"></i><span>기사별 근무 통계</span>
                 </button>
-                <button onclick="switchTab('monthlyOff')" id="tab-monthlyOff" class="tab-btn premium-tab">
+                <button onclick="switchTab('monthlyOff')" id="tab-monthlyOff" class="tab-btn premium-tab" style="display:none !important;" aria-hidden="true">
                     <i data-lucide="calendar-off"></i><span>월간 휴무 현황표</span>
                 </button>
                 <button onclick="switchTab('offdays')" id="tab-offdays" class="tab-btn premium-tab">
@@ -3177,11 +3170,11 @@ main{padding-top:18px !important;}
                         <h2 class="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
                             <i data-lucide="file-text" class="w-5 h-5 text-brand-600"></i> 월간 휴무 관리 대장
                         </h2>
+                        <div id="offDaysMonthTitle" class="text-xs sm:text-sm font-bold text-brand-700 text-left mt-1 ml-7">2026년 9월</div>
                     </div>
                     <span class="text-xs text-slate-500">일자별 휴무자 전체 명단</span>
                 </div>
                 <div class="w-full max-w-6xl mx-auto">
-                    <div id="offDaysMonthTitle" class="text-[15px] sm:text-[17px] font-bold text-brand-700 text-center mb-2">2026년 9월</div>
                     <div>
                         <div class="grid grid-cols-7 gap-1 text-center text-xs font-semibold bg-slate-100 p-1.5 rounded-t-xl border border-slate-200">
                             <span class="text-rose-600">일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="text-blue-600">토</span>
@@ -3318,7 +3311,7 @@ main{padding-top:18px !important;}
                     <div class="mb-3">
                         <div class="text-sm font-bold text-slate-700 text-center">휴무일자 · 휴무기사 등록</div>
                         <div class="monthly-off-note mt-1 text-center">휴무일자는 <b>현재 화면 월</b>(주별통합과 동일) 데이터를 표시·등록합니다. 우측 하단 「저장」 시 해당 월 서버(DB) 문서에 저장됩니다.</div>
-                        <div id="monthlyOffDayMonthLabel" class="mt-2 w-full text-center text-[16px] font-extrabold text-rose-700"></div>
+                        <div id="monthlyOffDayMonthLabel" class="mt-2 text-center text-[13px] font-extrabold text-rose-700"></div>
                     </div>
 
                     <div class="monthly-off-day-card" style="margin-top:0;">
@@ -6015,38 +6008,6 @@ function getMonthlyOffAllDriverNames(){
             } catch (e) { console.warn('휴무 추가 후 주별통합 동기화 오류', e); }
         }
 
-        function removeMonthlyOffDriver(dateStr, driverIdx){
-            const entry = monthlyOffDayEntries.find(e => String(e.date) === String(dateStr));
-            if (!entry || !Array.isArray(entry.drivers)) return;
-            if (driverIdx < 0 || driverIdx >= entry.drivers.length) return;
-            entry.drivers.splice(driverIdx, 1);
-            // 해당 일자에 기사가 한 명도 남지 않으면 일자 행 자체를 제거
-            if (!entry.drivers.length) {
-                monthlyOffDayEntries = monthlyOffDayEntries.filter(e => String(e.date) !== String(dateStr));
-            }
-            window.monthlyOffListDirty = true;
-            try {
-                const sk = monthlyOffListStorageKey();
-                localStorage.setItem(sk + '_days', JSON.stringify(monthlyOffDayEntries || []));
-                localStorage.setItem(sk, JSON.stringify(monthlyOffListSelections || {}));
-            } catch (e) {}
-            if (typeof window.syncMonthlyOffToWindow === 'function') {
-                try { window.syncMonthlyOffToWindow(); } catch (e) {}
-            } else {
-                window.monthlyOffDayEntries = monthlyOffDayEntries || [];
-            }
-            renderMonthlyOffDayTable();
-            if (typeof renderMonthlyOffListView === 'function') renderMonthlyOffListView();
-            try {
-                const { y: ty, m: tm } = (typeof getOffListTargetYearMonth === 'function')
-                    ? getOffListTargetYearMonth()
-                    : { y: Number(currentYear), m: Number(currentMonth) };
-                if (typeof syncOffListTableToWeeklyOffCells === 'function') {
-                    syncOffListTableToWeeklyOffCells({ year: ty, month: tm, force: true, render: true });
-                }
-            } catch (e) { console.warn('휴무 기사 제거 후 주별통합 동기화 오류', e); }
-        }
-
         function removeMonthlyOffDayEntry(idxOrDate){
             // 내림차순 표시이므로 날짜 문자열로 제거하는 것을 권장
             if (typeof idxOrDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(idxOrDate)) {
@@ -6138,15 +6099,14 @@ function getMonthlyOffAllDriverNames(){
             const sortedEntries = monthEntries.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
             let rows = sortedEntries.map((entry) => {
                 // 스페어 기사는 밑줄, 정규기사는 일반 표시
-                const dateKey = esc(entry.date);
-                const namesHtml = (entry.drivers || []).map((n, dIdx) => {
+                const namesHtml = (entry.drivers || []).map(n => {
                     const clean = String(n || '').replace('(S)', '').trim();
                     if (!clean) return '';
-                    const nameSpan = spareSet.has(clean)
-                        ? `<span class="off-day-spare-name">${esc(clean)}</span>`
-                        : `<span>${esc(clean)}</span>`;
-                    return `<span class="off-day-name-chip">${nameSpan}<button type="button" class="off-day-name-x" title="${esc(clean)} 제거" onclick="removeMonthlyOffDriver('${dateKey}', ${dIdx})">×</button></span>`;
-                }).filter(Boolean).join('<span class="off-day-name-sep">, </span>');
+                    if (spareSet.has(clean)) {
+                        return `<span class="off-day-spare-name">${esc(clean)}</span>`;
+                    }
+                    return `<span>${esc(clean)}</span>`;
+                }).filter(Boolean).join(', ');
                 return `<tr>
                     <td class="off-day-date-cell">${esc(formatMonthlyOffDayDisplay(entry.date))}</td>
                     <td class="off-day-names-cell">${namesHtml || '—'}</td>
@@ -11304,22 +11264,3 @@ div[class*="rounded"][class*="border-slate"]{
 </style>
 <input type="file" id="txtFileInput" accept=".txt" class="hidden" onchange="handleFileUpload(event)">
                     
-<style id="offdays-calendar-date-emphasis">
-/* 월간 휴무 대장 달력 날짜: 기존보다 2px 크게 + 강조 배지 */
-#view-offdays #calendarGrid > div > div:first-child span:first-child {
-    font-size: 14px !important;
-    font-weight: 900 !important;
-    color: #1e3a8a !important;
-    background: linear-gradient(180deg,#dbeafe,#bfdbfe) !important;
-    border: 1px solid #60a5fa !important;
-    border-radius: 999px !important;
-    padding: 2px 8px !important;
-    box-shadow: 0 1px 2px rgba(37,99,235,.18) !important;
-}
-@media (max-width: 639px) {
-    #view-offdays #calendarGrid > div > div:first-child span:first-child {
-        font-size: 12.5px !important;
-        padding: 1px 6px !important;
-    }
-}
-</style>
