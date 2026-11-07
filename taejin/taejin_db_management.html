@@ -3589,6 +3589,53 @@ main{padding-top:18px !important;}
           payload.offListSelBaseline = window.__monthlyOffListSelectionsDocSnapshot;
         }
       } catch (e) {}
+      // ★ 배차시작설정 체크 + 저장 분할:
+      //   시작일 이전(이전달 1일~시작일 전날) = 이전달 정규/스페어정보
+      //   시작일 이후(시작일~)             = 현재 저장하는(변경된) 정규/스페어정보
+      let __splitPrevSel = null;
+      try {
+        if (startSettingChecked && appliedStart && appliedStart.source === 'checkbox'
+            && Number(appliedStart.y) === Number(y) && Number(appliedStart.m) === Number(m)) {
+          const pY = (Number(m) === 1) ? Number(y) - 1 : Number(y);
+          const pM = (Number(m) === 1) ? 12 : Number(m) - 1;
+          const pKey = pY + '_' + String(pM).padStart(2, '0');
+          try {
+            const pSnap = await withTimeout(getDoc(doc(db, 'taejinSchedules', pKey)), 5000);
+            if (pSnap && pSnap.exists && pSnap.exists()) {
+              const pData = pSnap.data() || {};
+              if (pData.monthlyOffListSelections && typeof pData.monthlyOffListSelections === 'object') {
+                __splitPrevSel = JSON.parse(JSON.stringify(pData.monthlyOffListSelections));
+              }
+            }
+          } catch (e) {}
+          if (!__splitPrevSel && typeof window.pickOffListSelVersionForDate === 'function') {
+            const pLast = new Date(pY, pM, 0).getDate();
+            __splitPrevSel = JSON.parse(JSON.stringify(window.pickOffListSelVersionForDate(pY, pM, pLast) || {}));
+          }
+          if (__splitPrevSel && Object.keys(__splitPrevSel).length) {
+            // 저장하는 월(y/m)만 분할. 다른 월의 버전 행은 그대로 둠
+            const liveNow = JSON.parse(JSON.stringify(window.monthlyOffListSelections || {}));
+            const sy0 = Number(appliedStart.y), sm0 = Number(appliedStart.m), sd0 = Number(appliedStart.d);
+            const monthStartUtc = Date.UTC(Number(y), Number(m) - 1, 1);
+            const kept = (Array.isArray(window.__offListSelVersions) ? window.__offListSelVersions : []).filter(function (v) {
+              const vy = Number(v.y) || 0, vm = Number(v.m) || 0;
+              if (!vy || !vm) return true; // 기준(baseline) 행은 유지
+              return Date.UTC(vy, vm - 1, 1) !== monthStartUtc; // 같은 월 행만 제거
+            });
+            const rows = kept.concat([
+              { y: Number(y), m: Number(m), d: 1, sel: __splitPrevSel, note: 'prev-month' },
+              { y: sy0, m: sm0, d: sd0, sel: liveNow, note: 'from-start' }
+            ]);
+            rows.sort(function (a, b) {
+              const ua = (Number(a.y) && Number(a.m)) ? Date.UTC(Number(a.y), Number(a.m) - 1, Number(a.d) || 1) : -Infinity;
+              const ub = (Number(b.y) && Number(b.m)) ? Date.UTC(Number(b.y), Number(b.m) - 1, Number(b.d) || 1) : -Infinity;
+              return ua - ub;
+            });
+            window.__offListSelVersions = rows;
+            try { if (typeof invalidateOperationalJoCodeMap === 'function') invalidateOperationalJoCodeMap(); } catch (e) {}
+          }
+        }
+      } catch (e) { console.warn('[배차시작] 저장 분할 준비 실패', e); }
       // 체크 시 / 미체크+신규 문서 시에만 배차시작 기록. 기존 문서는 덮지 않음.
       if (appliedStart) {
         payload.dispatchPatternStart = appliedStart.iso;
@@ -4061,6 +4108,10 @@ main{padding-top:18px !important;}
             });
           }
           try { if (typeof invalidateOperationalJoCodeMap === 'function') invalidateOperationalJoCodeMap(); } catch (e0) {}
+          // 불러온 문서 기준으로 배차 시뮬레이션 캐시도 비움 (이전 월/문서 결과 재사용 방지)
+          try { window.monthlySimulationCache = null; window.monthlySimulationCacheKey = ''; } catch (e1) {}
+          try { if (typeof monthlySimulationCache !== 'undefined') monthlySimulationCache = null; } catch (e2) {}
+          try { if (typeof monthlySimulationCacheKey !== 'undefined') monthlySimulationCacheKey = ''; } catch (e3) {}
           console.log('[배차시작] 조·기사 버전 복원:', window.__offListSelVersions.length, '개');
         } else if (baseIn && Object.keys(baseIn).length && typeof resetOffListSelVersionsFrom === 'function') {
           // 버전 배열 없이 baseline만 있는 경우
@@ -5818,10 +5869,19 @@ main{padding-top:18px !important;}
             try {
                 const id = String(line || '') + '|' + String(busNo || '') + '|조';
                 let v = '';
+                // ★ 날짜별 버전(시작일 전=전달, 후=변경) 우선. 화면 편집값(live)은 마지막 fallback
                 try {
-                    if (typeof monthlyOffListSelections === 'object' && monthlyOffListSelections)
-                        v = String(monthlyOffListSelections[id] || '').trim();
+                    if (typeof getOperationalMonthlyOffListSelections === 'function') {
+                        const opSel = getOperationalMonthlyOffListSelections() || {};
+                        v = String(opSel[id] || '').trim();
+                    }
                 } catch (e) {}
+                if (!v) {
+                    try {
+                        if (typeof monthlyOffListSelections === 'object' && monthlyOffListSelections)
+                            v = String(monthlyOffListSelections[id] || '').trim();
+                    } catch (e) {}
+                }
                 if (!v) {
                     try { v = String((window.monthlyOffListSelections || {})[id] || '').trim(); } catch (e) {}
                 }
@@ -12155,9 +12215,10 @@ function getMonthlyOffAllDriverNames(){
                     // 키 개수뿐 아니라 내용 지문까지 — 기사/조 변경 시 캐시 무효화
                     let fp = '';
                     try {
+                        // 전체 키·값 지문 (일부만 보면 13번째 이후 기사 변경이 캐시에 안 잡힘)
                         const keys = Object.keys(v.sel || {}).sort();
-                        fp = keys.slice(0, 12).map(function (k) {
-                            return k + '=' + String((v.sel || {})[k] || '').slice(0, 8);
+                        fp = keys.map(function (k) {
+                            return k + '=' + String((v.sel || {})[k] || '');
                         }).join(',');
                     } catch (e0) {}
                     return String(v.y) + '-' + String(v.m) + '-' + String(v.d || 0) + ':' + Object.keys(v.sel || {}).length + ':' + fp;
