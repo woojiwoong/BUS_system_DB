@@ -5560,17 +5560,14 @@ main{padding-top:18px !important;}
             baselineSpares.forEach(s => { spareWasOffYesterday[s] = false; });
 
             const schedule = {};
-            // 정규기사 오전/오후 교차근무 패턴:
+            // 정규기사 오전/오후 교차근무 패턴 (월 경계 연속):
             // - 평상시엔 오전조/오후조 고정
             // - 일요일이 되면 교차(스왑)로 전환되어, 다음 일요일 전까지 한 주 내내 교차 상태 유지
             // - 다음 일요일이 되면 다시 교차되어 원래(정상) 배치로 돌아가고, 이 패턴이 반복됨
-            let crossWeekActive = false;
+            // - 월/연도가 바뀌어도 이전 주의 교차 상태를 이어받음 (isCrossWeekSwapped)
             for (let d = 1; d <= lastDay; d++) {
                 const dateStr = `${y}-${mm}-${String(d).padStart(2, '0')}`;
-                if (new Date(y, m - 1, d).getDay() === 0) {
-                    crossWeekActive = !crossWeekActive;
-                }
-                const isSundayRow = crossWeekActive; // 이번 주가 교차근무 주간인지 여부
+                const isSundayRow = isCrossWeekSwapped(y, m, d); // 이번 주가 교차근무 주간인지 여부
                 const offSet = new Set();
                 (monthlyOffDayEntries || []).forEach(e => {
                     if (String((e && e.date) || '') === dateStr) {
@@ -6926,6 +6923,26 @@ function getMonthlyOffAllDriverNames(){
             return new Date(year, parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)).getDay() === 0;
         }
 
+        /**
+         * 정규기사 오전/오후 교차근무 여부 (월 경계 연속)
+         * - 일요일이 될 때마다 토글, 다음 일요일 전까지 한 주 유지
+         * - 월/연도 경계를 넘어도 이전 주의 교차 상태를 이어받음
+         * - 기준: 2000-01-02(일요일)부터 해당 날짜까지 일요일 개수가 홀수면 교차
+         *   → 2026-11월 기존 월내 홀짝과 동일 + 11/30→12/01 연속 유지
+         */
+        function isCrossWeekSwapped(year, month, day) {
+            const y = Number(year), m = Number(month), d = Number(day);
+            if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return false;
+            // UTC 자정 기준으로 일수 차이 계산 (로컬 DST 영향 제거)
+            const epoch = Date.UTC(2000, 0, 2); // 2000-01-02 일요일
+            const target = Date.UTC(y, m - 1, d);
+            if (target < epoch) return false;
+            const days = Math.floor((target - epoch) / 86400000);
+            const sundayCount = Math.floor(days / 7) + 1;
+            return (sundayCount % 2) !== 0;
+        }
+        window.isCrossWeekSwapped = isCrossWeekSwapped;
+
         // 일요일 또는 대한민국 공휴일 → 감축운행일 (스피너 열)
         function isReducedServiceDay(dateKey, targetYear = null) {
             const parts = String(dateKey || '').split('-');
@@ -7156,12 +7173,9 @@ function getMonthlyOffAllDriverNames(){
                     afternoonEligible.map(normSpare).filter(n => isFallback(n, '오후')), d * 458);
                 const usedSparesToday = new Set();
 
-                let sundaySwaps = 0;
-                for (let i = 1; i <= d; i++) {
-                    let testKey = `${yyStr}-${mStr}-${i < 10 ? '0' + i : i}`;
-                    if (isSunday(testKey, targetYear)) sundaySwaps++;
-                }
-                const isSwapped = (sundaySwaps % 2 !== 0);
+                // 월 경계를 넘는 연속 교차: 해당 날짜 기준 전역 일요일 홀짝 (isCrossWeekSwapped)
+                // (기존: 그 달 1일~당일 일요일만 세서 12/1에 교차가 끊기던 문제 수정)
+                const isSwapped = isCrossWeekSwapped(targetYear, targetMonth, d);
 
                 const takeSpare = (pool) => {
                     while (pool.length) {
