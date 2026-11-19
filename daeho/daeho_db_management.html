@@ -10,7 +10,7 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>태진여객 배차 및 휴무 관리 시스템 - DB Ver 3.0</title>
+    <title>태진여객 배차 및 휴무 관리 시스템 - DB Ver 3.2</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
@@ -986,6 +986,45 @@ img { -webkit-user-drag:none !important; user-drag:none !important; }
 .weekly-export-icon{width:42px;height:42px;display:flex;align-items:center;justify-content:center;flex:0 0 42px;border-radius:12px;background:linear-gradient(135deg,#4338ca,#6366f1);color:#fff;box-shadow:0 4px 10px rgba(79,70,229,.22)}
 .weekly-export-icon svg{width:22px;height:22px}.weekly-export-text{min-width:0;flex:1}.weekly-export-title{font-size:15px;font-weight:900;color:#172554;letter-spacing:-.02em}.weekly-export-desc{margin-top:2px;font-size:11px;font-weight:600;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.weekly-export-arrow{width:18px;height:18px;color:#64748b;flex:0 0 auto}
 @media(max-width:639px){.weekly-export-card{padding:12px 13px;gap:11px;border-radius:14px}.weekly-export-icon{width:38px;height:38px;flex-basis:38px;border-radius:11px}.weekly-export-title{font-size:14px}.weekly-export-desc{font-size:10px}}
+/* 주별이미지인쇄 카드/모달 */
+.weekly-print-card{background:linear-gradient(135deg,#f8fafc 0%,#ecfdf5 100%)}
+.weekly-print-card .weekly-export-icon{background:linear-gradient(135deg,#047857,#10b981);box-shadow:0 4px 10px rgba(5,150,105,.22)}
+.weekly-print-card .weekly-export-title{color:#064e3b}
+@keyframes wpIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+#weeklyPrintModal:not(.hidden) .wp-dialog{animation:wpIn .24s cubic-bezier(.2,.8,.2,1)}
+#weeklyPrintModal .wp-dialog{background:#f8fafc;border-radius:22px;border:1px solid rgba(255,255,255,.35);box-shadow:0 30px 80px rgba(2,6,23,.55),0 0 0 1px rgba(15,23,42,.08)}
+#weeklyPrintModal .wp-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;flex-shrink:0;color:#fff;background:linear-gradient(120deg,#022c22 0%,#064e3b 45%,#047857 100%);border-bottom:1px solid rgba(255,255,255,.12)}
+#weeklyPrintModal .wp-head-icon{width:38px;height:38px;flex:0 0 38px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);box-shadow:inset 0 1px 0 rgba(255,255,255,.2)}
+#weeklyPrintModal .wp-title{font-size:15px;font-weight:800;letter-spacing:-.02em;line-height:1.2}
+#weeklyPrintModal .wp-sub{margin-top:2px;font-size:11px;font-weight:600;color:rgba(209,250,229,.8)}
+#weeklyPrintModal .wp-x{width:34px;height:34px;flex:0 0 34px;display:flex;align-items:center;justify-content:center;border-radius:10px;color:#fff;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);cursor:pointer;transition:background .15s}
+#weeklyPrintModal .wp-x:hover{background:rgba(255,255,255,.22)}
+#weeklyPrintModal .wp-side{background:linear-gradient(180deg,#ffffff 0%,#f1f5f9 100%);border-right:1px solid #e2e8f0}
+#weeklyPrintModal .wp-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:11px 12px 12px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 4px 14px rgba(15,23,42,.04)}
+#weeklyPrintModal .wp-step{display:flex;align-items:center;gap:8px;margin-bottom:9px;font-size:12px;font-weight:800;color:#0f172a;letter-spacing:-.01em}
+#weeklyPrintModal .wp-step b{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;font-size:11px;font-weight:900;color:#fff;background:linear-gradient(135deg,#047857,#34d399);box-shadow:0 2px 6px rgba(5,150,105,.35)}
+#weeklyPrintModal .wp-label{display:block;font-size:10.5px;font-weight:800;color:#64748b;margin-bottom:4px;letter-spacing:.02em}
+#weeklyPrintModal .wp-select{width:100%;padding:8px 28px 8px 10px;font-size:12px;font-weight:700;color:#0f172a;background:#f8fafc url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>") no-repeat right 9px center;-webkit-appearance:none;appearance:none;border:1px solid #cbd5e1;border-radius:10px;outline:none;transition:border-color .15s,box-shadow .15s,background-color .15s}
+#weeklyPrintModal .wp-select:hover{background-color:#fff;border-color:#94a3b8}
+#weeklyPrintModal .wp-select:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.18);background-color:#fff}
+#weeklyPrintModal .wp-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;font-size:12px;font-weight:800;color:#475569;background:#f8fafc;border:1px solid #d5dce6;border-radius:999px;cursor:pointer;user-select:none;transition:all .15s}
+#weeklyPrintModal .wp-chip:hover{border-color:#6ee7b7;background:#f0fdf4}
+#weeklyPrintModal .wp-chip input{accent-color:#059669;width:14px;height:14px;margin:0}
+#weeklyPrintModal .wp-chip:has(input:checked){background:linear-gradient(135deg,#d1fae5,#a7f3d0);border-color:#34d399;color:#065f46;box-shadow:0 2px 8px rgba(16,185,129,.2)}
+#weeklyPrintModal .wp-stage{background:radial-gradient(circle at 1px 1px,rgba(148,163,184,.28) 1px,transparent 0) 0 0/18px 18px,linear-gradient(180deg,#334155,#1e293b)}
+#weeklyPrintModal .wp-badges{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#weeklyPrintModal .wp-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;font-size:11px;font-weight:800;color:#e2e8f0;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);border-radius:999px;backdrop-filter:blur(4px)}
+#weeklyPrintModal .wp-badge.hot{color:#022c22;background:linear-gradient(135deg,#6ee7b7,#34d399);border-color:#34d399}
+#weeklyPrintModal .wp-note{font-size:11px;line-height:1.6;font-weight:600;color:#64748b;padding:2px 4px}
+#weeklyPrintModal .wp-foot{display:flex;align-items:center;gap:10px;padding:12px 18px;flex-shrink:0;background:#fff;border-top:1px solid #e2e8f0;box-shadow:0 -6px 18px rgba(15,23,42,.05)}
+#weeklyPrintModal .wp-btn-cancel{flex:1;padding:11px 0;font-size:13px;font-weight:700;color:#475569;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:12px;cursor:pointer;transition:background .15s}
+#weeklyPrintModal .wp-btn-cancel:hover{background:#e2e8f0}
+#weeklyPrintModal .wp-btn-print{flex:2;display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 0;font-size:14px;font-weight:800;color:#fff;letter-spacing:-.01em;background:linear-gradient(135deg,#047857 0%,#10b981 100%);border:1px solid rgba(255,255,255,.25);border-radius:12px;cursor:pointer;box-shadow:0 8px 20px rgba(5,150,105,.35),inset 0 1px 0 rgba(255,255,255,.25);transition:transform .12s,box-shadow .15s,filter .15s}
+#weeklyPrintModal .wp-btn-print:hover:not(:disabled){filter:brightness(1.07);box-shadow:0 10px 24px rgba(5,150,105,.45),inset 0 1px 0 rgba(255,255,255,.25)}
+#weeklyPrintModal .wp-btn-print:active:not(:disabled){transform:scale(.985)}
+#weeklyPrintModal .wp-btn-print:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+#wpStatus{backdrop-filter:blur(6px)}
+
 </style>
 <style id="monthly-off-list-style">
 /* 월 휴무자 명단 - 다른 탭의 배차 데이터와 완전히 분리된 입력 화면 */
@@ -2846,7 +2885,7 @@ main{padding-top:18px !important;}
       </div>
       <h1 style="color: white; font-size: 1.25rem; font-weight: 700; margin: 0 0 4px 0;">대호교통</h1>
       <p style="color: rgba(255,255,255,0.8); font-size: 0.875rem; margin: 0;">배차 및 휴무 관리 시스템</p>
-      <p style="color: rgba(255,255,255,0.55); font-size: 0.7rem; margin: 4px 0 0 0; letter-spacing: 0.02em;">DB Ver 3.0</p>
+      <p style="color: rgba(255,255,255,0.55); font-size: 0.7rem; margin: 4px 0 0 0; letter-spacing: 0.02em;">DB Ver 3.2</p>
     </div>
 
     <div style="padding: 28px 24px 24px;">
@@ -2898,7 +2937,7 @@ main{padding-top:18px !important;}
                                 배차 및 휴무 관리 시스템
                             </span>
                         </div>
-                        <span class="text-[10px] sm:text-xs text-brand-300 font-semibold tracking-wide pl-0.5">DB Ver 3.0</span>
+                        <span class="text-[10px] sm:text-xs text-brand-300 font-semibold tracking-wide pl-0.5">DB Ver 3.2</span>
                     </div>
                 </div>
             </div>
@@ -3081,6 +3120,14 @@ main{padding-top:18px !important;}
                     <div class="weekly-export-text">
                         <div class="weekly-export-title">주별이미지저장</div>
                         <div class="weekly-export-desc">주별 통합 배차표를 한 장의 고화질 이미지로 저장합니다.</div>
+                    </div>
+                    <i data-lucide="chevron-right" class="weekly-export-arrow"></i>
+                </div>
+                <div class="weekly-export-card weekly-print-card no-print" onclick="openWeeklyPrintModal()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ') openWeeklyPrintModal();">
+                    <div class="weekly-export-icon"><i data-lucide="printer"></i></div>
+                    <div class="weekly-export-text">
+                        <div class="weekly-export-title">주별이미지인쇄</div>
+                        <div class="weekly-export-desc">인쇄 미리보기 · 용지 선택 후 주별 배차표를 인쇄합니다.</div>
                     </div>
                     <i data-lucide="chevron-right" class="weekly-export-arrow"></i>
                 </div>
@@ -3492,6 +3539,104 @@ main{padding-top:18px !important;}
             <h3 class="text-base font-bold text-slate-800 mb-1" id="modalTitle">저장 완료</h3>
             <p class="text-xs text-slate-600 leading-relaxed mb-4 whitespace-pre-line" id="modalMessage">파일이 저장되었습니다.</p>
             <button onclick="closeModal()" class="px-4 py-2 bg-brand-700 hover:bg-brand-800 text-white text-xs font-semibold rounded-lg shadow-sm">확인</button>
+        </div>
+    </div>
+
+    <!-- 주별 이미지 인쇄 모달 (미리보기 + 용지 선택) -->
+    <div id="weeklyPrintModal" class="fixed inset-0 z-[55] flex items-center justify-center hidden p-2 sm:p-5 no-print" style="background:radial-gradient(1100px 560px at 50% -10%,rgba(16,185,129,.28),transparent 60%),rgba(2,6,23,.74);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);">
+        <div class="wp-dialog w-full max-w-5xl flex flex-col overflow-hidden" style="height:94vh;max-height:94vh;">
+            <div class="wp-head">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="wp-head-icon"><i data-lucide="printer" class="w-5 h-5"></i></div>
+                    <div class="min-w-0">
+                        <div class="wp-title truncate">주별 이미지 인쇄</div>
+                        <div class="wp-sub truncate">미리보기로 확인하고 용지에 맞춰 인쇄합니다</div>
+                    </div>
+                </div>
+                <button type="button" class="wp-x" onclick="closeWeeklyPrintModal()" aria-label="닫기"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            <div class="flex-1 min-h-0 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
+                <aside class="wp-side md:w-72 md:flex-shrink-0 p-3 space-y-3 md:overflow-y-auto">
+                    <section class="wp-card">
+                        <div class="wp-step"><b>1</b>인쇄할 주차</div>
+                        <div id="wpWeekChips" class="flex flex-wrap gap-1.5"></div>
+                    </section>
+                    <section class="wp-card">
+                        <div class="wp-step"><b>2</b>용지</div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="col-span-2">
+                                <label class="wp-label" for="wpPaper">용지 크기</label>
+                                <select id="wpPaper" class="wp-select" onchange="wpOnOptionChange()">
+                                    <option value="Letter" selected>Letter (215.9×279.4)</option>
+                                    <option value="A4">A4 (210×297)</option>
+                                    <option value="A3">A3 (297×420)</option>
+                                    <option value="A5">A5 (148×210)</option>
+                                    <option value="B4">B4 (257×364)</option>
+                                    <option value="B5">B5 (182×257)</option>
+                                    <option value="Legal">Legal (215.9×355.6)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="wp-label" for="wpOrient">용지 방향</label>
+                                <select id="wpOrient" class="wp-select" onchange="wpOnOptionChange()">
+                                    <option value="auto">자동</option>
+                                    <option value="portrait">세로</option>
+                                    <option value="landscape">가로</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="wp-label" for="wpMargin">여백</label>
+                                <select id="wpMargin" class="wp-select" onchange="wpOnOptionChange()">
+                                    <option value="0">없음</option>
+                                    <option value="5">좁게 (5mm)</option>
+                                    <option value="10">보통 (10mm)</option>
+                                    <option value="15">넓게 (15mm)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </section>
+                    <section class="wp-card">
+                        <div class="wp-step"><b>3</b>배치 · 색상</div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="wp-label" for="wpPerPage">한 장에</label>
+                                <select id="wpPerPage" class="wp-select" onchange="wpOnOptionChange()">
+                                    <option value="1">1주차</option>
+                                    <option value="2">2주차</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="wp-label" for="wpAlign">배치</label>
+                                <select id="wpAlign" class="wp-select" onchange="wpOnOptionChange()">
+                                    <option value="center">가운데</option>
+                                    <option value="top">위쪽</option>
+                                </select>
+                            </div>
+                            <div class="col-span-2">
+                                <label class="wp-label" for="wpColor">색상</label>
+                                <select id="wpColor" class="wp-select" onchange="wpOnOptionChange()">
+                                    <option value="color">컬러</option>
+                                    <option value="gray">흑백</option>
+                                </select>
+                            </div>
+                        </div>
+                    </section>
+                    <p class="wp-note">인쇄 버튼을 누르면 프린터·부수 선택 창이 열립니다. 인쇄 창의 배율은 <b>기본(100%)</b>, 여백은 <b>기본</b>으로 두세요.</p>
+                </aside>
+                <div class="wp-stage flex-1 min-w-0 min-h-[58vh] md:min-h-0 p-2 sm:p-3 relative flex flex-col gap-2">
+                    <div id="wpSummary" class="wp-badges"></div>
+                    <div class="flex-1 min-h-0 relative">
+                        <iframe id="wpFrame" title="인쇄 미리보기" class="w-full h-full rounded-xl" style="border:0;min-height:48vh;background:transparent;"></iframe>
+                        <div id="wpStatus" class="absolute left-2 right-2 top-2 hidden px-3 py-2 rounded-xl bg-white/95 border border-slate-200 text-xs font-bold text-slate-700 text-center shadow-lg"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="wp-foot">
+                <button type="button" class="wp-btn-cancel" onclick="closeWeeklyPrintModal()">취소</button>
+                <button type="button" id="wpPrintBtn" class="wp-btn-print" onclick="printWeeklyPrintPreview()" disabled>
+                    <i data-lucide="printer" class="w-4 h-4"></i><span>인쇄</span>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -6399,7 +6544,9 @@ function getMonthlyOffAllDriverNames(){
         }
 
         function updateWeeklyDbSaveButton() {
-            const modalOpen = isWelcomeModalOpen();
+            const printModal = document.getElementById('weeklyPrintModal');
+            const printModalOpen = !!(printModal && !printModal.classList.contains('hidden'));
+            const modalOpen = isWelcomeModalOpen() || printModalOpen; // 주별이미지인쇄 모달 중에도 플로트 버튼 숨김
             const btn = document.getElementById('weeklyDbSaveBtn');
             if (btn) {
                 // 데이타 불러오기 모달 활성 시 비활성(숨김), 주별통합 탭일 때만 표시
@@ -10413,6 +10560,256 @@ function getMonthlyOffAllDriverNames(){
                 showModal('오류', 'ZIP 저장 중 문제가 발생했습니다. 다시 시도해 주세요.', true);
             }
         }
+
+        // ===================== 주별 이미지 인쇄 (미리보기 + 용지 선택) =====================
+        // 주별이미지저장과 동일한 이미지(captureWeeklyCardBlob)를 만들어 미리보기 iframe에 용지 크기대로 배치하고,
+        // 같은 iframe을 인쇄한다. (앱 화면은 건드리지 않으므로 인쇄 취소 후에도 화면이 그대로 유지된다.)
+        const WP_PAPERS = {
+            A4: [210, 297], A3: [297, 420], A5: [148, 210],
+            B4: [257, 364], B5: [182, 257], Letter: [215.9, 279.4], Legal: [215.9, 355.6]
+        };
+        let wpCache = {};            // 주차 index -> { url, w, h }
+        let wpToken = 0;             // 최신 렌더 요청 식별
+        let wpLock = Promise.resolve();
+        let wpLastInfo = { orient: 'portrait', pw: 0, ph: 0 };
+        const WP_OPT_IDS = ['wpPaper', 'wpOrient', 'wpMargin', 'wpPerPage', 'wpAlign', 'wpColor'];
+
+        function wpResetCache() {
+            Object.values(wpCache).forEach(v => { try { URL.revokeObjectURL(v.url); } catch (e) {} });
+            wpCache = {};
+        }
+
+        function wpSetStatus(msg) {
+            const el = document.getElementById('wpStatus');
+            if (!el) return;
+            if (msg) { el.textContent = msg; el.classList.remove('hidden'); }
+            else { el.textContent = ''; el.classList.add('hidden'); }
+        }
+
+        function wpLoadOptions() {
+            try {
+                const saved = JSON.parse(localStorage.getItem('wpPrintOpts') || '{}');
+                WP_OPT_IDS.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el && saved[id] && Array.from(el.options).some(o => o.value === saved[id])) el.value = saved[id];
+                });
+            } catch (e) {}
+        }
+
+        function wpSaveOptions() {
+            try {
+                const o = {};
+                WP_OPT_IDS.forEach(id => { o[id] = document.getElementById(id).value; });
+                localStorage.setItem('wpPrintOpts', JSON.stringify(o));
+            } catch (e) {}
+        }
+
+        function wpSelectedWeeks() {
+            return Array.from(document.querySelectorAll('#wpWeekChips input.wp-week:checked'))
+                .map(el => Number(el.value)).sort((a, b) => a - b);
+        }
+
+        function wpOnWeekToggle(el) {
+            if (el && el.id === 'wpWeekAll') {
+                document.querySelectorAll('#wpWeekChips input.wp-week').forEach(c => { c.checked = el.checked; });
+            } else {
+                const all = document.getElementById('wpWeekAll');
+                const boxes = Array.from(document.querySelectorAll('#wpWeekChips input.wp-week'));
+                if (all) all.checked = boxes.length > 0 && boxes.every(c => c.checked);
+            }
+            updateWeeklyPrintPreview();
+        }
+
+        function wpOnOptionChange() {
+            wpSaveOptions();
+            updateWeeklyPrintPreview();
+        }
+
+        async function openWeeklyPrintModal() {
+            try {
+                if (typeof currentTab !== 'undefined' && currentTab !== 'weekly' && typeof switchTab === 'function') {
+                    switchTab('weekly');
+                    await new Promise(r => setTimeout(r, 250));
+                }
+                if (typeof html2canvas === 'undefined') {
+                    showModal('오류', '이미지 생성 모듈(html2canvas)을 불러오지 못했습니다.', true);
+                    return;
+                }
+                const cards = getWeeklyScheduleCards();
+                if (!cards.length) {
+                    showModal('오류', '인쇄할 주간 배차표를 찾을 수 없습니다.', true);
+                    return;
+                }
+                wpResetCache();
+                wpLoadOptions();
+                const chips = document.getElementById('wpWeekChips');
+                chips.innerHTML =
+                    `<label class="wp-chip"><input type="checkbox" id="wpWeekAll" checked onchange="wpOnWeekToggle(this)">전체</label>` +
+                    cards.map((_, i) => `<label class="wp-chip"><input type="checkbox" class="wp-week" value="${i}" checked onchange="wpOnWeekToggle(this)">${i + 1}주차</label>`).join('');
+                document.getElementById('weeklyPrintModal').classList.remove('hidden');
+                if (typeof updateWeeklyDbSaveButton === 'function') updateWeeklyDbSaveButton();
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                updateWeeklyPrintPreview();
+            } catch (e) {
+                console.error('주별이미지 인쇄 모달 오류:', e);
+                showModal('오류', '인쇄 미리보기를 여는 중 문제가 발생했습니다.', true);
+            }
+        }
+
+        function closeWeeklyPrintModal() {
+            wpToken++;
+            const modal = document.getElementById('weeklyPrintModal');
+            if (modal) modal.classList.add('hidden');
+            if (typeof updateWeeklyDbSaveButton === 'function') updateWeeklyDbSaveButton();
+            const f = document.getElementById('wpFrame');
+            if (f) { f.onload = null; f.srcdoc = ''; }
+            const btn = document.getElementById('wpPrintBtn');
+            if (btn) btn.disabled = true;
+            wpSetStatus('');
+            // 진행 중인 이미지 생성이 끝난 뒤 URL 정리
+            wpLock = wpLock.then(() => wpResetCache());
+        }
+
+        function wpBuildDoc(items, opt) {
+            const base = WP_PAPERS[opt.paper] || WP_PAPERS.A4;
+            let orient = opt.orient;
+            if (orient === 'auto') {
+                if (opt.perPage === 2) orient = 'portrait';
+                else {
+                    const land = items.filter(it => it.w > it.h).length;
+                    const port = items.length - land;
+                    orient = land > port ? 'landscape' : (land < port ? 'portrait' : (items[0].w > items[0].h ? 'landscape' : 'portrait'));
+                }
+            }
+            const pw = orient === 'landscape' ? Math.max(base[0], base[1]) : Math.min(base[0], base[1]);
+            const ph = orient === 'landscape' ? Math.min(base[0], base[1]) : Math.max(base[0], base[1]);
+            wpLastInfo = { orient, pw, ph };
+            const sheetH = +(ph - 0.5).toFixed(2); // 반올림 오차로 빈 페이지가 생기지 않도록 살짝 줄임
+            const dir = orient === 'landscape' ? 'row' : 'column';
+            const pos = opt.align === 'top' ? 'center top' : 'center center';
+            const gray = opt.color === 'gray' ? 'filter:grayscale(1);' : '';
+
+            const groups = [];
+            for (let i = 0; i < items.length; i += opt.perPage) groups.push(items.slice(i, i + opt.perPage));
+
+            const pages = groups.map((g, gi) => {
+                const cells = g.map(it => `<div class="cell"><img src="${it.url}" alt="${it.label}"></div>`).join('');
+                const lbl = `${gi + 1} / ${groups.length}쪽 · ${g.map(it => it.label).join(', ')}`;
+                return `<div class="lbl">${lbl}</div><div class="wrap${gi === groups.length - 1 ? ' last' : ''}"><div class="sheet">${cells}</div></div>`;
+            }).join('');
+
+            return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>주별 배차표 인쇄</title><style>
+@page{size:${pw}mm ${ph}mm;margin:0}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+:root{--s:1}
+body{background:transparent;padding:6px 12px 18px;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-family:'Noto Sans KR',Arial,sans-serif}
+.lbl{text-align:center;font-size:11px;font-weight:700;color:#cbd5e1;margin:6px 0 6px;letter-spacing:.02em}
+.wrap{width:calc(${pw}mm*var(--s));height:calc(${sheetH}mm*var(--s));margin:0 auto 10px}
+.sheet{width:${pw}mm;height:${sheetH}mm;padding:${opt.margin}mm;display:flex;flex-direction:${dir};gap:${opt.margin > 0 ? Math.min(opt.margin, 6) : 2}mm;background:#fff;box-shadow:0 10px 30px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.06);transform:scale(var(--s));transform-origin:0 0;overflow:hidden}
+.cell{flex:1 1 0;min-width:0;min-height:0}
+.cell img{display:block;width:100%;height:100%;object-fit:contain;object-position:${pos};${gray}}
+@media print{
+ :root{--s:1 !important}
+ html,body{background:#fff !important;padding:0}
+ .lbl,#probe{display:none !important}
+ .wrap{margin:0 !important;break-after:page;page-break-after:always}
+ .wrap.last{break-after:auto;page-break-after:auto}
+ .sheet{box-shadow:none !important;transform:none !important}
+}
+</style></head><body><div id="probe" style="position:absolute;visibility:hidden;height:1px;width:${pw}mm"></div>${pages}<script>
+function fit(){var p=document.getElementById('probe').getBoundingClientRect().width;var s=Math.min(1,(document.documentElement.clientWidth-24)/p);if(!(s>0))s=1;document.documentElement.style.setProperty('--s',s)}
+fit();window.addEventListener('resize',fit);
+<\/script></body></html>`;
+        }
+
+        function updateWeeklyPrintPreview() {
+            const token = ++wpToken;
+            wpLock = wpLock.then(() => wpRenderPreview(token)).catch(e => console.error('인쇄 미리보기 오류:', e));
+        }
+
+        async function wpRenderPreview(token) {
+            if (token !== wpToken) return;
+            const frame = document.getElementById('wpFrame');
+            const btn = document.getElementById('wpPrintBtn');
+            if (!frame || !btn) return;
+            btn.disabled = true;
+
+            const sel = wpSelectedWeeks();
+            if (!sel.length) {
+                frame.onload = null;
+                frame.srcdoc = '';
+                const sum0 = document.getElementById('wpSummary'); if (sum0) sum0.innerHTML = '';
+                wpSetStatus('인쇄할 주차를 선택해 주세요.');
+                return;
+            }
+
+            const cards = getWeeklyScheduleCards();
+            const missing = sel.filter(i => !wpCache[i]);
+            let done = 0;
+            for (const idx of missing) {
+                if (token !== wpToken) return;
+                wpSetStatus(`이미지 생성 중… (${done + 1}/${missing.length})`);
+                try {
+                    if (!cards[idx]) throw new Error('card missing');
+                    const blob = await captureWeeklyCardBlob(cards[idx], idx);
+                    const url = URL.createObjectURL(blob);
+                    const dim = await new Promise(res => {
+                        const im = new Image();
+                        im.onload = () => res({ w: im.naturalWidth || 1, h: im.naturalHeight || 1 });
+                        im.onerror = () => res({ w: 1, h: 1 });
+                        im.src = url;
+                    });
+                    wpCache[idx] = { url, w: dim.w, h: dim.h };
+                } catch (e) {
+                    console.error(`${idx + 1}주차 인쇄 이미지 생성 오류:`, e);
+                    wpSetStatus(`${idx + 1}주차 이미지를 만들지 못했습니다. 다시 시도해 주세요.`);
+                    return;
+                }
+                done++;
+            }
+            if (token !== wpToken) return;
+
+            const opt = {
+                paper: document.getElementById('wpPaper').value,
+                orient: document.getElementById('wpOrient').value,
+                margin: Number(document.getElementById('wpMargin').value) || 0,
+                perPage: Number(document.getElementById('wpPerPage').value) === 2 ? 2 : 1,
+                align: document.getElementById('wpAlign').value,
+                color: document.getElementById('wpColor').value
+            };
+            const items = sel.map(i => ({ url: wpCache[i].url, w: wpCache[i].w, h: wpCache[i].h, label: `${i + 1}주차` }));
+            frame.onload = () => {
+                if (token !== wpToken) return;
+                wpSetStatus('');
+                btn.disabled = false;
+            };
+            frame.srcdoc = wpBuildDoc(items, opt);
+            const sum = document.getElementById('wpSummary');
+            if (sum) {
+                const pageCount = Math.ceil(items.length / opt.perPage);
+                const mLabel = opt.margin ? `여백 ${opt.margin}mm` : '여백 없음';
+                sum.innerHTML =
+                    `<span class="wp-badge hot">${opt.paper}</span>` +
+                    `<span class="wp-badge">${wpLastInfo.orient === 'landscape' ? '가로' : '세로'} · ${Math.round(wpLastInfo.pw)}×${Math.round(wpLastInfo.ph)}mm</span>` +
+                    `<span class="wp-badge">${items.length}개 주차 · ${pageCount}쪽</span>` +
+                    `<span class="wp-badge">${mLabel}</span>` +
+                    `<span class="wp-badge">${opt.color === 'gray' ? '흑백' : '컬러'}</span>`;
+            }
+        }
+
+        function printWeeklyPrintPreview() {
+            const frame = document.getElementById('wpFrame');
+            if (!frame || !frame.contentWindow) return;
+            try {
+                frame.contentWindow.focus();
+                frame.contentWindow.print();
+            } catch (e) {
+                console.error('인쇄 시작 오류:', e);
+                wpSetStatus('인쇄를 시작하지 못했습니다. 브라우저 인쇄 기능을 확인해 주세요.');
+            }
+        }
+        // ===================== /주별 이미지 인쇄 =====================
 
         async function exportWeeklyImage() {
             /*
