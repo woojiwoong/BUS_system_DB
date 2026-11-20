@@ -4912,7 +4912,7 @@ main{padding-top:18px !important;}
 
 <!-- 주별통합 전용 DB저장 버튼 -->
 <button id="weeklyDbSaveBtn" type="button" onclick="saveCurrentDataToDB()"
- style="display:none;position:fixed;bottom:24px;right:24px;z-index:9998;background:#dc2626;color:white;border:1px solid rgba(255,255,255,.25);border-radius:50px;padding:12px 22px;font-size:15px;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,.18);cursor:pointer;font-family:'Noto Sans KR',sans-serif;">데이타저장</button>
+ style="display:none;position:fixed;bottom:24px;right:24px;z-index:9998;background:#dc2626;color:white;border:1px solid rgba(255,255,255,.25);border-radius:50px;padding:12px 22px;font-size:15px;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,.18);cursor:pointer;font-family:'Noto Sans KR',sans-serif;">변경데이타저장</button>
 
 
 <!-- 배차기본환경설정 모달 -->
@@ -5113,7 +5113,19 @@ main{padding-top:18px !important;}
                                 배차 및 휴무 관리 시스템
                             </span>
                         </div>
-                        <span class="text-[10px] sm:text-xs text-brand-300 font-semibold tracking-wide pl-0.5">DB Ver 3.1</span>
+                        <div class="flex items-center justify-between w-full gap-2 mt-0.5">
+                            <span class="text-[10px] sm:text-xs text-brand-300 font-semibold tracking-wide pl-0.5">DB Ver 3.1</span>
+                            <button type="button" id="userManualBtn" onclick="openUserManual()"
+                                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full
+                                       bg-gradient-to-r from-amber-500/90 to-yellow-500/90
+                                       hover:from-amber-400 hover:to-yellow-400
+                                       text-[#78350f] text-[11px] sm:text-xs font-black
+                                       border border-amber-300/50 shadow-sm
+                                       transition-all active:scale-[0.98] whitespace-nowrap">
+                                <i data-lucide="book-open" class="w-3.5 h-3.5"></i>
+                                <span>사용자매뉴얼</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -5296,7 +5308,7 @@ main{padding-top:18px !important;}
                     </div>
                     <div class="flex flex-col items-center gap-2 flex-shrink-0"></div>
                 </div>
-                <div class="weekly-export-card daily-export-card no-print" onclick="openDailyImageSelectModal()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ') openDailyImageSelectModal();">
+                <div style="display:none" data-hidden-card="daily-image" class="weekly-export-card daily-export-card no-print" onclick="openDailyImageSelectModal()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ') openDailyImageSelectModal();">
                     <div class="weekly-export-icon daily-export-icon"><i data-lucide="calendar-check"></i></div>
                     <div class="weekly-export-text">
                         <div class="weekly-export-title">일일배차표</div>
@@ -5304,7 +5316,15 @@ main{padding-top:18px !important;}
                     </div>
                     <i data-lucide="chevron-right" class="weekly-export-arrow"></i>
                 </div>
-                <div class="weekly-export-card no-print" onclick="openWeeklyImageSelectModal()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ') openWeeklyImageSelectModal();">
+                <div class="weekly-export-card daily-export-card daily-print-card no-print" onclick="openDailyPrintModal()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ') openDailyPrintModal();">
+                    <div class="weekly-export-icon daily-export-icon"><i data-lucide="printer"></i></div>
+                    <div class="weekly-export-text">
+                        <div class="weekly-export-title">일일배차표 인쇄</div>
+                        <div class="weekly-export-desc">인쇄 미리보기 · 용지/방향/여백 선택 · 바로 인쇄</div>
+                    </div>
+                    <i data-lucide="chevron-right" class="weekly-export-arrow"></i>
+                </div>
+                <div style="display:none" data-hidden-card="weekly-image" class="weekly-export-card no-print" onclick="openWeeklyImageSelectModal()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ') openWeeklyImageSelectModal();">
                     <div class="weekly-export-icon"><i data-lucide="image"></i></div>
                     <div class="weekly-export-text">
                         <div class="weekly-export-title">주별이미지저장</div>
@@ -5887,6 +5907,718 @@ main{padding-top:18px !important;}
             </div>
         </div>
     </div>
+
+<!-- ===== 일일배차표 인쇄 (미리보기 · 용지선택 · 인쇄) ===== -->
+<style id="daily-print-style">
+.daily-print-card{background:linear-gradient(135deg,#f8fafc 0%,#eef2f7 100%)!important;border-color:#cbd5e1!important}
+.daily-print-card:hover{border-color:#475569!important}
+.daily-print-card .weekly-export-icon{background:linear-gradient(135deg,#0f172a,#475569)!important;box-shadow:0 4px 10px rgba(15,23,42,.25)!important}
+.daily-print-card .weekly-export-title{color:#0f172a!important}
+
+.dp-overlay{position:fixed;inset:0;z-index:9000;display:none;align-items:center;justify-content:center;padding:14px;background:rgba(15,23,42,.62);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);font-family:'Noto Sans KR',sans-serif}
+.dp-overlay.dp-open{display:flex}
+.dp-dialog{width:100%;max-width:1120px;height:min(860px,94vh);display:flex;flex-direction:column;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 30px 80px rgba(2,6,23,.45);border:1px solid rgba(255,255,255,.08)}
+.dp-head{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:14px 18px;background:linear-gradient(135deg,#0f172a 0%,#1e293b 60%,#064e3b 140%);color:#fff}
+.dp-head-icon{width:40px;height:40px;flex:0 0 40px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18)}
+.dp-head-icon svg{width:21px;height:21px}
+.dp-head-text{min-width:0;flex:1}
+.dp-title{font-size:16px;font-weight:900;letter-spacing:-.02em}
+.dp-sub{margin-top:2px;font-size:11.5px;font-weight:600;color:#a7f3d0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dp-x{flex:0 0 auto;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;cursor:pointer}
+.dp-x:hover{background:rgba(255,255,255,.2)}
+.dp-x svg{width:18px;height:18px}
+
+.dp-main{flex:1 1 auto;min-height:0;display:flex}
+.dp-side-h{display:flex;align-items:center;gap:7px;margin:-2px 0 14px;padding-bottom:10px;border-bottom:1px solid #e2e8f0;font-size:14px;font-weight:900;color:#0f172a}
+.dp-side-h svg{width:17px;height:17px;color:#059669}
+.dp-wchips .dp-chip{font-size:10.5px;padding:4px 9px}
+.dp-tabs{display:none;flex:0 0 auto;background:#0f172a;padding:0 10px 10px}
+.dp-tabs button{flex:1;height:38px;border:0;border-radius:10px;background:rgba(255,255,255,.08);color:#cbd5e1;font-family:inherit;font-size:13px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+.dp-tabs button svg{width:16px;height:16px}
+.dp-tabs button.on{background:#10b981;color:#fff}
+.dp-side{flex:0 0 340px;overflow-y:auto;padding:14px 16px 18px;background:#f8fafc;border-right:1px solid #e2e8f0}
+.dp-sec{margin-bottom:16px}
+.dp-sec-t{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:900;color:#0f172a;margin-bottom:7px;letter-spacing:-.01em}
+.dp-sec-t i{display:inline-block;width:4px;height:13px;border-radius:2px;background:linear-gradient(180deg,#10b981,#047857)}
+.dp-dates{display:flex;gap:8px;align-items:center}
+.dp-dates span{font-weight:800;color:#94a3b8}
+.dp-date{flex:1;min-width:0;height:40px;padding:0 8px;border-radius:10px;border:1.5px solid #cbd5e1;background:#fff;font-family:inherit;font-size:13px;font-weight:800;color:#0f172a;outline:none;text-align:center}
+.dp-date:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.15)}
+.dp-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.dp-chip{padding:5px 10px;border-radius:999px;border:1px solid #cbd5e1;background:#fff;font-size:11px;font-weight:800;color:#475569;cursor:pointer;font-family:inherit}
+.dp-chip:hover{border-color:#10b981;color:#047857;background:#ecfdf5}
+.dp-hint{margin-top:7px;font-size:11.5px;font-weight:700;color:#64748b;line-height:1.45}
+.dp-hint b{color:#0f172a}
+.dp-hint .dp-err{color:#dc2626}
+.dp-seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px}
+.dp-seg.dp-grid3{grid-auto-flow:row;grid-template-columns:repeat(3,1fr)}
+.dp-seg button{border:1.5px solid #e2e8f0;background:#fff;border-radius:10px;padding:8px 4px;font-family:inherit;font-size:12px;font-weight:800;color:#475569;cursor:pointer;line-height:1.25;transition:all .12s ease}
+.dp-seg button small{display:block;font-size:9.5px;font-weight:600;color:#94a3b8;margin-top:1px}
+.dp-seg button:hover{border-color:#6ee7b7}
+.dp-seg button.on{border-color:#059669;background:#ecfdf5;color:#065f46;box-shadow:0 0 0 3px rgba(16,185,129,.13)}
+.dp-seg button.on small{color:#059669}
+.dp-range{width:100%;accent-color:#059669}
+.dp-range-row{display:flex;align-items:center;gap:10px}
+.dp-range-val{flex:0 0 46px;text-align:right;font-size:12.5px;font-weight:900;color:#065f46}
+.dp-text{width:100%;height:38px;padding:0 10px;border-radius:10px;border:1.5px solid #cbd5e1;background:#fff;font-family:inherit;font-size:13px;font-weight:700;color:#0f172a;outline:none}
+.dp-text:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.15)}
+.dp-switch{position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 2px;font-size:12.5px;font-weight:800;color:#334155;cursor:pointer}
+.dp-switch input{position:absolute;opacity:0;pointer-events:none}
+.dp-switch .tr{position:relative;flex:0 0 38px;height:22px;border-radius:999px;background:#cbd5e1;transition:background .15s}
+.dp-switch .tr::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s}
+.dp-switch input:checked + .tr{background:#059669}
+.dp-switch input:checked + .tr::after{transform:translateX(16px)}
+.dp-note{font-size:10.5px;font-weight:600;color:#94a3b8;line-height:1.5;padding:9px 10px;border-radius:10px;background:#fff;border:1px dashed #cbd5e1}
+
+.dp-preview-wrap{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;background:#e2e8f0}
+.dp-pbar{flex:0 0 auto;display:flex;flex-direction:column;gap:7px;padding:8px 12px;background:#f1f5f9;border-bottom:1px solid #cbd5e1}
+.dp-prow{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.dp-weeks{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+.dp-weeks:empty{display:none}
+.dp-wk{flex:0 0 auto;padding:5px 11px;border-radius:999px;border:1.5px solid #cbd5e1;background:#fff;font-family:inherit;font-size:11.5px;font-weight:800;color:#475569;cursor:pointer;white-space:nowrap}
+.dp-wk small{font-weight:600;color:#94a3b8;margin-left:4px;font-size:10px}
+.dp-wk:hover{border-color:#10b981}
+.dp-wk.on{border-color:#059669;background:#059669;color:#fff}
+.dp-wk.on small{color:#d1fae5}
+.dp-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#0f172a;color:#fff;font-size:11px;font-weight:800}
+.dp-zoom{display:flex;align-items:center;gap:4px}
+.dp-zoom button{min-width:32px;height:30px;padding:0 9px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;font-family:inherit;font-size:12px;font-weight:900;color:#334155;cursor:pointer}
+.dp-zoom button:hover{border-color:#10b981;color:#047857}
+.dp-zoom .dp-zv{min-width:44px;text-align:center;font-size:11px;font-weight:800;color:#64748b}
+.dp-pscroll{flex:1 1 auto;min-height:0;overflow:auto;scroll-behavior:smooth;padding:14px 12px;background-image:radial-gradient(#cbd5e1 1px,transparent 1px);background-size:14px 14px}
+.dp-stage{position:relative;margin:0 auto}
+.dp-stage iframe{position:absolute;left:0;top:0;border:0;transform-origin:0 0;background:transparent}
+.dp-empty{padding:60px 20px;text-align:center;font-size:13px;font-weight:800;color:#64748b}
+
+.dp-foot{flex:0 0 auto;display:flex;gap:10px;justify-content:flex-end;align-items:center;padding:12px 16px;border-top:1px solid #e2e8f0;background:#fff}
+.dp-foot .dp-info{margin-right:auto;font-size:11.5px;font-weight:700;color:#64748b}
+.dp-btn{height:44px;padding:0 20px;border-radius:12px;font-family:inherit;font-size:13.5px;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid #cbd5e1;background:#fff;color:#475569}
+.dp-btn:hover{background:#f8fafc}
+.dp-btn.dp-primary{border:0;color:#fff;background:linear-gradient(135deg,#059669,#047857);box-shadow:0 8px 20px rgba(5,150,105,.32);min-width:170px}
+.dp-btn.dp-primary:hover{filter:brightness(1.07)}
+.dp-btn.dp-primary:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+.dp-btn svg{width:18px;height:18px}
+
+@media(max-width:860px){
+  .dp-overlay{padding:0;align-items:stretch}
+  .dp-dialog{height:100%;max-width:none;border-radius:0}
+  .dp-tabs{display:flex;gap:8px}
+  .dp-main{flex-direction:column}
+  .dp-preview-wrap{flex:1 1 auto}
+  .dp-side{flex:1 1 auto;border-right:0}
+  .dp-main.dp-m-settings .dp-preview-wrap{display:none}
+  .dp-main.dp-m-preview .dp-side{display:none}
+  .dp-foot .dp-info{display:none}
+  .dp-btn{flex:1}
+}
+@media print{#dailyPrintModal{display:none!important}}
+</style>
+
+<div id="dailyPrintModal" class="dp-overlay" role="dialog" aria-modal="true" aria-labelledby="dpTitle">
+  <div class="dp-dialog">
+    <div class="dp-head">
+      <div class="dp-head-icon"><i data-lucide="printer"></i></div>
+      <div class="dp-head-text">
+        <div class="dp-title" id="dpTitle">일일배차표 인쇄</div>
+        <div class="dp-sub" id="dpSummary">-</div>
+      </div>
+      <button type="button" class="dp-x" onclick="closeDailyPrintModal()" aria-label="닫기"><i data-lucide="x"></i></button>
+    </div>
+
+    <div class="dp-tabs">
+      <button type="button" data-dp-tab="settings"><i data-lucide="sliders-horizontal"></i>인쇄 설정</button>
+      <button type="button" data-dp-tab="preview" class="on"><i data-lucide="eye"></i>미리보기</button>
+    </div>
+
+    <div class="dp-main dp-m-preview" id="dpMain">
+      <aside class="dp-side">
+        <div class="dp-side-h"><i data-lucide="sliders-horizontal"></i>인쇄 설정</div>
+        <div class="dp-sec">
+          <div class="dp-sec-t"><i></i>인쇄 기간</div>
+          <div class="dp-dates">
+            <input type="date" id="dpDateFrom" class="dp-date">
+            <span>~</span>
+            <input type="date" id="dpDateTo" class="dp-date">
+          </div>
+          <div class="dp-chips">
+            <button type="button" class="dp-chip" data-dp-range="today">오늘</button>
+            <button type="button" class="dp-chip" data-dp-range="week">오늘부터 7일</button>
+            <button type="button" class="dp-chip" data-dp-range="rest">오늘~말일</button>
+            <button type="button" class="dp-chip" data-dp-range="all">이번 달 전체</button>
+          </div>
+          <div class="dp-chips dp-wchips" id="dpWeekChips"></div>
+          <div class="dp-hint" id="dpRangeHint"></div>
+        </div>
+
+        <div class="dp-sec">
+          <div class="dp-sec-t"><i></i>용지 크기</div>
+          <div class="dp-seg dp-grid3" id="dpPaperSeg">
+            <button type="button" data-dp="paper" data-val="A4">A4<small>210×297</small></button>
+            <button type="button" data-dp="paper" data-val="A3">A3<small>297×420</small></button>
+            <button type="button" data-dp="paper" data-val="B4">B4<small>250×353</small></button>
+            <button type="button" data-dp="paper" data-val="A5">A5<small>148×210</small></button>
+            <button type="button" data-dp="paper" data-val="Letter">Letter<small>216×279</small></button>
+            <button type="button" data-dp="paper" data-val="Legal">Legal<small>216×356</small></button>
+          </div>
+        </div>
+
+        <div class="dp-sec">
+          <div class="dp-sec-t"><i></i>용지 방향</div>
+          <div class="dp-seg">
+            <button type="button" data-dp="orient" data-val="portrait">세로<small>권장</small></button>
+            <button type="button" data-dp="orient" data-val="landscape">가로</button>
+          </div>
+        </div>
+
+        <div class="dp-sec">
+          <div class="dp-sec-t"><i></i>한 장에 배치</div>
+          <div class="dp-seg">
+            <button type="button" data-dp="per" data-val="2">2일<small>좌·우 나란히</small></button>
+            <button type="button" data-dp="per" data-val="1">1일<small>크게 보기</small></button>
+          </div>
+          <label class="dp-switch" style="margin-top:6px"><span>주차별로 페이지 나누기</span><input type="checkbox" id="dpByWeek"><span class="tr"></span></label>
+        </div>
+
+        <div class="dp-sec">
+          <div class="dp-sec-t"><i></i>여백</div>
+          <div class="dp-seg">
+            <button type="button" data-dp="margin" data-val="6">좁게<small>6mm</small></button>
+            <button type="button" data-dp="margin" data-val="10">보통<small>10mm</small></button>
+            <button type="button" data-dp="margin" data-val="16">넓게<small>16mm</small></button>
+          </div>
+        </div>
+
+        <div class="dp-sec">
+          <div class="dp-sec-t"><i></i>배율 (용지 맞춤 기준)</div>
+          <div class="dp-range-row">
+            <input type="range" class="dp-range" id="dpScale" min="60" max="100" step="5" value="100">
+            <span class="dp-range-val" id="dpScaleVal">100%</span>
+          </div>
+        </div>
+
+        <div class="dp-sec">
+          <div class="dp-sec-t"><i></i>색상</div>
+          <div class="dp-seg">
+            <button type="button" data-dp="color" data-val="color">컬러</button>
+            <button type="button" data-dp="color" data-val="gray">흑백</button>
+            <button type="button" data-dp="color" data-val="ink">잉크절약</button>
+          </div>
+        </div>
+
+        <div class="dp-sec">
+          <div class="dp-sec-t"><i></i>머리글 · 바닥글</div>
+          <label class="dp-switch"><span>머리글 (제목 · 출력일시)</span><input type="checkbox" id="dpHead"><span class="tr"></span></label>
+          <label class="dp-switch"><span>쪽 번호</span><input type="checkbox" id="dpPageNo"><span class="tr"></span></label>
+          <input type="text" class="dp-text" id="dpTitleInput" maxlength="30" placeholder="인쇄 제목 (예: 일일 배차표)" style="margin-top:6px">
+        </div>
+
+        <div class="dp-note">프린터 선택 · 인쇄 매수 · 양면 인쇄는 <b>인쇄하기</b>를 누른 뒤 나타나는 인쇄 창에서 설정합니다. 인쇄 창의 “여백”은 <b>없음/기본</b>, “배경 그래픽”은 <b>켜짐</b>을 권장합니다.</div>
+      </aside>
+
+      <section class="dp-preview-wrap">
+        <div class="dp-pbar">
+          <div class="dp-prow">
+            <span class="dp-badge" id="dpBadge">미리보기</span>
+            <div class="dp-zoom">
+              <button type="button" id="dpZoomOut" aria-label="축소">−</button>
+              <span class="dp-zv" id="dpZoomVal">맞춤</span>
+              <button type="button" id="dpZoomIn" aria-label="확대">+</button>
+              <button type="button" id="dpZoomFit">맞춤</button>
+            </div>
+          </div>
+          <div class="dp-weeks" id="dpWeeks"></div>
+        </div>
+        <div class="dp-pscroll" id="dpPreviewScroll">
+          <div class="dp-stage" id="dpStage"><iframe id="dpFrame" title="인쇄 미리보기" scrolling="no"></iframe></div>
+          <div class="dp-empty" id="dpEmpty" style="display:none">인쇄할 기간을 선택해 주세요.</div>
+        </div>
+      </section>
+    </div>
+
+    <div class="dp-foot">
+      <div class="dp-info" id="dpFootInfo"></div>
+      <button type="button" class="dp-btn" onclick="closeDailyPrintModal()">닫기</button>
+      <button type="button" class="dp-btn dp-primary" id="dpPrintBtn" onclick="printDailySchedule()"><i data-lucide="printer"></i><span>인쇄하기</span></button>
+    </div>
+  </div>
+</div>
+
+<script id="daily-print-script">
+(function () {
+    'use strict';
+    var KEY = 'dailyPrintSettings_v1';
+    var PAPERS = {
+        A4: { w: 210, h: 297 },
+        A3: { w: 297, h: 420 },
+        B4: { w: 250, h: 353 },
+        A5: { w: 148, h: 210 },
+        Letter: { w: 215.9, h: 279.4 },
+        Legal: { w: 215.9, h: 355.6 }
+    };
+    var S = { paper: 'A4', orient: 'portrait', per: 2, margin: 10, scale: 100, color: 'color', head: true, pageno: true, byWeek: true, title: '일일 배차표' };
+    var meta = { sheets: [], weeks: [] };   // 미리보기 쪽/주차 정보
+    var zoom = 1;          // 미리보기 배율 (맞춤 × zoom)
+    var frameW = 0, frameH = 0, previewTimer = null, printFrame = null;
+    var MM = 96 / 25.4;
+
+    function $(id) { return document.getElementById(id); }
+    function pad2(n) { return String(n).padStart(2, '0'); }
+    function esc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    function curY() { return Number(window.currentYear) || (typeof currentYear !== 'undefined' ? Number(currentYear) : new Date().getFullYear()); }
+    function curM() { return (typeof currentMonth !== 'undefined' ? Number(currentMonth) : (new Date().getMonth() + 1)); }
+    function dowOf(y, m, d) { try { return (typeof getDayOfWeekStr === 'function') ? getDayOfWeekStr(y, m, d) : ['일','월','화','수','목','금','토'][new Date(y, m - 1, d).getDay()]; } catch (e) { return ''; } }
+    function daysIn(y, m) { return new Date(y, m, 0).getDate(); }
+    // 주별통합 탭과 동일: 토요일 기준 주차 분할 (일~토)
+    function weekRanges(y, m) {
+        var total = daysIn(y, m), out = [], start = 1, n = 1;
+        for (var i = 1; i <= total; i++) {
+            if (new Date(y, m - 1, i).getDay() === 6) { out.push({ n: n, a: start, b: i }); n++; start = i + 1; }
+        }
+        if (start <= total) out.push({ n: n, a: start, b: total });
+        return out;
+    }
+
+    function loadSettings() {
+        try {
+            var raw = localStorage.getItem(KEY);
+            if (!raw) return;
+            var o = JSON.parse(raw) || {};
+            ['paper', 'orient', 'color', 'title'].forEach(function (k) { if (typeof o[k] === 'string') S[k] = o[k]; });
+            ['per', 'margin', 'scale'].forEach(function (k) { if (Number.isFinite(Number(o[k]))) S[k] = Number(o[k]); });
+            ['head', 'pageno', 'byWeek'].forEach(function (k) { if (typeof o[k] === 'boolean') S[k] = o[k]; });
+            if (!PAPERS[S.paper]) S.paper = 'A4';
+            if (S.orient !== 'landscape') S.orient = 'portrait';
+            if (S.per !== 1) S.per = 2;
+            if ([6, 10, 16].indexOf(S.margin) < 0) S.margin = 10;
+            S.scale = Math.min(100, Math.max(60, S.scale));
+            if (['color', 'gray', 'ink'].indexOf(S.color) < 0) S.color = 'color';
+        } catch (e) {}
+    }
+    function saveSettings() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+    function syncUI() {
+        document.querySelectorAll('#dailyPrintModal [data-dp]').forEach(function (b) {
+            var k = b.getAttribute('data-dp');
+            b.classList.toggle('on', String(S[k]) === b.getAttribute('data-val'));
+        });
+        $('dpScale').value = S.scale;
+        $('dpScaleVal').textContent = S.scale + '%';
+        $('dpHead').checked = !!S.head;
+        $('dpPageNo').checked = !!S.pageno;
+        $('dpByWeek').checked = !!S.byWeek;
+        $('dpTitleInput').value = S.title;
+        $('dpTitleInput').disabled = !S.head;
+        $('dpTitleInput').style.opacity = S.head ? '1' : '.5';
+    }
+
+    function getRange() {
+        var y = curY(), m = curM();
+        function parse(v) {
+            var p = String(v || '').split('-');
+            if (p.length !== 3) return null;
+            return { y: +p[0], m: +p[1], d: +p[2] };
+        }
+        var f = parse($('dpDateFrom').value), t = parse($('dpDateTo').value);
+        if (!f || !t) return { ok: false, msg: '시작일과 종료일을 선택해 주세요.' };
+        if (f.y !== y || f.m !== m || t.y !== y || t.m !== m) {
+            return { ok: false, msg: '현재 월(' + y + '년 ' + m + '월) 날짜만 선택할 수 있습니다.' };
+        }
+        var a = Math.min(f.d, t.d), b = Math.max(f.d, t.d);
+        return { ok: true, a: a, b: b, y: y, m: m };
+    }
+
+    function pageDims() {
+        var p = PAPERS[S.paper] || PAPERS.A4;
+        return S.orient === 'landscape' ? { w: p.h, h: p.w } : { w: p.w, h: p.h };
+    }
+
+    function updateInfo(r) {
+        var hint = $('dpRangeHint'), sum = $('dpSummary'), badge = $('dpBadge'), foot = $('dpFootInfo');
+        if (!r.ok) {
+            hint.innerHTML = '<span class="dp-err">' + esc(r.msg) + '</span>';
+            sum.textContent = r.msg; badge.textContent = '미리보기'; foot.textContent = '';
+            return;
+        }
+        var n = r.b - r.a + 1, pages = Math.ceil(n / S.per);
+        var txt = r.m + '/' + r.a + '(' + dowOf(r.y, r.m, r.a) + ') ~ ' + r.m + '/' + r.b + '(' + dowOf(r.y, r.m, r.b) + ')';
+        hint.innerHTML = '<b>' + txt + '</b><br>총 <b>' + n + '</b>일 선택 (주차별 나누기 시 쪽 수는 달라질 수 있음)';
+        sum.textContent = r.y + '년 ' + r.m + '월 · ' + txt + ' · ' + n + '일 · ' + S.paper + ' ' + (S.orient === 'landscape' ? '가로' : '세로');
+        badge.textContent = '총 ' + pages + '쪽 · ' + S.paper + ' ' + (S.orient === 'landscape' ? '가로' : '세로');
+        foot.textContent = n + '일 · ' + S.paper + ' ' + (S.orient === 'landscape' ? '가로' : '세로');
+    }
+
+    /* ---------- 인쇄용 HTML 문서 생성 (미리보기/인쇄 공용) ---------- */
+    function buildDoc(mode) {
+        var r = getRange();
+        if (!r.ok) return null;
+        if (typeof window.buildDailyDayPanelHtml !== 'function') return null;
+        var items = [];
+        for (var d = r.a; d <= r.b; d++) {
+            var p = null;
+            try { p = window.buildDailyDayPanelHtml(d); } catch (e) { console.warn('[일일인쇄] 패널 생성 실패', d, e); }
+            if (p && p.html) items.push({ d: d, html: p.html });
+        }
+        if (!items.length) return null;
+
+        var dim = pageDims();
+        var W = dim.w, H = dim.h, M = S.margin, per = S.per;
+        var wr = weekRanges(r.y, r.m);
+        function weekNo(dd) { for (var q = 0; q < wr.length; q++) if (dd >= wr[q].a && dd <= wr[q].b) return wr[q].n; return 1; }
+        items.forEach(function (it) { it.w = weekNo(it.d); });
+        var sheets = [], i;
+        if (S.byWeek) {
+            var groups = {}, order = [];
+            items.forEach(function (it) { if (!groups[it.w]) { groups[it.w] = []; order.push(it.w); } groups[it.w].push(it); });
+            order.forEach(function (w) { for (i = 0; i < groups[w].length; i += per) sheets.push(groups[w].slice(i, i + per)); });
+        } else {
+            for (i = 0; i < items.length; i += per) sheets.push(items.slice(i, i + per));
+        }
+        var total = sheets.length;
+        meta = { sheets: sheets.map(function (sh) { return sh[0].w; }), weeks: [] };
+        sheets.forEach(function (sh, idx) {
+            sh.forEach(function (it) {
+                var f = null;
+                meta.weeks.forEach(function (x) { if (x.n === it.w) f = x; });
+                if (!f) meta.weeks.push({ n: it.w, a: it.d, b: it.d, first: idx });
+                else { f.a = Math.min(f.a, it.d); f.b = Math.max(f.b, it.d); }
+            });
+        });
+        var PW = per === 1 ? 470 : 400;
+        var now = new Date();
+        var nowTxt = now.getFullYear() + '.' + pad2(now.getMonth() + 1) + '.' + pad2(now.getDate()) + ' (' + ['일','월','화','수','목','금','토'][now.getDay()] + ') ' + pad2(now.getHours()) + ':' + pad2(now.getMinutes());
+        var title = (S.title || '').trim() || '일일 배차표';
+        var isPrev = mode === 'preview';
+
+        var sheetHtml = sheets.map(function (sh, idx) {
+            var first = sh[0].d, last = sh[sh.length - 1].d;
+            var dateLbl = r.m + '월 ' + first + '일(' + dowOf(r.y, r.m, first) + ')' + (last !== first ? ' · ' + last + '일(' + dowOf(r.y, r.m, last) + ')' : '');
+            var w0 = sh[0].w, w1 = sh[sh.length - 1].w;
+            var wkLbl = w0 === w1 ? (w0 + '주차') : (w0 + '~' + w1 + '주차');
+            var head = S.head
+                ? '<div class="sh-head"><div class="sh-l"><span class="sh-co">태진여객</span><span class="sh-title">' + esc(title) + '</span></div>' +
+                  '<div class="sh-r"><span class="sh-date">' + esc(r.y + '년 ' + wkLbl + ' · ' + dateLbl) + '</span><span class="sh-now">출력 ' + esc(nowTxt) + '</span></div></div>'
+                : '';
+            var foot = S.pageno ? '<div class="sh-foot">' + wkLbl + ' &nbsp;·&nbsp; ' + (idx + 1) + ' / ' + total + '</div>' : '';
+            return '<div class="sheet" data-week="' + w0 + '">' + head +
+                '<div class="sh-body"><div class="sh-inner">' + sh.map(function (x) { return x.html; }).join('') + '</div></div>' + foot + '</div>';
+        }).join('');
+
+        var css =
+            '@page{size:' + W + 'mm ' + H + 'mm;margin:0}' +
+            '*{box-sizing:border-box}' +
+            'html,body{margin:0;padding:0;background:#fff}' +
+            'body{font-family:"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo",Arial,sans-serif;color:#0f172a;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
+            '.sheet{position:relative;width:' + W + 'mm;height:' + (isPrev ? H : (H - 0.6)) + 'mm;padding:' + M + 'mm;display:flex;flex-direction:column;background:#fff;overflow:hidden;page-break-after:always;break-after:page}' +
+            '.sheet:last-of-type{page-break-after:auto;break-after:auto}' +
+            '.sh-head{flex:0 0 auto;display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding-bottom:5px;margin-bottom:6px;border-bottom:2px solid #0f172a;position:relative}' +
+            '.sh-head::after{content:"";position:absolute;left:0;right:0;bottom:-5px;border-bottom:.6px solid #94a3b8}' +
+            '.sh-l{display:flex;align-items:baseline;gap:8px;min-width:0}' +
+            '.sh-co{font-size:9.5px;font-weight:800;letter-spacing:.14em;color:#047857}' +
+            '.sh-title{font-size:17px;font-weight:900;letter-spacing:-.02em;color:#0f172a;white-space:nowrap}' +
+            '.sh-r{display:flex;flex-direction:column;align-items:flex-end;line-height:1.3}' +
+            '.sh-date{font-size:10.5px;font-weight:800;color:#0f172a}' +
+            '.sh-now{font-size:8.5px;font-weight:600;color:#64748b}' +
+            '.sh-body{position:relative;flex:1 1 auto;min-height:0;margin-top:4px}' +
+            '.sh-foot{flex:0 0 auto;text-align:center;font-size:9px;font-weight:700;color:#64748b;padding-top:4px}' +
+            '.sh-inner{position:absolute;top:0;left:0;display:flex;gap:10px;align-items:flex-start;transform-origin:top left}' +
+            '.sh-inner .daily-day-panel{width:' + PW + 'px!important;flex:0 0 ' + PW + 'px!important;min-width:0!important;height:auto!important;min-height:0!important;overflow:visible!important}' +
+            '.gray .sh-body{filter:grayscale(1) contrast(1.12)}' +
+            '.ink .sh-inner *{background:transparent!important;background-image:none!important;color:#000!important;box-shadow:none!important}' +
+            '.ink .sh-inner td,.ink .sh-inner th,.ink .sh-inner .daily-day-panel{border-color:#555!important}' +
+            (isPrev ? 'html,body{background:#cbd5e1;overflow:hidden}body{display:flex;flex-direction:row;align-items:flex-start;gap:18px;padding:14px;width:max-content}.sheet{flex:0 0 auto;box-shadow:0 6px 24px rgba(15,23,42,.28);height:' + H + 'mm}' : '');
+
+        var js =
+            '(function(){var PW=' + PW + ',GAP=10,MAXH=40,BASEH=22,USER=' + S.scale + ';' +
+            'function each(l,f){for(var i=0;i<l.length;i++)f(l[i],i);}' +
+            'function busRows(c){return c.querySelectorAll("tbody tr:not(.daily-offday-row)");}' +
+            'function setRows(inner,h){each(busRows(inner),function(tr){tr.style.height=h+"px";each(tr.children,function(td){td.style.height=h+"px";});});}' +
+            'function setOff(offs,h){each(offs,function(tr){tr.style.height=h+"px";tr.style.minHeight=h+"px";each(tr.children,function(td){td.style.height=h+"px";td.style.minHeight=h+"px";});});}' +
+            'function normalize(inner){each(busRows(inner),function(tr){tr.style.minHeight="0";each(tr.children,function(td){var s=td.style;s.padding="1px 2px";s.fontSize="11px";s.lineHeight="1.2";s.whiteSpace="nowrap";s.overflow="visible";s.verticalAlign="middle";s.minHeight="0";s.maxHeight="none";});});' +
+            'each(inner.querySelectorAll(".daily-offday-row"),function(tr){tr.style.height="auto";tr.style.minHeight="0";each(tr.children,function(td){var s=td.style;s.height="auto";s.minHeight="0";s.maxHeight="none";s.padding="5px 6px";s.fontSize="10px";s.lineHeight="1.35";s.whiteSpace="normal";s.wordBreak="keep-all";s.verticalAlign="top";s.overflow="visible";});});' +
+            'each(inner.querySelectorAll(".daily-offday-body"),function(el){el.style.overflow="visible";el.style.maxHeight="none";el.style.height="auto";});}' +
+            'function layout(){each(document.querySelectorAll(".sheet"),function(sh){var body=sh.querySelector(".sh-body"),inner=sh.querySelector(".sh-inner");if(!body||!inner)return;' +
+            'var panels=inner.querySelectorAll(".daily-day-panel"),n=panels.length||1;inner.style.transform="none";inner.style.width=(n*PW+(n-1)*GAP)+"px";' +
+            'normalize(inner);setRows(inner,BASEH);var offs=inner.querySelectorAll(".daily-offday-row"),mx=110;each(offs,function(tr){var h=tr.offsetHeight;if(h>mx)mx=h;});setOff(offs,mx);' +
+            'var aw=body.clientWidth,ah=body.clientHeight,cw=inner.offsetWidth,s=aw/cw,h=inner.offsetHeight;' +
+            'if(h*s<ah){var nb=busRows(panels[0]||inner).length||1;var rh=Math.min(MAXH,BASEH+(ah/s-h)/nb);setRows(inner,rh);h=inner.offsetHeight;' +
+            'if(h*s<ah){setOff(offs,mx+Math.min(240,ah/s-h));h=inner.offsetHeight;}}' +
+            'if(h*s>ah)s=ah/h;s=s*USER/100;inner.style.transform="scale("+s+")";inner.style.left=Math.max(0,(aw-cw*s)/2)+"px";});}' +
+            'layout();window.addEventListener("load",layout);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(layout);})();';
+
+        return '<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>일일배차표 ' + esc(r.y + '-' + pad2(r.m) + '-' + pad2(r.a)) + '</title>' +
+            '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet">' +
+            '<style>' + css + '</style></head><body class="' + S.color + '">' + sheetHtml +
+            '<script>' + js + '<\/script></body></html>';
+    }
+
+    /* ---------- 미리보기 ---------- */
+    var sheetLefts = [];
+    function readFrame() {
+        var fr = $('dpFrame');
+        try {
+            var doc = fr.contentDocument;
+            frameW = Math.max(doc.documentElement.scrollWidth, doc.body.scrollWidth);
+            frameH = Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight);
+            sheetLefts = [];
+            doc.querySelectorAll('.sheet').forEach(function (el) { sheetLefts.push(el.offsetLeft); });
+        } catch (e) {
+            var dim = pageDims();
+            frameW = Math.ceil(dim.w * MM) + 28; frameH = Math.ceil(dim.h * MM) + 28;
+        }
+    }
+
+    function curK() {
+        var sc = $('dpPreviewScroll');
+        var dim = pageDims();
+        var pw = Math.ceil(dim.w * MM) + 28, ph = Math.ceil(dim.h * MM) + 28;
+        var kw = Math.max(120, sc.clientWidth - 24) / pw;
+        var kh = Math.max(120, sc.clientHeight - 24) / ph;
+        return Math.min(1.6, Math.min(kw, kh)) * zoom;
+    }
+
+    function fitPreview() {
+        var fr = $('dpFrame'), stage = $('dpStage');
+        if (!frameW || !frameH) return;
+        var k = curK();
+        stage.style.width = Math.round(frameW * k) + 'px';
+        stage.style.height = Math.round(frameH * k) + 'px';
+        fr.style.width = frameW + 'px';
+        fr.style.height = frameH + 'px';
+        fr.style.transform = 'scale(' + k + ')';
+        $('dpZoomVal').textContent = zoom === 1 ? '맞춤' : Math.round(zoom * 100) + '%';
+        updateActive();
+    }
+
+    function currentSheetIndex() {
+        var sc = $('dpPreviewScroll'), k = curK();
+        var x = sc.scrollLeft + sc.clientWidth * 0.35, idx = 0;
+        for (var i = 0; i < sheetLefts.length; i++) { if (sheetLefts[i] * k <= x) idx = i; }
+        return idx;
+    }
+
+    function updateActive() {
+        if (!meta.sheets.length) return;
+        var idx = Math.min(currentSheetIndex(), meta.sheets.length - 1);
+        var w = meta.sheets[idx];
+        document.querySelectorAll('#dpWeeks .dp-wk').forEach(function (b) {
+            b.classList.toggle('on', Number(b.getAttribute('data-wk')) === w);
+        });
+        var dim = pageDims();
+        $('dpBadge').textContent = (idx + 1) + ' / ' + meta.sheets.length + '쪽 · ' + w + '주차 · ' + S.paper + ' ' + (S.orient === 'landscape' ? '가로' : '세로');
+    }
+
+    function goSheet(idx) {
+        var sc = $('dpPreviewScroll'), k = curK();
+        if (sheetLefts[idx] == null) return;
+        sc.scrollTo({ left: Math.max(0, sheetLefts[idx] * k - 8), behavior: 'smooth' });
+    }
+
+    function renderWeekNav() {
+        var box = $('dpWeeks');
+        box.innerHTML = meta.weeks.map(function (x) {
+            return '<button type="button" class="dp-wk" data-wk="' + x.n + '" data-first="' + x.first + '">' + x.n + '주차<small>' + x.a + (x.b !== x.a ? '~' + x.b : '') + '일</small></button>';
+        }).join('');
+    }
+
+    function renderWeekChips() {
+        var y = curY(), m = curM();
+        $('dpWeekChips').innerHTML = weekRanges(y, m).map(function (w) {
+            return '<button type="button" class="dp-chip" data-dp-week="' + w.n + '" data-a="' + w.a + '" data-b="' + w.b + '">' + w.n + '주차 (' + w.a + '~' + w.b + '일)</button>';
+        }).join('');
+    }
+
+    function renderPreview() {
+        var r = getRange();
+        updateInfo(r);
+        var fr = $('dpFrame'), stage = $('dpStage'), empty = $('dpEmpty'), btn = $('dpPrintBtn');
+        var html = r.ok ? buildDoc('preview') : null;
+        if (!html) {
+            stage.style.display = 'none'; empty.style.display = 'block'; btn.disabled = true;
+            empty.textContent = r.ok ? '표시할 배차 데이터가 없습니다.' : r.msg;
+            meta = { sheets: [], weeks: [] }; renderWeekNav();
+            return;
+        }
+        stage.style.display = 'block'; empty.style.display = 'none'; btn.disabled = false;
+        renderWeekNav();
+        var dim = pageDims();
+        frameH = Math.ceil(dim.h * MM) + 28;
+        frameW = (Math.ceil(dim.w * MM) + 18) * meta.sheets.length + 10;
+        fr.style.width = frameW + 'px'; fr.style.height = frameH + 'px';
+        fr.onload = function () {
+            readFrame(); fitPreview();
+            setTimeout(function () { readFrame(); fitPreview(); }, 500);
+        };
+        fr.srcdoc = html;
+    }
+
+    function schedulePreview() {
+        clearTimeout(previewTimer);
+        previewTimer = setTimeout(renderPreview, 160);
+    }
+
+    /* ---------- 인쇄 ---------- */
+    function cleanupPrintFrame() {
+        try { if (printFrame && printFrame.parentNode) printFrame.parentNode.removeChild(printFrame); } catch (e) {}
+        printFrame = null;
+    }
+
+    function printViaWindow(html) {
+        var w = window.open('', '_blank');
+        if (!w) {
+            if (typeof showModal === 'function') showModal('안내', '팝업이 차단되어 인쇄 창을 열 수 없습니다. 팝업 허용 후 다시 시도해 주세요.', true);
+            return;
+        }
+        w.document.open(); w.document.write(html); w.document.close();
+        w.onload = function () { setTimeout(function () { try { w.focus(); w.print(); } catch (e) {} }, 500); };
+    }
+
+    window.printDailySchedule = function () {
+        var html = buildDoc('print');
+        if (!html) {
+            if (typeof showModal === 'function') showModal('안내', '인쇄할 기간을 확인해 주세요.', true);
+            return;
+        }
+        cleanupPrintFrame();
+        var fr = document.createElement('iframe');
+        fr.setAttribute('aria-hidden', 'true');
+        fr.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;';
+        printFrame = fr;
+        var fired = false;
+        fr.onload = function () {
+            if (fired) return; fired = true;
+            setTimeout(function () {
+                try {
+                    var cw = fr.contentWindow;
+                    cw.focus();
+                    cw.onafterprint = function () { setTimeout(cleanupPrintFrame, 300); };
+                    cw.print();
+                    setTimeout(cleanupPrintFrame, 120000);
+                } catch (e) {
+                    console.warn('[일일인쇄] iframe 인쇄 실패 → 새 창으로 재시도', e);
+                    cleanupPrintFrame();
+                    printViaWindow(html);
+                }
+            }, 700);
+        };
+        document.body.appendChild(fr);
+        fr.srcdoc = html;
+    };
+
+    /* ---------- 모달 열기/닫기 ---------- */
+    function setRangeDays(a, b) {
+        var y = curY(), m = curM();
+        $('dpDateFrom').value = y + '-' + pad2(m) + '-' + pad2(a);
+        $('dpDateTo').value = y + '-' + pad2(m) + '-' + pad2(b);
+    }
+
+    window.openDailyPrintModal = async function () {
+        try {
+            if (typeof currentTab !== 'undefined' && currentTab !== 'weekly' && typeof switchTab === 'function') {
+                switchTab('weekly');
+                await new Promise(function (r) { setTimeout(r, 150); });
+            }
+            var y = curY(), m = curM(), total = daysIn(y, m);
+            var min = y + '-' + pad2(m) + '-01', max = y + '-' + pad2(m) + '-' + pad2(total);
+            [$('dpDateFrom'), $('dpDateTo')].forEach(function (el) { el.min = min; el.max = max; });
+            var t = new Date(), a = 1, b = total;
+            if (t.getFullYear() === y && (t.getMonth() + 1) === m) a = Math.min(t.getDate(), total);
+            setRangeDays(a, b);
+            loadSettings();
+            syncUI();
+            renderWeekChips();
+            setMobileTab('preview');
+            zoom = 1;
+            $('dailyPrintModal').classList.add('dp-open');
+            var dbBtn = document.getElementById('weeklyDbSaveBtn');
+            if (dbBtn) { dbBtn.dataset.prevDisplay = dbBtn.style.display || ''; dbBtn.style.display = 'none'; }
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            renderPreview();
+        } catch (e) {
+            console.error('일일배차표 인쇄 모달 오류:', e);
+            if (typeof showModal === 'function') showModal('오류', '인쇄 화면을 여는 중 문제가 발생했습니다.', true);
+        }
+    };
+
+    window.closeDailyPrintModal = function () {
+        $('dailyPrintModal').classList.remove('dp-open');
+        clearTimeout(previewTimer);
+        try { $('dpFrame').srcdoc = ''; } catch (e) {}
+        frameW = frameH = 0;
+        var dbBtn = document.getElementById('weeklyDbSaveBtn');
+        if (dbBtn) {
+            if (typeof currentTab !== 'undefined' && currentTab === 'weekly') dbBtn.style.display = dbBtn.dataset.prevDisplay || 'block';
+            else dbBtn.style.display = 'none';
+        }
+    };
+
+    function setMobileTab(which) {
+        var main = $('dpMain');
+        main.classList.toggle('dp-m-settings', which === 'settings');
+        main.classList.toggle('dp-m-preview', which !== 'settings');
+        document.querySelectorAll('#dailyPrintModal [data-dp-tab]').forEach(function (b) {
+            b.classList.toggle('on', b.getAttribute('data-dp-tab') === which);
+        });
+        if (which !== 'settings') setTimeout(fitPreview, 30);
+    }
+
+    /* ---------- 이벤트 ---------- */
+    document.addEventListener('DOMContentLoaded', function () { bind(); });
+    if (document.readyState !== 'loading') bind();
+    var bound = false;
+    function bind() {
+        if (bound) return;
+        var modal = $('dailyPrintModal');
+        if (!modal) return;
+        bound = true;
+
+        modal.addEventListener('click', function (e) {
+            var b = e.target.closest ? e.target.closest('[data-dp]') : null;
+            if (b) {
+                var k = b.getAttribute('data-dp'), v = b.getAttribute('data-val');
+                S[k] = (k === 'per' || k === 'margin') ? Number(v) : v;
+                saveSettings(); syncUI(); schedulePreview();
+                return;
+            }
+            var wkb = e.target.closest ? e.target.closest('.dp-wk') : null;
+            if (wkb) { goSheet(Number(wkb.getAttribute('data-first'))); return; }
+            var wc = e.target.closest ? e.target.closest('[data-dp-week]') : null;
+            if (wc) { setRangeDays(Number(wc.getAttribute('data-a')), Number(wc.getAttribute('data-b'))); schedulePreview(); return; }
+            var tb = e.target.closest ? e.target.closest('[data-dp-tab]') : null;
+            if (tb) { setMobileTab(tb.getAttribute('data-dp-tab')); return; }
+            var c = e.target.closest ? e.target.closest('[data-dp-range]') : null;
+            if (c) {
+                var y = curY(), m = curM(), total = daysIn(y, m), t = new Date();
+                var inMonth = t.getFullYear() === y && (t.getMonth() + 1) === m;
+                var today = inMonth ? t.getDate() : 1;
+                var kind = c.getAttribute('data-dp-range');
+                if (kind === 'today') setRangeDays(today, today);
+                else if (kind === 'week') setRangeDays(today, Math.min(total, today + 6));
+                else if (kind === 'rest') setRangeDays(today, total);
+                else setRangeDays(1, total);
+                schedulePreview();
+            }
+        });
+        $('dpDateFrom').addEventListener('change', schedulePreview);
+        $('dpDateTo').addEventListener('change', schedulePreview);
+        $('dpScale').addEventListener('input', function () {
+            S.scale = Number(this.value); $('dpScaleVal').textContent = S.scale + '%';
+            saveSettings(); schedulePreview();
+        });
+        $('dpHead').addEventListener('change', function () { S.head = this.checked; saveSettings(); syncUI(); schedulePreview(); });
+        $('dpByWeek').addEventListener('change', function () { S.byWeek = this.checked; saveSettings(); schedulePreview(); });
+        $('dpPreviewScroll').addEventListener('scroll', function () { updateActive(); });
+        $('dpPageNo').addEventListener('change', function () { S.pageno = this.checked; saveSettings(); schedulePreview(); });
+        $('dpTitleInput').addEventListener('input', function () { S.title = this.value; saveSettings(); schedulePreview(); });
+        $('dpZoomIn').addEventListener('click', function () { zoom = Math.min(2.5, +(zoom + 0.25).toFixed(2)); fitPreview(); });
+        $('dpZoomOut').addEventListener('click', function () { zoom = Math.max(0.5, +(zoom - 0.25).toFixed(2)); fitPreview(); });
+        $('dpZoomFit').addEventListener('click', function () { zoom = 1; fitPreview(); });
+        window.addEventListener('resize', function () { if (modal.classList.contains('dp-open')) fitPreview(); });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && modal.classList.contains('dp-open')) window.closeDailyPrintModal();
+        });
+    }
+})();
+</script>
 
     <script>
         let appData = {
@@ -7180,7 +7912,7 @@ main{padding-top:18px !important;}
             if (window.__taejinScheduleMonthsLoaded) {
                 if (!list.length) {
                     updateWelcomeDbCountdownUI(0, 'DB 연결됨 · 저장된 월 없음', 'error');
-                    setWelcomeLoadStatus('warn', '서버에 저장된 월 문서가 없습니다. 먼저 데이타 저장을 해 주세요.');
+                    setWelcomeLoadStatus('warn', '서버에 저장된 월 문서가 없습니다. 먼저 변경데이타저장을 해 주세요.');
                     return false;
                 }
                 if (exists) {
@@ -20170,6 +20902,44 @@ function getWeeklyScheduleCards() {
   #view-offdays #calendarGrid .od-names span { font-size:10.5px !important; line-height:1.35 !important; }
 }
 </style>
+
+<script id="user-manual-script">
+(function(){
+  function openUserManual(){
+    // 1) 같은 폴더의 PDF (배포 시 HTML과 함께 업로드)
+    var candidates = [
+      'taejin_user_manual.pdf',
+      '태진여객_배차휴무관리_사용자매뉴얼.pdf',
+      './taejin_user_manual.pdf',
+      './태진여객_배차휴무관리_사용자매뉴얼.pdf'
+    ];
+    // GitHub Pages 등 절대 경로 후보 (프로젝트 구조에 맞게 조정 가능)
+    try {
+      var base = (location.origin || '') + (location.pathname || '').replace(/[^/]*$/, '');
+      candidates.push(base + 'taejin_user_manual.pdf');
+      candidates.push(base + '태진여객_배차휴무관리_사용자매뉴얼.pdf');
+    } catch(e){}
+
+    var opened = false;
+    for (var i = 0; i < candidates.length; i++) {
+      try {
+        var w = window.open(candidates[i], '_blank');
+        if (w) { opened = true; break; }
+      } catch(e){}
+    }
+    if (!opened) {
+      // 폴백: 안내
+      if (typeof showModal === 'function') {
+        showModal('안내', '사용자 매뉴얼 PDF 파일을 찾을 수 없습니다.\nHTML과 같은 폴더에 taejin_user_manual.pdf 를 함께 두어 주세요.', true);
+      } else {
+        alert('사용자 매뉴얼 PDF 파일을 찾을 수 없습니다.\nHTML과 같은 폴더에 taejin_user_manual.pdf 를 함께 두어 주세요.');
+      }
+    }
+  }
+  window.openUserManual = openUserManual;
+})();
+</script>
+
 </body>
 </html>
 <style id="driver-work-under22-final">
