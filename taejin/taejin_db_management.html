@@ -2408,6 +2408,18 @@ main{padding-top:18px !important;}
         }
       }
       removeKeys.forEach(k => localStorage.removeItem(k));
+      // 브라우저 저장값(localStorage) 삭제: 페이지를 시작(로드)할 때마다 항상 실행
+      // (접속토큰·운행환경 설정은 유지)
+      {
+        const keep = ["taejin_access_token_v1", "taejin_dispatch_env_times", "taejin_dispatch_env_vehicle_counts"];
+        const purge = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i) || "";
+          if (k.toLowerCase().indexOf("taejin") !== -1 && keep.indexOf(k) === -1) purge.push(k);
+        }
+        purge.forEach(k => localStorage.removeItem(k));
+        console.log("[localStorage 삭제] " + purge.length + "개 키 삭제");
+      }
       localStorage.setItem("taejin_cache_reset_version", CACHE_RESET_VERSION);
     }
   } catch(e) {}
@@ -7003,7 +7015,22 @@ main{padding-top:18px !important;}
 
             // ★ N번째 체크: prior = 직전 시작일/현재 epoch 우선 (옛 prior 먼저 쓰면 2회차부터 연속 깨짐)
             // 우선순위: 명시 priorYmd → effectiveFrom → 현재 epoch → lastLoaded → localStorage → 옛 prior → 기본
-            let prior = asPriorYmd(priorYmd)
+            // ★ 같은 월에서 배차시작설정을 다시(몇 번을) 체크해도 시작일 이전 = 첫 체크 이전의 연속패턴(기존 prior) 고정.
+            //   직전 체크의 시작일(effectiveFrom)을 prior로 쓰면 그 이전 날짜의 패턴이 바뀌므로 기존 prior를 유지합니다.
+            let __stablePrior = null;
+            try {
+                const ef0 = window.__dispatchPatternEffectiveFrom;
+                const pr0 = window.__dispatchPatternPriorStart;
+                if (ef0 && pr0 && pr0.y && Number(ef0.y) === yy && Number(ef0.m) === mm) {
+                    const efUtc0 = Date.UTC(Number(ef0.y), Number(ef0.m) - 1, Number(ef0.d));
+                    const prUtc0 = Date.UTC(Number(pr0.y), Number(pr0.m) - 1, Number(pr0.d));
+                    if (isFinite(prUtc0) && prUtc0 < efUtc0 && prUtc0 < newUtc) {
+                        __stablePrior = { y: Number(pr0.y), m: Number(pr0.m), d: Number(pr0.d) };
+                    }
+                }
+            } catch (e) {}
+            let prior = __stablePrior
+                || asPriorYmd(priorYmd)
                 || asPriorYmd(window.__dispatchPatternEffectiveFrom)
                 || asPriorYmd(window.__dispatchPatternStart)
                 || asPriorYmd(window.__lastLoadedDispatchPatternStart);
@@ -11007,6 +11034,14 @@ main{padding-top:18px !important;}
                     if (typeof renderMonthlyOffListView === 'function') renderMonthlyOffListView();
                     if (typeof renderAllViews === 'function') renderAllViews();
                 } catch(e) { console.warn('[휴무자명단 통합 저장 후 갱신]',e); }
+                // DB저장 완료 후 배차시작설정 체크 자동 해제 (저장된 패턴 기준일은 그대로 유지)
+                try {
+                    const startChk = document.getElementById('monthlyOffDispatchStartCheck');
+                    if (startChk && startChk.checked) {
+                        startChk.checked = false;
+                        if (typeof onMonthlyOffDispatchStartCheckChange === 'function') onMonthlyOffDispatchStartCheckChange();
+                    }
+                } catch(e) { console.warn('[배차시작설정 체크 해제 실패]',e); }
                 const archiveText = infoResult.originalSnapshotSaved
                   ? '적용일의 기존 배차 원본도 별도 보존했습니다.'
                   : '기존 배차 원본 필드는 변경하지 않았습니다.';
@@ -11495,7 +11530,7 @@ function getMonthlyOffAllDriverNames(){
          */
 
         /** 시작일 이전 날짜의 현재 화면 배차 결과를 그대로 고정 */
-        function freezePreStartScheduleFromCurrentCache(y, m, startD) {
+        function freezePreStartScheduleFromCurrentCache(y, m, startD, origSrc) {
             try {
                 window.__frozenPreStartSchedule = window.__frozenPreStartSchedule || {};
                 const yy = String(y).slice(-2);
@@ -11535,7 +11570,8 @@ function getMonthlyOffAllDriverNames(){
                         if (monthlySimulationCache && typeof monthlySimulationCache === 'object') src = monthlySimulationCache;
                     } catch (e) {}
                 }
-                if (!src) return 0;
+                if (!src && !origSrc) return 0;
+                if (!src) src = {};
 
                 let n = 0;
                 for (let d = 1; d < sd; d++) {
@@ -11543,8 +11579,17 @@ function getMonthlyOffAllDriverNames(){
                     try {
                         if (typeof setOpsSelContextYM === 'function') setOpsSelContextYM(y, m, d);
                     } catch (e) {}
-                    const daySrc = src[key] ? JSON.parse(JSON.stringify(src[key])) : null;
+                    // ★ 체크 직전(변경 전) 화면 배차 원본이 있으면 그대로 고정 (재계산·보정 없음)
+                    const __origDay = (origSrc && origSrc[key] && origSrc[key].busAssignments) ? origSrc[key] : null;
+                    const daySrc = __origDay
+                        ? JSON.parse(JSON.stringify(__origDay))
+                        : (src[key] ? JSON.parse(JSON.stringify(src[key])) : null);
                     if (!daySrc) continue;
+                    if (__origDay) {
+                        window.__frozenPreStartSchedule[key] = daySrc;
+                        n++;
+                        continue;
+                    }
                     // patternOffNames / 배정 기사를 baseline 조·기사로 보정
                     try {
                         const offG = (typeof getPatternOffGroup === 'function')
@@ -11628,6 +11673,26 @@ function getMonthlyOffAllDriverNames(){
                     && priorKeep && priorKeep.y) {
                     return false; // 이미 동일 분할( prior + 시작일 ) 적용됨
                 }
+                // ★ 체크 직전 배차 화면(원본) 확보: 패턴·조/기사 버전을 바꾸기 전에 계산해 둠
+                //   시작일 이전 날짜는 이 원본을 그대로 유지하고 재계산하지 않음
+                let __origPreStart = null;
+                try {
+                    // 같은 월에서 재체크하면(직전 체크의 시작일 구간 포함) 원본이 아니라
+                    // 이전달 연속패턴(prior) 기준으로 시작일 이전을 다시 고정함
+                    const __efPrev = window.__dispatchPatternEffectiveFrom;
+                    const __isRecheckSameMonth = !!(__efPrev && Number(__efPrev.y) === y && Number(__efPrev.m) === m);
+                    if (d > 1 && !__isRecheckSameMonth && typeof runMonthlySpareSimulation === 'function') {
+                        const __r = runMonthlySpareSimulation(y, m);
+                        if (__r && typeof __r === 'object') {
+                            __origPreStart = {};
+                            const __yy = String(y).slice(-2), __mm = String(m).padStart(2, '0');
+                            for (let __d = 1; __d < d; __d++) {
+                                const __k = __yy + '-' + __mm + '-' + String(__d).padStart(2, '0');
+                                if (__r[__k]) __origPreStart[__k] = JSON.parse(JSON.stringify(__r[__k]));
+                            }
+                        }
+                    }
+                } catch (e) { console.warn('[배차시작] 변경 전 배차 원본 확보 실패', e); }
                 // 시작일 이전 = 기존 패턴 유지, 시작일부터 1조휴무
                 // ★ N번째 체크: prior = 직전 시작일/현재 epoch (몇 번 체크해도 시작일=1조 + 이전 연속)
                 let prior = null;
@@ -11719,7 +11784,7 @@ function getMonthlyOffAllDriverNames(){
                 try { if (typeof monthlySimulationCacheKey !== 'undefined') monthlySimulationCacheKey = ''; } catch (e) {}
                 try {
                     if (typeof freezePreStartScheduleFromCurrentCache === 'function') {
-                        freezePreStartScheduleFromCurrentCache(y, m, d);
+                        freezePreStartScheduleFromCurrentCache(y, m, d, __origPreStart);
                     }
                 } catch (e) {}
                 // ★ 4) 화면 갱신 (12/1~3=전달 기사·조, 12/4~=새 기사·조)
@@ -11801,6 +11866,17 @@ function getMonthlyOffAllDriverNames(){
             return window.__monthlyOffDispatchStartEnabled === true;
         }
 
+        // 체크 해제 시 배차시작 년·월·일을 휴무일자 입력값과 동일하게 되돌림 (직접 설정값 해제)
+        function resetMonthlyOffDispatchStartToOffDayDate() {
+            try {
+                try { localStorage.removeItem(MONTHLY_OFF_DISPATCH_START_KEY); } catch (e) {}
+                try { window.__monthlyOffDispatchStart = null; } catch (e) {}
+                if (typeof fillMonthlyOffDispatchStartSelects === 'function') fillMonthlyOffDispatchStartSelects();
+            } catch (e) {
+                console.warn('[배차시작] 휴무일자 동기화 실패', e);
+            }
+        }
+
         function onMonthlyOffDispatchStartCheckChange() {
             const checked = isMonthlyOffDispatchStartChecked();
             window.__monthlyOffDispatchStartEnabled = checked;
@@ -11819,6 +11895,8 @@ function getMonthlyOffAllDriverNames(){
             if (checked) {
                 scheduleApplyMonthlyOffDispatchStartPattern();
             } else {
+                // 체크 해제: 배차시작 년·월·일은 휴무일자와 동일하게 표시
+                resetMonthlyOffDispatchStartToOffDayDate();
                 // 체크 해제: prior로 되돌리지 않음
                 // - 이미 적용된 시작일(1조) 이후 패턴을 말~초 연속 유지
                 // - 분할이 있으면 유지(시작일 이전=구패턴, 시작일~=신패턴 연속)
