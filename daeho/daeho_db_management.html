@@ -10351,10 +10351,10 @@ function getMonthlyOffAllDriverNames(){
                     <table style="width:100%;border-collapse:collapse;table-layout:fixed;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;">
                         <thead>
                             <tr>
-                                <th style="width:${colW.line};text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#334155;padding:8px 2px;border:1px solid #cbd5e1;background:#f8fafc;line-height:1.15;">노선</th>
-                                <th style="width:${colW.morning};text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#b45309;padding:8px 2px;border:1px solid #cbd5e1;background:#fffbeb;line-height:1.15;">오전</th>
+                                <th style="width:${colW.line};text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#334155;padding:8px 2px;border:1px solid #cbd5e1;background:#ffffff;line-height:1.15;">노선</th>
+                                <th style="width:${colW.morning};text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#b45309;padding:8px 2px;border:1px solid #cbd5e1;background:#ffffff;line-height:1.15;">오전</th>
                                 ${isReducedImg ? `<th style="width:${colW.spin};text-align:center;vertical-align:middle;font-size:20px;font-weight:900;color:#be123c;padding:8px 2px;border:1px solid #cbd5e1;background:#fff1f2;line-height:1.15;">회</th>` : ''}
-                                <th style="width:${colW.afternoon};text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#c2410c;padding:8px 2px;border:1px solid #cbd5e1;background:#fef2f2;line-height:1.15;">오후</th>
+                                <th style="width:${colW.afternoon};text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#c2410c;padding:8px 2px;border:1px solid #cbd5e1;background:#ffffff;line-height:1.15;">오후</th>
                             </tr>
                         </thead>
                         <tbody>`;
@@ -10368,7 +10368,7 @@ function getMonthlyOffAllDriverNames(){
                     const lineColor = bus.line.includes('15') ? '#dc2626' : '#2563eb';
                     const mColor = m === '운행종료' ? '#dc2626' : (mSpare ? '#2563eb' : '#0f172a');
                     const aColor = a === '운행종료' ? '#dc2626' : (aSpare ? '#2563eb' : '#0f172a');
-                    const lineText = `${bus.line.replace('번', '')}·${bus.busNo}`;
+                    const lineText = String(bus.busNo);
                     const cellBase = `height:${ROW_H}px;text-align:center;vertical-align:middle;padding:0 2px;border:1px solid #e2e8f0;background:#ffffff;white-space:nowrap;overflow:hidden;box-sizing:border-box;line-height:1;`;
                     const bothEndedImg = m.includes('운행종료') && a.includes('운행종료');
                     let spinCell = '';
@@ -10383,7 +10383,7 @@ function getMonthlyOffAllDriverNames(){
                         }
                     }
                     html += `<tr style="height:${ROW_H}px;">
-                        <td style="${cellBase}font-size:${fitFont(lineText, colPx.line, 28, 16) + 2}px;font-weight:900;color:${lineColor};line-height:1.15;">${esc(bus.line.replace('번', ''))}<br>${esc(bus.busNo)}</td>
+                        <td style="${cellBase}font-size:${fitFont(lineText, colPx.line, 28, 16) + 2}px;font-weight:900;color:${lineColor};line-height:1.15;">${esc(bus.busNo)}</td>
                         <td style="${cellBase}font-size:${fitFont(m, colPx.shift, 31, 17)}px;font-weight:800;color:${mColor};">${esc(m)}</td>
                         ${spinCell}
                         <td style="${cellBase}font-size:${fitFont(a, colPx.shift, 31, 17)}px;font-weight:800;color:${aColor};">${esc(a)}</td>
