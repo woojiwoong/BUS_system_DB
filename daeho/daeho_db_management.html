@@ -10253,7 +10253,8 @@ function getMonthlyOffAllDriverNames(){
             const isHol = (y, m, d) => (typeof isKoreanPublicHoliday === 'function' && isKoreanPublicHoliday(y, m, d));
             const dowLabels = ['일', '월', '화', '수', '목', '금', '토'];
 
-            const targetWidth = Math.max(900, dayCount * 300 + (dayCount - 1) * 10 + 48);
+            const refWidth = Math.max(900, dayCount * 300 + (dayCount - 1) * 10 + 48); // 글자 크기 계산 기준(변경 없음)
+            let targetWidth = refWidth;
 
             const imageTarget = document.createElement('div');
             imageTarget.style.width = targetWidth + 'px';
@@ -10286,17 +10287,17 @@ function getMonthlyOffAllDriverNames(){
             grid.style.gridTemplateColumns = `repeat(${dayCount}, 1fr)`;
             grid.style.gap = '10px';
             grid.style.padding = '14px';
-            grid.style.background = 'linear-gradient(135deg,#eef2f7,#e2e8f0)';
-            grid.style.border = '1px solid #cbd5e1';
-            grid.style.borderRadius = '18px';
+            grid.style.background = 'transparent';
+            grid.style.border = '0';
+            grid.style.borderRadius = '0';
             grid.style.boxSizing = 'border-box';
 
             let allBuses = [];
             getOrderedBusList(appData.routes).forEach(b => allBuses.push({ line: b.line, busNo: b.busNo }));
 
             // 셀 폭에 맞춰 글자 크기를 자동 조절 (한 줄 표시, 셀 밖으로 넘치지 않게)
-            const cardPx = (targetWidth - 48 - 28 - (dayCount - 1) * 10) / dayCount;
-            const tablePx = cardPx - 12 - 2;
+            const cardPx = (refWidth - 48 - 28 - (dayCount - 1) * 10) / dayCount;
+            const tablePx = (cardPx - 12 - 2) * 0.88; // 표 가로 88%
             const colPx = { line: tablePx * 0.26, shift: tablePx * 0.37 };
             const fitFont = (text, colWidth, maxPx, minPx) => {
                 const t = String(text || '');
@@ -10306,7 +10307,38 @@ function getMonthlyOffAllDriverNames(){
                 const avail = Math.max(10, colWidth - 8);
                 return Math.max(minPx, Math.min(maxPx, Math.floor(avail / units)));
             };
-            const ROW_H = 68; // 셀 행 높이(간격) 확대
+            const ROW_H = 44; // 셀 행 높이 축소
+
+            // 표 가로폭 최소화: 글자 크기는 그대로 두고, 가장 긴 글자가 들어갈 만큼만 열 너비를 잡는다.
+            const unitsOf = t => {
+                let u = 0;
+                for (const ch of String(t || '')) u += /[\u3131-\uD79D]/.test(ch) ? 1.0 : (/[0-9A-Za-z]/.test(ch) ? 0.58 : 0.45);
+                return u;
+            };
+            let needLine = 2 * 18, needShift = 2 * 18; // 머리글(노선/오전/오후) 최소폭
+            for (let dd = weekStart; dd <= weekEnd; dd++) {
+                const dk = `${String(currentYear).substring(2)}-${String(currentMonth).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+                const dData = getDailyAssignment(dk);
+                allBuses.forEach(bus => {
+                    const bb = (dData.busAssignments || []).find(x => x.line === bus.line && x.busNo === bus.busNo);
+                    const mm = bb ? String(bb.morningAssigned || '-').replace('(S)', '').trim() : '-';
+                    const aa = bb ? String(bb.afternoonAssigned || '-').replace('(S)', '').trim() : '-';
+                    const ln = String(bus.busNo);
+                    needLine = Math.max(needLine, unitsOf(ln) * (fitFont(ln, colPx.line, 28, 16) - 4));
+                    needShift = Math.max(needShift,
+                        unitsOf(mm) * (fitFont(mm, colPx.shift, 31, 17) - 6),
+                        unitsOf(aa) * (fitFont(aa, colPx.shift, 31, 17) - 6));
+                });
+            }
+            const lineW = Math.ceil(needLine) + 8;
+            const shiftW = Math.ceil(needShift) + 8;
+            const spinW = 38;
+
+            // 일자(날짜) · 휴무 영역 가로폭 축소: 카드 폭을 표 폭(회 열 포함) + 여유에 맞춘다.
+            // 날짜 머리글(예: 12월 31일)이 한 줄로 들어가도록 최소 폭을 둔다.
+            const cardW = Math.max(lineW + shiftW * 2 + spinW + 16, 176);
+            targetWidth = Math.max(760, dayCount * cardW + (dayCount - 1) * 10 + 48 + 28);
+            imageTarget.style.width = targetWidth + 'px';
 
             for (let d = weekStart; d <= weekEnd; d++) {
                 const dateKey = `${String(currentYear).substring(2)}-${String(currentMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -10322,7 +10354,7 @@ function getMonthlyOffAllDriverNames(){
                 const cellBorder = (isSun || holiday) ? '#fecaca' : (isSat ? '#bfdbfe' : '#cbd5e1');
 
                 const cell = document.createElement('div');
-                cell.style.cssText = `min-height:250px;background:#ffffff;border:1px solid ${cellBorder};border-radius:14px;overflow:hidden;box-sizing:border-box;box-shadow:0 4px 12px rgba(15,23,42,.07);display:flex;flex-direction:column;`;
+                cell.style.cssText = `background:transparent;border:0;border-radius:0;box-shadow:none;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;`;
 
                 const offNames = (dayData.offList || []).map(name => String(name || '').replace('(S)', '').trim()).filter(Boolean);
                 const offText = offNames.length ? offNames.join(', ') : '-';
@@ -10344,17 +10376,18 @@ function getMonthlyOffAllDriverNames(){
                     ? isReducedServiceDay(dateKey, currentYear)
                     : (isSun || holiday);
                 const colW = isReducedImg
-                    ? { line: '22%', morning: '32%', spin: '14%', afternoon: '32%' }
-                    : { line: '26%', morning: '37%', spin: '0%', afternoon: '37%' };
+                    ? { line: lineW + 'px', morning: shiftW + 'px', spin: spinW + 'px', afternoon: shiftW + 'px' }
+                    : { line: lineW + 'px', morning: shiftW + 'px', spin: '0px', afternoon: shiftW + 'px' };
+                const tableW = lineW + shiftW * 2 + (isReducedImg ? spinW : 0);
 
                 html += `<div style="padding:8px 6px;flex:1;box-sizing:border-box;">
-                    <table style="width:100%;border-collapse:collapse;table-layout:fixed;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;">
+                    <table style="width:${tableW}px;max-width:100%;margin:0 auto;border-collapse:collapse;table-layout:fixed;background:transparent !important;background-image:none !important;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;">
                         <thead>
                             <tr>
-                                <th style="width:${colW.line};text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#334155;padding:8px 2px;border:1px solid #cbd5e1;background:#ffffff;line-height:1.15;">노선</th>
-                                <th style="width:${colW.morning};text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#b45309;padding:8px 2px;border:1px solid #cbd5e1;background:#ffffff;line-height:1.15;">오전</th>
-                                ${isReducedImg ? `<th style="width:${colW.spin};text-align:center;vertical-align:middle;font-size:20px;font-weight:900;color:#be123c;padding:8px 2px;border:1px solid #cbd5e1;background:#fff1f2;line-height:1.15;">회</th>` : ''}
-                                <th style="width:${colW.afternoon};text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#c2410c;padding:8px 2px;border:1px solid #cbd5e1;background:#ffffff;line-height:1.15;">오후</th>
+                                <th style="width:${colW.line};text-align:center !important;vertical-align:middle !important;font-size:18px;font-weight:900;color:#334155;padding:12px 2px;border:1px solid #cbd5e1;background:transparent !important;background-image:none !important;line-height:1.15;">노선</th>
+                                <th style="width:${colW.morning};text-align:center !important;vertical-align:middle !important;font-size:18px;font-weight:900;color:#b45309;padding:12px 2px;border:1px solid #cbd5e1;background:transparent !important;background-image:none !important;line-height:1.15;">오전</th>
+                                ${isReducedImg ? `<th style="width:${colW.spin};text-align:center !important;vertical-align:middle !important;font-size:14px;font-weight:900;color:#be123c;padding:12px 2px;border:1px solid #cbd5e1;background:transparent !important;background-image:none !important;line-height:1.15;">회</th>` : ''}
+                                <th style="width:${colW.afternoon};text-align:center !important;vertical-align:middle !important;font-size:18px;font-weight:900;color:#c2410c;padding:12px 2px;border:1px solid #cbd5e1;background:transparent !important;background-image:none !important;line-height:1.15;">오후</th>
                             </tr>
                         </thead>
                         <tbody>`;
@@ -10369,24 +10402,24 @@ function getMonthlyOffAllDriverNames(){
                     const mColor = m === '운행종료' ? '#dc2626' : (mSpare ? '#2563eb' : '#0f172a');
                     const aColor = a === '운행종료' ? '#dc2626' : (aSpare ? '#2563eb' : '#0f172a');
                     const lineText = String(bus.busNo);
-                    const cellBase = `height:${ROW_H}px;text-align:center;vertical-align:middle;padding:0 2px;border:1px solid #e2e8f0;background:#ffffff;white-space:nowrap;overflow:hidden;box-sizing:border-box;line-height:1;`;
+                    const cellBase = `height:${ROW_H}px;text-align:center !important;vertical-align:middle !important;padding:0 2px;border:1px solid #e2e8f0;background:transparent !important;background-image:none !important;white-space:nowrap;overflow:hidden;box-sizing:border-box;line-height:${ROW_H - 2}px;`;
                     const bothEndedImg = m.includes('운행종료') && a.includes('운행종료');
                     let spinCell = '';
                     if (isReducedImg) {
                         if (bothEndedImg) {
-                            spinCell = `<td style="${cellBase}font-size:18px;font-weight:800;color:#94a3b8;background:#fff1f2;">-</td>`;
+                            spinCell = `<td style="${cellBase}font-size:12px;font-weight:800;color:#94a3b8;background:transparent !important;background-image:none !important;">-</td>`;
                         } else {
                             const spinN = (typeof getMorningCellSpinner === 'function')
                                 ? getMorningCellSpinner(dateKey, bus.line, bus.busNo)
                                 : 0;
-                            spinCell = `<td style="${cellBase}font-size:24px;font-weight:900;color:#be123c;background:#fff1f2;">${spinN}</td>`;
+                            spinCell = `<td style="${cellBase}font-size:18px;font-weight:900;color:#be123c;background:transparent !important;background-image:none !important;">${spinN}</td>`;
                         }
                     }
                     html += `<tr style="height:${ROW_H}px;">
-                        <td style="${cellBase}font-size:${fitFont(lineText, colPx.line, 28, 16) + 2}px;font-weight:900;color:${lineColor};line-height:1.15;">${esc(bus.busNo)}</td>
-                        <td style="${cellBase}font-size:${fitFont(m, colPx.shift, 31, 17)}px;font-weight:800;color:${mColor};">${esc(m)}</td>
+                        <td style="${cellBase}font-size:${fitFont(lineText, colPx.line, 28, 16) - 4}px;font-weight:900;color:${lineColor};">${esc(bus.busNo)}</td>
+                        <td style="${cellBase}font-size:${fitFont(m, colPx.shift, 31, 17) - 6}px;font-weight:800;color:${mColor};">${esc(m)}</td>
                         ${spinCell}
-                        <td style="${cellBase}font-size:${fitFont(a, colPx.shift, 31, 17)}px;font-weight:800;color:${aColor};">${esc(a)}</td>
+                        <td style="${cellBase}font-size:${fitFont(a, colPx.shift, 31, 17) - 6}px;font-weight:800;color:${aColor};">${esc(a)}</td>
                     </tr>`;
                 });
                 html += `</tbody></table></div>`;
@@ -10417,14 +10450,21 @@ function getMonthlyOffAllDriverNames(){
             const captureWidth = Math.max(imageTarget.scrollWidth, imageTarget.offsetWidth, targetWidth, 1);
             const captureHeight = Math.max(imageTarget.scrollHeight, imageTarget.offsetHeight, 1);
 
+            // Letter(8.5x11in) 용지 비율 페이지 크기 계산 (가로형이면 11:8.5, 세로형이면 8.5:11)
+            // 표 전체가 잘리거나 비율이 틀어지지 않고 한 장에 들어가도록 여백을 더해 맞춘다.
+            const letterRatio = captureWidth >= captureHeight ? (11 / 8.5) : (8.5 / 11);
+            let pageW = captureWidth, pageH = captureHeight;
+            if (captureWidth / captureHeight > letterRatio) pageH = Math.ceil(captureWidth / letterRatio);
+            else pageW = Math.ceil(captureHeight * letterRatio);
+
             // iPhone canvas 한계를 고려한 스케일 계산
             const maxCanvasSide = 8192;
             const maxCanvasArea = 26800000;
             let scale = Math.min(
                 3,
-                maxCanvasSide / captureWidth,
-                maxCanvasSide / captureHeight,
-                Math.sqrt(maxCanvasArea / (captureWidth * captureHeight))
+                maxCanvasSide / pageW,
+                maxCanvasSide / pageH,
+                Math.sqrt(maxCanvasArea / (pageW * pageH))
             );
             if (!isFinite(scale) || scale <= 0) scale = 1;
             scale = Math.max(0.75, scale);
@@ -10454,8 +10494,21 @@ function getMonthlyOffAllDriverNames(){
                 throw new Error(`${index + 1}주차 캔버스 생성 실패`);
             }
 
+            // Letter 비율 흰 바탕 페이지 위에 표를 가운데 배치
+            const pageCanvas = document.createElement('canvas');
+            pageCanvas.width = Math.round(pageW * scale);
+            pageCanvas.height = Math.round(pageH * scale);
+            const pageCtx = pageCanvas.getContext('2d');
+            pageCtx.fillStyle = '#ffffff';
+            pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+            pageCtx.drawImage(
+                canvas,
+                Math.round((pageCanvas.width - canvas.width) / 2),
+                Math.round((pageCanvas.height - canvas.height) / 2)
+            );
+
             const blob = await new Promise((resolve, reject) => {
-                canvas.toBlob(b => b ? resolve(b) : reject(new Error('이미지 변환 실패')), 'image/png');
+                pageCanvas.toBlob(b => b ? resolve(b) : reject(new Error('이미지 변환 실패')), 'image/png');
             });
 
             return blob;
@@ -11135,13 +11188,21 @@ fit();window.addEventListener('resize',fit);
                         </div>`;
 
                         // 배차 표: 실제 table + td 중앙정렬 (html2canvas에서도 정확히 가운데)
+                        // 일요일·공휴일(회 운행일)은 '회' 열을 추가한다.
+                        const isReducedTab = (typeof isReducedServiceDay === 'function')
+                            ? isReducedServiceDay(dateKey, currentYear)
+                            : (isSun || holiday);
+                        const tabColW = isReducedTab
+                            ? { line: '24%', morning: '30%', spin: '16%', afternoon: '30%' }
+                            : { line: '28%', morning: '36%', spin: '0%', afternoon: '36%' };
                         html += `<div style="padding:6px;flex:1;box-sizing:border-box;">
-                            <table style="width:100%;border-collapse:collapse;table-layout:fixed;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;">
+                            <table style="width:100%;border-collapse:collapse;table-layout:fixed;background:transparent !important;background-image:none !important;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;">
                                 <thead>
                                     <tr>
-                                        <th style="width:28%;text-align:center;vertical-align:middle;font-size:14px;font-weight:900;color:#334155;padding:6px 2px;border:1px solid #cbd5e1;background:#f8fafc;line-height:1.15;">노선</th>
-                                        <th style="width:36%;text-align:center;vertical-align:middle;font-size:14px;font-weight:900;color:#b45309;padding:6px 2px;border:1px solid #cbd5e1;background:#fffbeb;line-height:1.15;">오전</th>
-                                        <th style="width:36%;text-align:center;vertical-align:middle;font-size:14px;font-weight:900;color:#c2410c;padding:6px 2px;border:1px solid #cbd5e1;background:#fef2f2;line-height:1.15;">오후</th>
+                                        <th style="width:${tabColW.line};text-align:center !important;vertical-align:middle !important;font-size:14px;font-weight:900;color:#334155;padding:6px 2px;border:1px solid #cbd5e1;background:transparent !important;background-image:none !important;line-height:1.15;">노선</th>
+                                        <th style="width:${tabColW.morning};text-align:center !important;vertical-align:middle !important;font-size:14px;font-weight:900;color:#b45309;padding:6px 2px;border:1px solid #cbd5e1;background:transparent !important;background-image:none !important;line-height:1.15;">오전</th>
+                                        ${isReducedTab ? `<th style="width:${tabColW.spin};text-align:center !important;vertical-align:middle !important;font-size:13px;font-weight:900;color:#be123c;padding:6px 2px;border:1px solid #cbd5e1;background:transparent !important;background-image:none !important;line-height:1.15;">회</th>` : ''}
+                                        <th style="width:${tabColW.afternoon};text-align:center !important;vertical-align:middle !important;font-size:14px;font-weight:900;color:#c2410c;padding:6px 2px;border:1px solid #cbd5e1;background:transparent !important;background-image:none !important;line-height:1.15;">오후</th>
                                     </tr>
                                 </thead>
                                 <tbody>`;
@@ -11155,10 +11216,18 @@ fit();window.addEventListener('resize',fit);
                             const lineColor = bus.line.includes('15') ? '#dc2626' : '#2563eb';
                             const mColor = m === '운행종료' ? '#dc2626' : (mSpare ? '#2563eb' : '#0f172a');
                             const aColor = a === '운행종료' ? '#dc2626' : (aSpare ? '#2563eb' : '#0f172a');
+                            const bothEndedTab = m.includes('운행종료') && a.includes('운행종료');
+                            let spinTd = '';
+                            if (isReducedTab) {
+                                const spinTxt = bothEndedTab ? '-' : String((typeof getMorningCellSpinner === 'function') ? getMorningCellSpinner(dateKey, bus.line, bus.busNo) : 0);
+                                const spinCol = bothEndedTab ? '#94a3b8' : '#be123c';
+                                spinTd = `<td style="text-align:center !important;vertical-align:middle !important;font-size:15px;font-weight:900;color:${spinCol};line-height:1.2;padding:5px 1px;border:1px solid #e2e8f0;background:transparent !important;background-image:none !important;">${spinTxt}</td>`;
+                            }
                             html += `<tr>
-                                <td style="text-align:center;vertical-align:middle;font-size:14px;font-weight:900;color:${lineColor};line-height:1.2;padding:5px 1px;border:1px solid #e2e8f0;background:#ffffff;word-break:keep-all;">${esc(bus.line.replace('번',''))}·${esc(bus.busNo)}</td>
-                                <td style="text-align:center;vertical-align:middle;font-size:15px;font-weight:800;color:${mColor};line-height:1.2;padding:5px 1px;border:1px solid #e2e8f0;background:#ffffff;word-break:keep-all;">${esc(m)}</td>
-                                <td style="text-align:center;vertical-align:middle;font-size:15px;font-weight:800;color:${aColor};line-height:1.2;padding:5px 1px;border:1px solid #e2e8f0;background:#ffffff;word-break:keep-all;">${esc(a)}</td>
+                                <td style="text-align:center !important;vertical-align:middle !important;font-size:14px;font-weight:900;color:${lineColor};line-height:1.2;padding:5px 1px;border:1px solid #e2e8f0;background:transparent !important;background-image:none !important;word-break:keep-all;">${esc(bus.line.replace('번',''))}·${esc(bus.busNo)}</td>
+                                <td style="text-align:center !important;vertical-align:middle !important;font-size:15px;font-weight:800;color:${mColor};line-height:1.2;padding:5px 1px;border:1px solid #e2e8f0;background:transparent !important;background-image:none !important;word-break:keep-all;">${esc(m)}</td>
+                                ${spinTd}
+                                <td style="text-align:center !important;vertical-align:middle !important;font-size:15px;font-weight:800;color:${aColor};line-height:1.2;padding:5px 1px;border:1px solid #e2e8f0;background:transparent !important;background-image:none !important;word-break:keep-all;">${esc(a)}</td>
                             </tr>`;
                         });
                         html += `</tbody></table></div>`;
@@ -11652,22 +11721,6 @@ button[onclick="openDbLoadMonthModal()"] span{
 }
 </style>
 <style id="theme-gold-header-cream-card-final">
-/* ===== 표 헤더행: 은은한 골드톤 그라데이션으로 통일 ===== */
-thead,
-thead th,
-.monthly-off-list-table thead th,
-.monthly-off-day-table thead th,
-#monthlyTableHeader,
-#monthlyOffTableHeader,
-#dailyShiftStatsHeader{
-  background: linear-gradient(135deg, #fdf8ec 0%, #f6e6bc 55%, #ecd28f 100%) !important;
-  color: #6b4a12 !important;
-  border-bottom: 1px solid #e6cd93 !important;
-}
-thead th{
-  text-shadow: 0 1px 0 rgba(255,255,255,.5);
-}
-
 /* ===== 카드 테두리: 크림 톤 하이라인으로 통일 ===== */
 #exportableArea,
 .printable-area,
