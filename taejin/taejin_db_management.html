@@ -2355,6 +2355,10 @@ main{padding-top:18px !important;}
   color:#fff;
 }
 #infoChangeSaveBtn:hover{background:#b91c1c;}
+/* 요청된 정보 변경 버튼 3종: 기존 크기에서 2px 확대 */
+#infoJoCodeEditBtn,#infoSpareEditBtn,#infoChangeSaveBtn{min-width:120px;width:120px;height:38px;min-height:38px;font-size:15px;}
+#infoDispatchApplyBtn:not(:disabled){background:linear-gradient(135deg,#059669,#047857)!important;opacity:1!important;cursor:pointer!important;box-shadow:0 4px 12px rgba(5,150,105,.22);}
+#infoDispatchApplyBtn:disabled{opacity:.45!important;cursor:not-allowed!important;}
 #infoJoCodeEditBtn.active-mode,
 #infoSpareEditBtn.active-mode{
   box-shadow:0 0 0 2px #fbbf24, 0 6px 16px rgba(0,0,0,.2);
@@ -2497,7 +2501,7 @@ main{padding-top:18px !important;}
 <!-- ========== Firebase + 접근 제한 (최종 정리 버전) ========== -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc, deleteDoc, serverTimestamp, collection, getDocs, query, where, limit } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, collection, getDocs, query, where, limit } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
   import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-analytics.js";
 
   const firebaseConfig = {
@@ -3056,7 +3060,7 @@ main{padding-top:18px !important;}
           const baseIn = (data && data.offListSelBaseline && typeof data.offListSelBaseline === 'object')
             ? data.offListSelBaseline : null;
           if (versIn && versIn.length) {
-            window.__offListSelVersions = versIn.map(function (v) {
+            const mappedVers = versIn.map(function (v) {
               return {
                 y: Number(v.y) || 0,
                 m: Number(v.m) || 0,
@@ -3065,6 +3069,15 @@ main{padding-top:18px !important;}
                 sel: (v && v.sel && typeof v.sel === 'object') ? JSON.parse(JSON.stringify(v.sel)) : {}
               };
             });
+            if (typeof window.storeOffListVersionsFromDb === 'function') {
+              window.storeOffListVersionsFromDb(mappedVers, baseIn || _offSel, y, m);
+            } else {
+              window.__offListSelVersions = mappedVers.filter(function (v) {
+                return String(v.note || '') !== 'unchecked-live'
+                  || (Number(v.y) === Number(y) && Number(v.m) === Number(m)
+                      && Number(y) === Number(currentYear) && Number(m) === Number(currentMonth));
+              });
+            }
             const hasBase = window.__offListSelVersions.some(function (v) {
               return Number(v.y) === 0 && Number(v.m) === 0;
             });
@@ -3087,7 +3100,7 @@ main{padding-top:18px !important;}
               ));
             }
             try { if (typeof invalidateOperationalJoCodeMap === 'function') invalidateOperationalJoCodeMap(); } catch (e0) {}
-            console.log('[DB로드] 조·기사 버전 복원:', window.__offListSelVersions.length, '개');
+            console.log('[DB로드] 조·기사 버전 복원(unchecked-live 제외):', window.__offListSelVersions.length, '개');
           } else if (baseIn && Object.keys(baseIn).length && typeof resetOffListSelVersionsFrom === 'function') {
             resetOffListSelVersionsFrom(baseIn, { note: 'baseline-from-db' });
             // 화면 live 선택은 문서의 monthlyOffListSelections 유지
@@ -3421,8 +3434,10 @@ main{padding-top:18px !important;}
       //   적용일 이전 = baseline(기존 테이블), 적용일 이후 = 변경된 정규/스페어
       //   주별통합 「데이타저장」에서도 반드시 함께 저장해야 화면·재로드가 일치함
       try {
-        if (Array.isArray(window.__offListSelVersions) && window.__offListSelVersions.length) {
-          payload.offListSelVersions = window.__offListSelVersions.map(function (v) {
+        const __scrVers = (typeof window.getScreenOffSelVersions === 'function') ? window.getScreenOffSelVersions() : (window.__offListSelVersions || []);
+        const __scrHold = (typeof window.isScreenOffSelHoldActive === 'function') && window.isScreenOffSelHoldActive();
+        if (Array.isArray(__scrVers) && __scrVers.length) {
+          payload.offListSelVersions = __scrVers.map(function (v) {
             return {
               y: Number(v.y) || 0,
               m: Number(v.m) || 0,
@@ -3432,11 +3447,11 @@ main{padding-top:18px !important;}
             };
           });
         }
-        if (window.__monthlyOffListSelectionsDocSnapshot && typeof window.__monthlyOffListSelectionsDocSnapshot === 'object'
+        if (!__scrHold && window.__monthlyOffListSelectionsDocSnapshot && typeof window.__monthlyOffListSelectionsDocSnapshot === 'object'
             && Object.keys(window.__monthlyOffListSelectionsDocSnapshot).length) {
           payload.offListSelBaseline = window.__monthlyOffListSelectionsDocSnapshot;
-        } else if (Array.isArray(window.__offListSelVersions)) {
-          const baseRow = window.__offListSelVersions.find(function (v) {
+        } else if (Array.isArray(__scrVers)) {
+          const baseRow = __scrVers.find(function (v) {
             return Number(v.y) === 0 && Number(v.m) === 0;
           });
           if (baseRow && baseRow.sel && Object.keys(baseRow.sel).length) {
@@ -4144,18 +4159,49 @@ main{padding-top:18px !important;}
         const value = (v !== undefined && v !== null) ? v : fallback;
         try { return JSON.parse(JSON.stringify(value)); } catch(e) { return value; }
       };
-      const liveInfo = cloneSaveValue(
-        (window.monthlyOffListSelections && Object.keys(window.monthlyOffListSelections).length)
-          ? window.monthlyOffListSelections
-          : monthlyOffListSelections,
-        existing.monthlyOffListSelections || {}
-      );
-      const liveVersions = (Array.isArray(window.__offListSelVersions) && window.__offListSelVersions.length)
-        ? cloneSaveValue(window.__offListSelVersions, existing.offListSelVersions || [])
-        : cloneSaveValue(existing.offListSelVersions || [], []);
-      const liveBaseline = (window.__monthlyOffListSelectionsDocSnapshot && Object.keys(window.__monthlyOffListSelectionsDocSnapshot).length)
-        ? cloneSaveValue(window.__monthlyOffListSelectionsDocSnapshot, existing.offListSelBaseline || {})
-        : cloneSaveValue(existing.offListSelBaseline || {}, {});
+      // 저장 대상 월이 화면 월과 다르면, 메모리의 정규/스페어(화면 월 값)로 대상 월 문서의 정보를 덮지 않는다.
+      //  - 정규/스페어를 편집(저장 대상)한 경우에만 편집값 저장, 아니면 대상 월 문서의 기존 값 유지
+      //  - 이력(versions)·기준(baseline)은 대상 월 문서의 기존 값을 유지 (정규/스페어 변경 저장 함수가 이어서 갱신)
+      const __scrYMsave = (typeof window.getScreenYearMonthForOffSel === 'function') ? window.getScreenYearMonthForOffSel() : { y: 0, m: 0 };
+      const __otherMonthSave = !!(__scrYMsave.y && (y !== __scrYMsave.y || m !== __scrYMsave.m));
+      const __infoDirtySave = !!(window.__offListInfoDirty || window.__regularSpareInfoDirty);
+      let __startCheckedSave = false;
+      try {
+        if (typeof isMonthlyOffDispatchStartChecked === 'function') __startCheckedSave = !!isMonthlyOffDispatchStartChecked();
+        else {
+          const __chkS = document.getElementById('monthlyOffDispatchStartCheck');
+          if (__chkS) __startCheckedSave = !!__chkS.checked;
+        }
+      } catch (eChk) {}
+      const __existSelSave = (existing.monthlyOffListSelections && Object.keys(existing.monthlyOffListSelections).length)
+        ? existing.monthlyOffListSelections : null;
+      // 미체크: 항상 현재 화면 정규/스페어 값을 대상(휴무일자) 월에 저장
+      // 체크: 변경 없으면 다른 월 문서 기존값 유지
+      const liveInfo = (!__startCheckedSave)
+        ? cloneSaveValue(
+            (window.monthlyOffListSelections && Object.keys(window.monthlyOffListSelections).length)
+              ? window.monthlyOffListSelections
+              : monthlyOffListSelections,
+            existing.monthlyOffListSelections || {}
+          )
+        : ((__otherMonthSave && !__infoDirtySave && __existSelSave)
+          ? cloneSaveValue(__existSelSave, {})
+          : cloneSaveValue(
+              (window.monthlyOffListSelections && Object.keys(window.monthlyOffListSelections).length)
+                ? window.monthlyOffListSelections
+                : monthlyOffListSelections,
+              existing.monthlyOffListSelections || {}
+            ));
+      const liveVersions = __otherMonthSave
+        ? cloneSaveValue(existing.offListSelVersions || [], [])
+        : ((Array.isArray(window.__offListSelVersions) && window.__offListSelVersions.length)
+            ? cloneSaveValue(window.__offListSelVersions, existing.offListSelVersions || [])
+            : cloneSaveValue(existing.offListSelVersions || [], []));
+      const liveBaseline = (__otherMonthSave && existing.offListSelBaseline && Object.keys(existing.offListSelBaseline).length)
+        ? cloneSaveValue(existing.offListSelBaseline, {})
+        : ((window.__monthlyOffListSelectionsDocSnapshot && Object.keys(window.__monthlyOffListSelectionsDocSnapshot).length)
+            ? cloneSaveValue(window.__monthlyOffListSelectionsDocSnapshot, existing.offListSelBaseline || {})
+            : cloneSaveValue(existing.offListSelBaseline || {}, {}));
       const payload = {
         year:y, month:m,
         monthlyOffDayEntries:allEntries,
@@ -4179,14 +4225,24 @@ main{padding-top:18px !important;}
     }
   };
 
-  // 배차시작설정 미체크 + 정규/스페어 변경 시: 적용일자 없이 live 선택값을 그대로 DB에 저장
-  // (분할 없음 · 해당 월 전체를 변경된 정규/스페어로 덮어씀)
-  window.saveRegularSpareInfoLiveToDB = async function () {
+  // 배차시작설정 미체크 + 정규/스페어 변경 시:
+  // 휴무일자 년·월 문서에 현재 정규/스페어 선택값을 DB에 저장 (분할 없음)
+  // 현재 배차 화면에는 적용하지 않음 (데이터불러오기 후에도 unchecked-live 제외)
+  window.saveRegularSpareInfoLiveToDB = async function (targetOverride) {
     try {
+      // 0) 화면 배차용 상태 먼저 스냅샷 (저장 중/후 오염 방지)
+      const clone = function (v) {
+        try { return JSON.parse(JSON.stringify(v)); } catch (e) { return {}; }
+      };
+      const __prevVersForDisplay = (typeof window.captureScreenOffSelVersions === 'function')
+        ? window.captureScreenOffSelVersions()
+        : (Array.isArray(window.__offListSelVersions) ? clone(window.__offListSelVersions) : []);
+      const __prevSnap = clone(window.__monthlyOffListSelectionsDocSnapshot || {});
+
       if (typeof window.syncMonthlyOffToWindow === 'function') {
         try { window.syncMonthlyOffToWindow(); } catch (e) {}
       }
-      // 화면 입력값을 선택 객체에 반영
+      // 화면 입력값을 선택 객체에 강제 반영
       try {
         document.querySelectorAll('[data-monthly-off-key]').forEach(function (el) {
           const k = el.getAttribute('data-monthly-off-key');
@@ -4200,16 +4256,34 @@ main{padding-top:18px !important;}
         document.querySelectorAll('.monthly-off-spare-input').forEach(function (el, idx) {
           const sel = (typeof monthlyOffListSelections === 'object' && monthlyOffListSelections)
             ? monthlyOffListSelections : (window.monthlyOffListSelections = window.monthlyOffListSelections || {});
-          sel['스페어|' + (idx + 1)] = el.value || '';
+          sel['스페어|' + (idx + 1)] = String(el.value || '').trim();
+          monthlyOffListSelections = sel;
+          window.monthlyOffListSelections = sel;
+        });
+        // 조 코드 콤보
+        document.querySelectorAll('select.monthly-off-jo-select[data-monthly-off-jo-key]').forEach(function (el) {
+          const k = el.getAttribute('data-monthly-off-jo-key');
+          if (!k) return;
+          const sel = (typeof monthlyOffListSelections === 'object' && monthlyOffListSelections)
+            ? monthlyOffListSelections : (window.monthlyOffListSelections = window.monthlyOffListSelections || {});
+          sel[k] = el.value || '';
           monthlyOffListSelections = sel;
           window.monthlyOffListSelections = sel;
         });
       } catch (eSync) { console.warn('[미체크 live 동기화]', eSync); }
 
-      const target = (typeof getRegularSpareInfoMonth === 'function')
-        ? getRegularSpareInfoMonth()
-        : { y: Number(window.currentYear) || 2026, m: Number(window.currentMonth) || 1 };
+      // 대상 = 휴무일자 년·월 (호출부에서 __leaveTarget 전달)
+      const target = (targetOverride && targetOverride.y && targetOverride.m)
+        ? targetOverride
+        : ((typeof getOffListTargetYearMonth === 'function')
+          ? getOffListTargetYearMonth()
+          : ((typeof getRegularSpareInfoMonth === 'function')
+            ? getRegularSpareInfoMonth()
+            : { y: Number(window.currentYear) || 2026, m: (Number(window.currentMonth) || 1) + 1 }));
       const y = Number(target.y), m = Number(target.m);
+      if (!y || !m || m < 1 || m > 12) {
+        return { ok: false, invalidTarget: true, y: y, m: m };
+      }
       const monthlyKey = y + '_' + String(m).padStart(2, '0');
 
       let existing = {};
@@ -4222,24 +4296,21 @@ main{padding-top:18px !important;}
         console.error('[미체크 정규/스페어 live 저장] 기존 문서 조회 실패', e);
         return { ok: false, lookupFailed: true, y: y, m: m };
       }
-      if (!existingDocFound) return { ok: false, missingDoc: true, y: y, m: m };
 
-      const clone = function (v) {
-        try { return JSON.parse(JSON.stringify(v)); } catch (e) { return {}; }
-      };
       const liveSelections = clone(
         (typeof monthlyOffListSelections === 'object' && monthlyOffListSelections && Object.keys(monthlyOffListSelections).length)
           ? monthlyOffListSelections
           : (window.monthlyOffListSelections || {})
       );
       if (!liveSelections || !Object.keys(liveSelections).length) {
+        console.warn('[미체크 live 저장] 선택값 비어 있음', monthlyKey);
         return { ok: false, emptySelections: true, y: y, m: m };
       }
 
-      // 같은 월 버전 행만 교체: 월 1일 1건(note=unchecked-live)으로 live 반영
+      // 버전: 같은 월 행 제거 후 unchecked-live 1건
       let versions = Array.isArray(existing.offListSelVersions)
         ? clone(existing.offListSelVersions)
-        : clone(window.__offListSelVersions || []);
+        : [];
       if (!Array.isArray(versions)) versions = [];
       const monthStartUtc = Date.UTC(y, m - 1, 1);
       const kept = versions.filter(function (v) {
@@ -4261,7 +4332,7 @@ main{padding-top:18px !important;}
       const baseline = (existing.offListSelBaseline && typeof existing.offListSelBaseline === 'object'
         && Object.keys(existing.offListSelBaseline).length)
         ? clone(existing.offListSelBaseline)
-        : clone(window.__monthlyOffListSelectionsDocSnapshot || liveSelections);
+        : (Object.keys(__prevSnap).length ? __prevSnap : clone(liveSelections));
 
       const payload = {
         year: y,
@@ -4271,30 +4342,140 @@ main{padding-top:18px !important;}
         offListSelBaseline: baseline,
         offListInfoSavedAt: serverTimestamp()
       };
-      await withTimeout(setDoc(doc(db, 'taejinSchedules', monthlyKey), payload, { merge: true }));
+
+      // mergeFields: 지정 필드를 통째로 교체 (맵 키 삭제 포함). 문서 없으면 생성.
+      const payloadWrite = {
+        year: y,
+        month: m,
+        monthlyOffListSelections: liveSelections,
+        offListSelVersions: kept,
+        offListSelBaseline: baseline,
+        offListInfoSavedAt: serverTimestamp()
+      };
+      try {
+        await withTimeout(setDoc(doc(db, 'taejinSchedules', monthlyKey), payloadWrite, {
+          mergeFields: ['year', 'month', 'monthlyOffListSelections', 'offListSelVersions', 'offListSelBaseline', 'offListInfoSavedAt']
+        }));
+      } catch (eMergeFields) {
+        // 문서 없음 등으로 mergeFields 실패 시 merge:true 로 생성
+        console.warn('[미체크 live] mergeFields 실패 → merge 재시도', eMergeFields && eMergeFields.message);
+        await withTimeout(setDoc(doc(db, 'taejinSchedules', monthlyKey), payloadWrite, { merge: true }));
+      }
+      // updateDoc으로 한 번 더 확정 (문서 존재 시 맵 전체 치환에 유리)
+      try {
+        if (existingDocFound && typeof updateDoc === 'function') {
+          await withTimeout(updateDoc(doc(db, 'taejinSchedules', monthlyKey), {
+            monthlyOffListSelections: liveSelections,
+            offListSelVersions: kept,
+            offListSelBaseline: baseline,
+            offListInfoSavedAt: serverTimestamp()
+          }));
+        }
+      } catch (eUpd) {
+        console.warn('[미체크 live] updateDoc 보조', eUpd && eUpd.message);
+      }
+
+      // ★ 저장 검증: DB를 다시 읽어 저장값과 비교하고, 다르면 맵을 통째로 다시 써서 재검증합니다.
+      //   (끝까지 다르면 저장 실패로 처리해 '저장했다고 나오지만 DB에는 없는' 상태를 막습니다.)
+      let __verifiedKeys = 0;
+      try {
+        const __norm = function (v) { return String(v == null ? '' : v).replace('(S)', '').trim(); };
+        let __verified = false, __diffKeys = [];
+        for (let __try = 0; __try < 2 && !__verified; __try++) {
+          const __snapV = await withTimeout(getDoc(doc(db, 'taejinSchedules', monthlyKey)), 7000);
+          const __dv = (__snapV && __snapV.exists && __snapV.exists()) ? (__snapV.data() || {}) : {};
+          const __saved = (__dv.monthlyOffListSelections && typeof __dv.monthlyOffListSelections === 'object') ? __dv.monthlyOffListSelections : {};
+          const __all = {};
+          Object.keys(__saved).forEach(function (k) { __all[k] = 1; });
+          Object.keys(liveSelections).forEach(function (k) { __all[k] = 1; });
+          __diffKeys = Object.keys(__all).filter(function (k) { return __norm(__saved[k]) !== __norm(liveSelections[k]); });
+          if (!__diffKeys.length) { __verified = true; __verifiedKeys = Object.keys(liveSelections).length; break; }
+          console.warn('[미체크 live 검증] 불일치', monthlyKey, '시도', __try + 1, __diffKeys.slice(0, 20));
+          if (__try === 0) {
+            // 재시도: 선택 맵·이력·기준을 updateDoc 으로 통째 교체 (실패하면 mergeFields setDoc)
+            try {
+              await withTimeout(updateDoc(doc(db, 'taejinSchedules', monthlyKey), {
+                monthlyOffListSelections: liveSelections,
+                offListSelVersions: kept,
+                offListSelBaseline: baseline,
+                offListInfoSavedAt: serverTimestamp()
+              }));
+            } catch (eRe) {
+              await withTimeout(setDoc(doc(db, 'taejinSchedules', monthlyKey), payloadWrite, {
+                mergeFields: ['year', 'month', 'monthlyOffListSelections', 'offListSelVersions', 'offListSelBaseline', 'offListInfoSavedAt']
+              }));
+            }
+          }
+        }
+        if (!__verified) {
+          return { ok: false, verifyFailed: true, y: y, m: m, diffKeys: __diffKeys.slice(0, 10) };
+        }
+      } catch (eVerify) {
+        console.warn('[미체크 live 검증] 재조회 실패(저장은 완료됨)', eVerify && eVerify.message);
+      }
+
       try { window.invalidatetaejinDocCache(y, m); } catch (e) {}
+
+      // DB raw 보관
+      window.__offListSelVersionsDbRaw = clone(kept);
+      window.__uncheckedLiveDbOnly = {
+        y: y, m: m, key: monthlyKey, at: Date.now(),
+        selections: clone(liveSelections),
+        saved: true
+      };
+
+      // 화면 배차용 버전은 저장 전 상태 유지 (unchecked-live 미적용)
+      if (__prevVersForDisplay && __prevVersForDisplay.length) {
+        window.__offListSelVersions = clone(__prevVersForDisplay);
+      } else {
+        window.__offListSelVersions = kept.filter(function (v) {
+          return String(v.note || '') !== 'unchecked-live';
+        });
+      }
+      window.__infoApplyHold = {
+        live: window.__offListSelVersions,
+        display: clone(window.__offListSelVersions),
+        dbOnly: true,
+        dbKey: monthlyKey
+      };
+      // 입력 폼은 저장한 값 유지
       window.monthlyOffListSelections = clone(liveSelections);
       try { monthlyOffListSelections = clone(liveSelections); } catch (e) {}
-      window.__offListSelVersions = kept.map(function (v) {
-        return { y: v.y, m: v.m, d: v.d, note: v.note, sel: clone(v.sel || {}) };
-      });
       window.__monthlyOffListSelectionsFromDB = true;
       window.__monthlyOffListSelectionsDbMonth = monthlyKey;
-      console.log('[미체크 정규/스페어 live 저장 완료]', monthlyKey, Object.keys(liveSelections).length, 'keys');
-      return { ok: true, y: y, m: m, liveSaved: true, originalSnapshotSaved: false };
+      try { if (typeof invalidateOperationalJoCodeMap === 'function') invalidateOperationalJoCodeMap(); } catch (e0) {}
+      try {
+        window.monthlySimulationCache = null;
+        window.monthlySimulationCacheKey = '';
+        window.__simSigLast = '';
+      } catch (e1) {}
+
+      console.log('[미체크 live DB저장 완료]', monthlyKey,
+        'keys=', Object.keys(liveSelections).length,
+        'docExisted=', existingDocFound,
+        'screenHold=', !!(__prevVersForDisplay && __prevVersForDisplay.length));
+      return {
+        ok: true, y: y, m: m,
+        liveSaved: true,
+        originalSnapshotSaved: false,
+        screenNotApplied: true,
+        keyCount: Object.keys(liveSelections).length,
+        verifiedKeys: __verifiedKeys,
+        created: !existingDocFound
+      };
     } catch (error) {
       console.error('[미체크 정규/스페어 live 저장] 오류', error);
-      return { ok: false };
+      return { ok: false, error: String(error && error.message || error) };
     }
   };
 
   // 정규/스페어정보 전용 저장: 조·기사 버전 이력만 기록합니다.
   // monthlyOffDayEntries / offDays / manualOffDisplayOverrides / 기존 배차 스냅샷은 쓰지 않습니다.
-  window.saveRegularSpareInfoToDB = async function(effective) {
+  window.saveRegularSpareInfoToDB = async function(effective, targetOverride) {
     try {
       // 정규·스페어 정보는 데이터불러오기로 현재 선택된 월 문서에 이력으로 저장합니다.
       // 휴무자명단은 별도 로직(getOffListTargetYearMonth)으로 다음 달 문서에 저장됩니다.
-      const target = getRegularSpareInfoMonth();
+      const target = (targetOverride && targetOverride.y && targetOverride.m) ? targetOverride : getRegularSpareInfoMonth();
       const y = Number(target.y), m = Number(target.m);
       const monthlyKey = y + '_' + String(m).padStart(2,'0');
       if (!effective || !/^\d{4}-\d{2}-\d{2}$/.test(String(effective.iso || ''))) {
@@ -4615,9 +4796,8 @@ main{padding-top:18px !important;}
         }
       }
 
-      // 배차시작설정은 문서와 무관하게 항상 활성(체크박스로 적용 여부 제어)
+      // 배차시작설정 UI만 준비 (정규/스페어 FromDB 플래그는 동일 월 적용 시에만 설정)
       try {
-        if (data) window.__monthlyOffListSelectionsFromDB = true;
         if (typeof initMonthlyOffDispatchStartBox === 'function') initMonthlyOffDispatchStartBox();
       } catch (e) {}
 
@@ -4787,110 +4967,210 @@ main{padding-top:18px !important;}
         try { captureTxtBaselineFromAppData(); } catch (e) {}
       }
 
-      // ★ DB 문서에 monthlyOffListSelections 필드가 있으면 값의 유무와 관계없이 그대로 적용
-      if (hasDbMonthlyOffSelections) {
-        monthlyOffListSelections = { ...selections };
-        window.monthlyOffListSelections = { ...selections };
-        monthlyOffListOverrideFromFile = true;
-        window.__monthlyOffListSelectionsFromDB = true;
+      // ★ 휴무자명단작성 월(대상 월) ≠ 화면 월(주별통합) 이면
+      //    대상 월 문서의 정규/스페어·버전·baseline 을 전역에 넣지 않는다.
+      //    (이전: 적용 후 복원 → 복원 실패 시 11월 화면에 12월 변경후가 남는 버그)
+      //    휴무일자(dayEntries)만 표에 반영하고, 정규/스페어는 __offListTargetDoc 에만 보관.
+      let __isOtherMonthLoad = false;
+      try {
+        const __scrYM = (typeof window.getScreenYearMonthForOffSel === 'function')
+          ? window.getScreenYearMonthForOffSel()
+          : { y: Number(window.currentYear) || 0, m: Number(window.currentMonth) || 0 };
+        __isOtherMonthLoad = !!(__scrYM.y && (Number(y) !== Number(__scrYM.y) || Number(m) !== Number(__scrYM.m)));
+      } catch (eScr) { __isOtherMonthLoad = false; }
+
+      // 대상 월 문서 스냅샷은 항상 검증/화이트리스트용으로 보관
+      try {
+        window.__offListTargetDoc = data ? {
+          key: monthlyKey,
+          y: Number(y) || 0,
+          m: Number(m) || 0,
+          selections: JSON.parse(JSON.stringify((data && data.monthlyOffListSelections) || {})),
+          versions: JSON.parse(JSON.stringify((data && data.offListSelVersions) || [])),
+          baseline: JSON.parse(JSON.stringify((data && data.offListSelBaseline) || {}))
+        } : null;
+      } catch (eTgt) {
+        window.__offListTargetDoc = null;
       }
-      // 배차시작(패턴 기준일) 로드 — 분할(시작일 이전=전달/이후=1조) 포함
-      try {
-        const dps = (data && data.dispatchPatternStartYmd) ? data.dispatchPatternStartYmd
-          : (data && data.dispatchPatternStart) ? data.dispatchPatternStart : null;
-        if (dps) {
-          let yy, mm, dd;
-          if (typeof dps === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dps)) {
-            const p = dps.split('-').map(Number); yy = p[0]; mm = p[1]; dd = p[2];
-          } else if (dps && dps.y) { yy = dps.y; mm = dps.m; dd = dps.d; }
-          let prior = null;
-          const dpp = (data && data.dispatchPatternPriorYmd) ? data.dispatchPatternPriorYmd
-            : (data && data.dispatchPatternPriorStart) ? data.dispatchPatternPriorStart : null;
-          if (dpp) {
-            if (typeof dpp === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dpp)) {
-              const p2 = dpp.split('-').map(Number);
-              prior = { y: p2[0], m: p2[1], d: p2[2] };
-            } else if (dpp && dpp.y) {
-              prior = { y: Number(dpp.y), m: Number(dpp.m), d: Number(dpp.d) };
-            }
-          }
-          // 연속 패턴: 배차시작 체크 정보(prior)가 없는 문서는 저장된 시작일로 기준을 바꾸지 않음
-          if (yy && mm && dd && prior) {
-            if (prior && typeof setDispatchPatternSplitFromYmd === 'function') {
-              setDispatchPatternSplitFromYmd(yy, mm, dd, prior, true);
-            } else if (typeof setDispatchPatternEpochFromYmd === 'function') {
-              try { if (typeof clearDispatchPatternSplit === 'function') clearDispatchPatternSplit(); } catch (e) {}
-              setDispatchPatternEpochFromYmd(yy, mm, dd, true);
-            }
-            window.__lastLoadedDispatchPatternStart = { y: yy, m: mm, d: dd };
-          }
-        }
-      } catch (e) { console.warn('[배차시작] 로드 실패', e); }
 
-      // ★ 조·기사 버전 타임라인 복원 (시작일 이전=전달 정규기사, 이후=저장 시점)
-      try {
-        const versIn = (data && Array.isArray(data.offListSelVersions)) ? data.offListSelVersions : null;
-        const baseIn = (data && data.offListSelBaseline && typeof data.offListSelBaseline === 'object')
-          ? data.offListSelBaseline : null;
-        if (baseIn && Object.keys(baseIn).length) {
-          window.__monthlyOffListSelectionsDocSnapshot = JSON.parse(JSON.stringify(baseIn));
-          window.__offListBaselineLocked = true;
-        }
-        if (versIn && versIn.length) {
-          window.__offListSelVersions = versIn.map(function (v) {
-            return {
-              y: Number(v.y) || 0,
-              m: Number(v.m) || 0,
-              d: Number(v.d) || 0,
-              note: String(v.note || ''),
-              sel: (v && v.sel && typeof v.sel === 'object') ? JSON.parse(JSON.stringify(v.sel)) : {}
-            };
-          });
-          // baseline 없으면 문서 baseline 필드로 보강
-          const hasBase = window.__offListSelVersions.some(function (v) {
-            return Number(v.y) === 0 && Number(v.m) === 0 && v.sel && Object.keys(v.sel).length;
-          });
-          if (!hasBase && baseIn && Object.keys(baseIn).length) {
-            window.__offListSelVersions.unshift({
-              y: 0, m: 0, d: 0,
-              sel: JSON.parse(JSON.stringify(baseIn)),
-              note: 'baseline-from-db'
-            });
-          }
-          try { if (typeof invalidateOperationalJoCodeMap === 'function') invalidateOperationalJoCodeMap(); } catch (e0) {}
-          // 불러온 문서 기준으로 배차 시뮬레이션 캐시도 비움 (이전 월/문서 결과 재사용 방지)
-          try { window.monthlySimulationCache = null; window.monthlySimulationCacheKey = ''; } catch (e1) {}
-          try { if (typeof monthlySimulationCache !== 'undefined') monthlySimulationCache = null; } catch (e2) {}
-          try { if (typeof monthlySimulationCacheKey !== 'undefined') monthlySimulationCacheKey = ''; } catch (e3) {}
-          console.log('[배차시작] 조·기사 버전 복원:', window.__offListSelVersions.length, '개');
-        } else if (baseIn && Object.keys(baseIn).length && typeof resetOffListSelVersionsFrom === 'function') {
-          // 버전 배열 없이 baseline만 있는 경우
-          resetOffListSelVersionsFrom(baseIn, { note: 'baseline-from-db' });
-        }
-      } catch (e) { console.warn('[배차시작] 조·기사 버전 로드 실패', e); }
+      if (__isOtherMonthLoad) {
+        // ===== 다른 월 문서: 배차(버전/baseline) 오염 금지, 명단 표만 대상 월 값 사용 =====
+        //  - __offListSelVersions / DocSnapshot / FromDB(화면월) 유지 → 주별통합은 변경전 유지
+        //  - monthlyOffListSelections 만 대상 월 live 로 채워 휴무자명단작성 표에 표시
+        //  - hold.display = 화면 월 버전 고정 → getOperational* 가 대상 월 값으로 안 바뀜
+        console.log('[휴무명단] 다른 월 로드 → 배차버전 유지, 명단표만 대상월 반영:', monthlyKey,
+          '화면월=', (typeof currentYear !== 'undefined' ? currentYear : '?') + '-' + (typeof currentMonth !== 'undefined' ? currentMonth : '?'));
 
-      // 휴무일자: 서버에서 1건 이상 모였을 때만 교체 (0건으로 기존 표를 지우지 않음)
-      if (dayEntries.length > 0) {
-        window.monthlyOffDayEntries = dayEntries;
+        // 화면 월 버전 타임라인을 hold.display 로 고정 (배차 계산용)
         try {
-          if (typeof monthlyOffDayEntries !== 'undefined') monthlyOffDayEntries = dayEntries;
-        } catch (e) {}
+          let screenVers = null;
+          if (window.__infoApplyHold && Array.isArray(window.__infoApplyHold.display) && window.__infoApplyHold.display.length) {
+            screenVers = JSON.parse(JSON.stringify(window.__infoApplyHold.display));
+          } else if (Array.isArray(window.__offListSelVersions) && window.__offListSelVersions.length) {
+            screenVers = JSON.parse(JSON.stringify(window.__offListSelVersions));
+          }
+          if (screenVers && screenVers.length) {
+            window.__offListSelVersions = screenVers;
+            window.__infoApplyHold = {
+              live: window.__offListSelVersions,
+              display: JSON.parse(JSON.stringify(screenVers))
+            };
+            try { if (typeof invalidateOperationalJoCodeMap === 'function') invalidateOperationalJoCodeMap(); } catch (e0) {}
+          } else {
+            window.__infoApplyHold = null;
+          }
+        } catch (eHold) { try { window.__infoApplyHold = null; } catch (e2) {} }
+
+        // 휴무자명단작성 표용 선택값만 대상 월 live 로 (배차 버전 배열은 위에서 화면 월 고정)
+        if (hasDbMonthlyOffSelections) {
+          try {
+            monthlyOffListSelections = JSON.parse(JSON.stringify(selections));
+            window.monthlyOffListSelections = JSON.parse(JSON.stringify(selections));
+            monthlyOffListOverrideFromFile = true;
+            // 화면 월 FromDB 권위는 유지. 표는 선택 객체만 대상 월 값을 씀.
+          } catch (eSel) {
+            monthlyOffListSelections = { ...selections };
+            window.monthlyOffListSelections = { ...selections };
+          }
+        }
+
+        // 휴무일자만 교체 (0건이면 기존 표 유지)
+        if (dayEntries.length > 0) {
+          window.monthlyOffDayEntries = dayEntries;
+          try {
+            if (typeof monthlyOffDayEntries !== 'undefined') monthlyOffDayEntries = dayEntries;
+          } catch (e) {}
+          try {
+            localStorage.setItem(
+              (typeof monthlyOffListStorageKey === 'function' ? monthlyOffListStorageKey() : ('taejin_monthly_off_list_' + monthlyKey)) + '_days',
+              JSON.stringify(dayEntries)
+            );
+          } catch (eLS) {}
+        }
+
+        // 배차시작 패턴·버전 복원·applyMonthlyOffFromDB·hydrate 스킵
+        // (applyMonthlyOffFromDB 는 DocSnapshot 을 대상 월로 덮어 변경전을 깨뜨림)
+
+      } else {
+        // ===== 동일 월 문서: 정규/스페어·버전 정상 적용 =====
+        // ★ DB 문서에 monthlyOffListSelections 필드가 있으면 값의 유무와 관계없이 그대로 적용
+        if (hasDbMonthlyOffSelections) {
+          monthlyOffListSelections = { ...selections };
+          window.monthlyOffListSelections = { ...selections };
+          monthlyOffListOverrideFromFile = true;
+          window.__monthlyOffListSelectionsFromDB = true;
+        }
+        // 배차시작(패턴 기준일) 로드 — 분할(시작일 이전=전달/이후=1조) 포함
+        try {
+          const dps = (data && data.dispatchPatternStartYmd) ? data.dispatchPatternStartYmd
+            : (data && data.dispatchPatternStart) ? data.dispatchPatternStart : null;
+          if (dps) {
+            let yy, mm, dd;
+            if (typeof dps === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dps)) {
+              const p = dps.split('-').map(Number); yy = p[0]; mm = p[1]; dd = p[2];
+            } else if (dps && dps.y) { yy = dps.y; mm = dps.m; dd = dps.d; }
+            let prior = null;
+            const dpp = (data && data.dispatchPatternPriorYmd) ? data.dispatchPatternPriorYmd
+              : (data && data.dispatchPatternPriorStart) ? data.dispatchPatternPriorStart : null;
+            if (dpp) {
+              if (typeof dpp === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dpp)) {
+                const p2 = dpp.split('-').map(Number);
+                prior = { y: p2[0], m: p2[1], d: p2[2] };
+              } else if (dpp && dpp.y) {
+                prior = { y: Number(dpp.y), m: Number(dpp.m), d: Number(dpp.d) };
+              }
+            }
+            // 연속 패턴: 배차시작 체크 정보(prior)가 없는 문서는 저장된 시작일로 기준을 바꾸지 않음
+            if (yy && mm && dd && prior) {
+              if (prior && typeof setDispatchPatternSplitFromYmd === 'function') {
+                setDispatchPatternSplitFromYmd(yy, mm, dd, prior, true);
+              } else if (typeof setDispatchPatternEpochFromYmd === 'function') {
+                try { if (typeof clearDispatchPatternSplit === 'function') clearDispatchPatternSplit(); } catch (e) {}
+                setDispatchPatternEpochFromYmd(yy, mm, dd, true);
+              }
+              window.__lastLoadedDispatchPatternStart = { y: yy, m: mm, d: dd };
+            }
+          }
+        } catch (e) { console.warn('[배차시작] 로드 실패', e); }
+
+        // ★ 조·기사 버전 타임라인 복원 (시작일 이전=전달 정규기사, 이후=저장 시점)
+        try {
+          const versIn = (data && Array.isArray(data.offListSelVersions)) ? data.offListSelVersions : null;
+          const baseIn = (data && data.offListSelBaseline && typeof data.offListSelBaseline === 'object')
+            ? data.offListSelBaseline : null;
+          if (baseIn && Object.keys(baseIn).length) {
+            window.__monthlyOffListSelectionsDocSnapshot = JSON.parse(JSON.stringify(baseIn));
+            window.__offListBaselineLocked = true;
+          }
+          if (versIn && versIn.length) {
+            const mappedVers2 = versIn.map(function (v) {
+              return {
+                y: Number(v.y) || 0,
+                m: Number(v.m) || 0,
+                d: Number(v.d) || 0,
+                note: String(v.note || ''),
+                sel: (v && v.sel && typeof v.sel === 'object') ? JSON.parse(JSON.stringify(v.sel)) : {}
+              };
+            });
+            // 미체크 live 버전은 DB에만 두고 배차 화면 타임라인에서는 제외
+            if (typeof window.storeOffListVersionsFromDb === 'function') {
+              window.storeOffListVersionsFromDb(mappedVers2, baseIn, y, m);
+            } else {
+              window.__offListSelVersions = mappedVers2.filter(function (v) {
+                return String(v.note || '') !== 'unchecked-live'
+                  || (Number(v.y) === Number(y) && Number(v.m) === Number(m)
+                      && Number(y) === Number(currentYear) && Number(m) === Number(currentMonth));
+              });
+            }
+            // baseline 없으면 문서 baseline 필드로 보강
+            const hasBase = window.__offListSelVersions.some(function (v) {
+              return Number(v.y) === 0 && Number(v.m) === 0 && v.sel && Object.keys(v.sel).length;
+            });
+            if (!hasBase && baseIn && Object.keys(baseIn).length) {
+              window.__offListSelVersions.unshift({
+                y: 0, m: 0, d: 0,
+                sel: JSON.parse(JSON.stringify(baseIn)),
+                note: 'baseline-from-db'
+              });
+            }
+            try { if (typeof invalidateOperationalJoCodeMap === 'function') invalidateOperationalJoCodeMap(); } catch (e0) {}
+            // 불러온 문서 기준으로 배차 시뮬레이션 캐시도 비움 (이전 월/문서 결과 재사용 방지)
+            try { window.monthlySimulationCache = null; window.monthlySimulationCacheKey = ''; } catch (e1) {}
+            try { if (typeof monthlySimulationCache !== 'undefined') monthlySimulationCache = null; } catch (e2) {}
+            try { if (typeof monthlySimulationCacheKey !== 'undefined') monthlySimulationCacheKey = ''; } catch (e3) {}
+            console.log('[배차시작] 조·기사 버전 복원(unchecked-live 제외):', window.__offListSelVersions.length, '개');
+          } else if (baseIn && Object.keys(baseIn).length && typeof resetOffListSelVersionsFrom === 'function') {
+            // 버전 배열 없이 baseline만 있는 경우
+            resetOffListSelVersionsFrom(baseIn, { note: 'baseline-from-db' });
+          }
+        } catch (e) { console.warn('[배차시작] 조·기사 버전 로드 실패', e); }
+
+        // 휴무일자: 서버에서 1건 이상 모였을 때만 교체 (0건으로 기존 표를 지우지 않음)
+        if (dayEntries.length > 0) {
+          window.monthlyOffDayEntries = dayEntries;
+          try {
+            if (typeof monthlyOffDayEntries !== 'undefined') monthlyOffDayEntries = dayEntries;
+          } catch (e) {}
+        }
+
+        const selHas = !!hasDbMonthlyOffSelections;
+        if (typeof window.applyMonthlyOffFromDB === 'function') {
+          // dayEntries 가 비면 null → 일자 테이블을 빈 배열로 덮지 않음
+          window.applyMonthlyOffFromDB(
+            selHas ? selections : (window.monthlyOffListSelections || {}),
+            dayEntries.length > 0 ? dayEntries : null
+          );
+        }
       }
 
-      if (typeof window.applyMonthlyOffFromDB === 'function') {
-        // dayEntries 가 비면 null → 일자 테이블을 빈 배열로 덮지 않음
-        window.applyMonthlyOffFromDB(
-          selHas ? selections : (window.monthlyOffListSelections || {}),
-          dayEntries.length > 0 ? dayEntries : null
-        );
-      }
       if (typeof renderMonthlyOffDayTable === 'function') {
         try { renderMonthlyOffDayTable(); } catch (e) {}
       }
       if (typeof renderMonthlyOffListView === 'function') {
         try { renderMonthlyOffListView(); } catch (e) {}
       }
-      if (typeof window.hydrateAppDataFromOffListDoc === 'function' && data) {
+      // hydrate 는 화면 월 문서에만 (다른 월 routes/spares/offDays 로 화면 배차 오염 방지)
+      if (!__isOtherMonthLoad && typeof window.hydrateAppDataFromOffListDoc === 'function' && data) {
         try { window.hydrateAppDataFromOffListDoc(data, y, m); } catch (e) {}
       }
       if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -4899,8 +5179,11 @@ main{padding-top:18px !important;}
       // v2_45: 동일 월 탭 재진입 시 서버 재조회 생략용 키
       try { window.__monthlyOffListLoadedKey = monthlyKey; } catch (e) {}
       // 배차시작설정은 문서 유무와 무관하게 항상 활성(체크박스로 적용 여부 제어)
+      // 다른 월 로드 시에는 화면 월 정규/스페어 권위 플래그를 바꾸지 않음
       try {
-        window.__monthlyOffListSelectionsFromDB = !!data;
+        if (!__isOtherMonthLoad) {
+          window.__monthlyOffListSelectionsFromDB = !!data;
+        }
         if (typeof initMonthlyOffDispatchStartBox === 'function') {
           initMonthlyOffDispatchStartBox();
         }
@@ -5663,6 +5946,12 @@ main{padding-top:18px !important;}
                                   class="spare-effective-premium-date"
                                   style="width:148px;min-width:148px;height:38px;min-height:38px;text-align:center;text-align-last:center;">
                                 <span class="spare-effective-premium-text">일 부로 정규기사로 배차함</span>
+                            </div>
+                            <div class="flex justify-center mt-3">
+                                <button type="button" id="infoDispatchApplyBtn" onclick="applyRegularSpareDispatchToWeekly()" disabled
+                                  style="min-width:118px;height:36px;padding:0 12px;border:1px solid #cbd5e1;border-radius:10px;background:#94a3b8;color:#fff;font-size:13px;font-weight:900;opacity:.45;cursor:not-allowed;">
+                                  배차반영
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -9400,6 +9689,7 @@ main{padding-top:18px !important;}
         }
 
         window.applyMonthlyOffFromDB = function (selections, dayEntries) {
+            window.__infoEditOrig = null; // 새로 로드하면 이전 편집 보관값 폐기
             // appData에 실제 노선이 있을 때만 baseline 갱신 (빈 appData로 TXT 스냅샷 삭제 방지)
             if (typeof captureTxtBaselineFromAppData === 'function') {
                 try {
@@ -9668,6 +9958,18 @@ main{padding-top:18px !important;}
                 Object.keys(snap).forEach(function (k) {
                     if (/^스페어\|\d+$/.test(k) || /\|[12]$/.test(k)) add(snap[k]);
                 });
+                // 휴무자명단작성 월(대상 월) 문서의 정규/스페어 기사명도 휴무자 명단 검증에는 허용
+                const tgt = window.__offListTargetDoc;
+                if (tgt) {
+                    const addSel = function (sel) {
+                        Object.keys(sel || {}).forEach(function (k) {
+                            if (/^스페어\|\d+$/.test(k) || /\|[12]$/.test(k)) add(sel[k]);
+                        });
+                    };
+                    addSel(tgt.selections);
+                    addSel(tgt.baseline);
+                    (tgt.versions || []).forEach(function (v) { addSel(v && v.sel); });
+                }
             } catch (e) {}
             return names;
         }
@@ -10541,7 +10843,14 @@ main{padding-top:18px !important;}
             const mm = Number(m) || 0;
             const dd = Number(d) || 1;
             const curUtc = (yy && mm) ? Date.UTC(yy, mm - 1, dd) : Infinity;
-            const vers = Array.isArray(window.__offListSelVersions) ? window.__offListSelVersions : [];
+            let vers = Array.isArray(window.__offListSelVersions) ? window.__offListSelVersions : [];
+            try {
+                const __h = window.__infoApplyHold;
+                if (__h && __h.live === window.__offListSelVersions && Array.isArray(__h.display)) vers = __h.display;
+            } catch (eHold) {}
+            // DB 로드 단계에서 현재 화면 월과 일치하는 unchecked-live 버전만
+            // operational 타임라인에 포함시킵니다. 여기서는 다시 제거하지 않습니다.
+            vers = Array.isArray(vers) ? vers : [];
             let best = null;
             for (let i = 0; i < vers.length; i++) {
                 const v = vers[i];
@@ -10590,7 +10899,119 @@ main{padding-top:18px !important;}
         window.resetOffListSelVersionsFrom = resetOffListSelVersionsFrom;
         window.upsertOffListSelVersion = upsertOffListSelVersion;
         window.pickOffListSelVersionForMonth = pickOffListSelVersionForMonth;
+
+        /** 미체크 live 버전은 저장 대상 월의 화면을 불러왔을 때만 적용합니다.
+         *  다음 달 문서에 저장할 때 현재 월 화면을 오염시키지 않되,
+         *  해당 월 문서를 실제로 열면 그 달 1일부터 정규정보로 사용합니다.
+         */
+        function filterOutUncheckedLiveVersions(vers, loadY, loadM) {
+            if (!Array.isArray(vers)) return [];
+            const screen = (typeof getScreenYearMonthForOffSel === 'function')
+                ? getScreenYearMonthForOffSel() : { y: 0, m: 0 };
+            const isSameLoadedScreen = Number(loadY) === Number(screen.y)
+                && Number(loadM) === Number(screen.m);
+            return vers.filter(function (v) {
+                if (String((v && v.note) || '') !== 'unchecked-live') return true;
+                return isSameLoadedScreen
+                    && Number(v.y) === Number(loadY)
+                    && Number(v.m) === Number(loadM);
+            });
+        }
+        function storeOffListVersionsFromDb(versMapped, baseIn, loadY, loadM) {
+            try {
+                window.__offListSelVersionsDbRaw = Array.isArray(versMapped)
+                    ? JSON.parse(JSON.stringify(versMapped)) : [];
+            } catch (e) { window.__offListSelVersionsDbRaw = versMapped || []; }
+            const operational = filterOutUncheckedLiveVersions(versMapped, loadY, loadM);
+            // unchecked-live 만 있고 baseline 없으면 baseIn 보강
+            const hasBase = operational.some(function (v) {
+                return Number(v.y) === 0 && Number(v.m) === 0 && v.sel && Object.keys(v.sel).length;
+            });
+            if (!hasBase && baseIn && typeof baseIn === 'object' && Object.keys(baseIn).length) {
+                operational.unshift({
+                    y: 0, m: 0, d: 0,
+                    sel: JSON.parse(JSON.stringify(baseIn)),
+                    note: 'baseline-from-db'
+                });
+            }
+            window.__offListSelVersions = operational;
+            return operational;
+        }
+        window.filterOutUncheckedLiveVersions = filterOutUncheckedLiveVersions;
+        window.storeOffListVersionsFromDb = storeOffListVersionsFromDb;
+
         window.pickOffListSelVersionForDate = pickOffListSelVersionForDate;
+
+        // ===== 주별통합 화면용 정규/스페어 버전 분리 =====
+        // 휴무자명단작성 월(대상 월)의 정규/스페어 저장·불러오기 결과는 현재 주별통합 화면(배차 계산)에 적용하지 않는다.
+        function getScreenYearMonthForOffSel() {
+            const y = Number(typeof currentYear !== 'undefined' ? currentYear : window.currentYear) || 0;
+            const m = Number(typeof currentMonth !== 'undefined' ? currentMonth : window.currentMonth) || 0;
+            return { y: y, m: m };
+        }
+        function isScreenOffSelHoldActive() {
+            try {
+                const h = window.__infoApplyHold;
+                return !!(h && h.live === window.__offListSelVersions && Array.isArray(h.display));
+            } catch (e) { return false; }
+        }
+        /** 주별통합 화면이 쓰는 버전 (hold 중이면 hold 이전 화면 버전) */
+        function getScreenOffSelVersions() {
+            if (isScreenOffSelHoldActive()) return window.__infoApplyHold.display;
+            return Array.isArray(window.__offListSelVersions) ? window.__offListSelVersions : [];
+        }
+        /** 휴무자명단작성 작업 직전에 호출 — 화면용 버전을 깊은 복사로 보관 */
+        function captureScreenOffSelVersions() {
+            try { return JSON.parse(JSON.stringify(getScreenOffSelVersions() || [])); } catch (e) { return []; }
+        }
+        /** 작업으로 __offListSelVersions 가 대상 월 문서 기준으로 바뀐 뒤 호출 → 화면은 보관해 둔 버전을 계속 사용
+         *  (targetY/targetM 이 현재 화면 월과 같으면 화면 자체이므로 hold 하지 않음) */
+        function holdScreenOffSelVersions(prevScreenVers, targetY, targetM) {
+            try {
+                if (!Array.isArray(prevScreenVers) || !prevScreenVers.length) return false;
+                const cur = getScreenYearMonthForOffSel();
+                if (targetY && targetM && Number(targetY) === cur.y && Number(targetM) === cur.m) return false;
+                window.__infoApplyHold = { live: window.__offListSelVersions, display: prevScreenVers };
+                try { invalidateOperationalJoCodeMap(); } catch (e0) {}
+                try { window.monthlySimulationCache = null; window.__simSigLast = ''; } catch (e1) {}
+                try { if (typeof monthlySimulationCache !== 'undefined') monthlySimulationCache = null; } catch (e2) {}
+                return true;
+            } catch (e) { return false; }
+        }
+        /** 화면 월(주별통합·정규/스페어정보)의 정규/스페어 상태 전체를 보관 (선택값·기준 스냅샷·버전) */
+        function captureScreenOffSelState() {
+            try {
+                const live = (typeof monthlyOffListSelections === 'object' && monthlyOffListSelections)
+                    ? monthlyOffListSelections : (window.monthlyOffListSelections || {});
+                if (!live || !Object.keys(live).length) return null; // 화면 상태가 없으면 보관/복원 안 함
+                return {
+                    sel: __cloneOffSel(live),
+                    snap: __cloneOffSel(window.__monthlyOffListSelectionsDocSnapshot || {}),
+                    vers: captureScreenOffSelVersions()
+                };
+            } catch (e) { return null; }
+        }
+        function restoreScreenOffSelState(st) {
+            try {
+                if (!st || !st.sel) return false;
+                monthlyOffListSelections = __cloneOffSel(st.sel);
+                window.monthlyOffListSelections = __cloneOffSel(st.sel);
+                window.__monthlyOffListSelectionsDocSnapshot = __cloneOffSel(st.snap || {});
+                window.__offListSelVersions = Array.isArray(st.vers) ? JSON.parse(JSON.stringify(st.vers)) : [];
+                window.__infoApplyHold = null;
+                try { invalidateOperationalJoCodeMap(); } catch (e0) {}
+                try { window.monthlySimulationCache = null; window.__simSigLast = ''; } catch (e1) {}
+                try { if (typeof monthlySimulationCache !== 'undefined') monthlySimulationCache = null; } catch (e2) {}
+                return true;
+            } catch (e) { return false; }
+        }
+        window.captureScreenOffSelState = captureScreenOffSelState;
+        window.restoreScreenOffSelState = restoreScreenOffSelState;
+        window.getScreenYearMonthForOffSel = getScreenYearMonthForOffSel;
+        window.isScreenOffSelHoldActive = isScreenOffSelHoldActive;
+        window.getScreenOffSelVersions = getScreenOffSelVersions;
+        window.captureScreenOffSelVersions = captureScreenOffSelVersions;
+        window.holdScreenOffSelVersions = holdScreenOffSelVersions;
 
         function setOpsSelContextYM(y, m, d) {
             window.__opsSelContextYM = {
@@ -10783,7 +11204,19 @@ main{padding-top:18px !important;}
 
         function setInfoEditMode(mode) {
             const m = (mode === 'jo' || mode === 'spare') ? mode : null;
+            // 정보변경저장 전 이탈 시 되돌리기 위해, 편집 시작 시점(저장된 상태)의 정규/스페어 정보를 보관
+            try {
+                if (m && (!window.__infoEditOrig || !window.__regularSpareInfoDirty)) {
+                    const __cur = (typeof monthlyOffListSelections === 'object' && monthlyOffListSelections) ? monthlyOffListSelections : (window.monthlyOffListSelections || {});
+                    window.__infoEditOrig = {
+                        sel: JSON.parse(JSON.stringify(__cur)),
+                        spares: JSON.parse(JSON.stringify((typeof appData !== 'undefined' && appData && appData.spares) || [])),
+                        pool: JSON.parse(JSON.stringify(window.__taejinSpareNamePool || []))
+                    };
+                }
+            } catch (eOrig) {}
             window.__infoEditMode = m;
+            if (m === 'spare') window.__regularSpareDispatchApplied = false;
             try { applyInfoEditModeControls(); } catch (e) {}
             try { updateWeeklyDbSaveButton(); } catch (e) {}
         }
@@ -10804,8 +11237,15 @@ main{padding-top:18px !important;}
             if (joBtn) joBtn.classList.toggle('active-mode', mode === 'jo');
             if (spareBtn) spareBtn.classList.toggle('active-mode', mode === 'spare');
             if (saveBtn) {
-                const showSave = onInfo && mode === 'spare';
+                const showSave = onInfo && mode === 'jo';
                 saveBtn.style.display = showSave ? 'flex' : 'none';
+            }
+            const dispatchApplyBtn = document.getElementById('infoDispatchApplyBtn');
+            if (dispatchApplyBtn) {
+                const canApply = onInfo && mode === 'spare' && !window.__regularSpareDispatchApplied;
+                dispatchApplyBtn.disabled = !canApply;
+                dispatchApplyBtn.style.opacity = canApply ? '1' : '.45';
+                dispatchApplyBtn.style.cursor = canApply ? 'pointer' : 'not-allowed';
             }
 
             const joEnabled = onInfo && mode === 'jo';
@@ -10822,6 +11262,62 @@ main{padding-top:18px !important;}
             if (dateEl) dateEl.disabled = !dateEnabled;
         }
         window.applyInfoEditModeControls = applyInfoEditModeControls;
+
+        // 스페어→정규 변경 정보를 선택 적용일 이후 주별통합 배차 화면에만 반영
+        window.__regularSpareDispatchApplied = false;
+        async function applyRegularSpareDispatchToWeekly() {
+            const btn = document.getElementById('infoDispatchApplyBtn');
+            if (!btn || btn.disabled || currentTab !== 'info' || window.__infoEditMode !== 'spare') return;
+            const effective = getOffListEffectiveDateValue();
+            if (!effective) {
+                if (typeof showModal === 'function') showModal('변경일자 확인', '스페어정보변경적용일자를 먼저 선택하세요.', true);
+                return;
+            }
+            try {
+                // 중복 클릭 방지 및 적용일 이후 버전 생성
+                btn.disabled = true;
+                window.__offListEditEffectiveDate = effective;
+                if (typeof freezeOffListBaselineBeforeEdit === 'function') freezeOffListBaselineBeforeEdit();
+                if (typeof upsertOffListSelVersion === 'function') {
+                    upsertOffListSelVersion(effective.y, effective.m, monthlyOffListSelections, effective.d);
+                } else {
+                    throw new Error('정규/스페어 변경 이력 생성 함수를 찾을 수 없습니다.');
+                }
+                window.__offListInfoDirty = true;
+                window.__regularSpareInfoDirty = false;
+                window.__infoEditOrig = null;
+                window.__regularSpareDispatchApplied = true;
+                window.__infoEditMode = null;
+
+                // 적용일 당일부터 변경된 정규정보로 주별통합 배차를 다시 계산
+                invalidateOperationalJoCodeMap();
+                window.__forceClearSimCache = true;
+                if (typeof window.clearMonthlySimCache === 'function') window.clearMonthlySimCache();
+                if (typeof renderAllViews === 'function') renderAllViews();
+                else throw new Error('주별통합 화면 갱신 함수를 찾을 수 없습니다.');
+                applyInfoEditModeControls();
+
+                // 적용일이 속한 년·월 문서에 변경정보와 배차 관련 데이터를 함께 저장
+                if (typeof window.saveCurrentDataToDB !== 'function') {
+                    throw new Error('DB 저장 함수를 찾을 수 없습니다.');
+                }
+                const saved = await window.saveCurrentDataToDB({ silent: true, year: effective.y, month: effective.m });
+                if (!saved) throw new Error('Firebase DB 저장에 실패했습니다.');
+
+                window.__offListInfoDirty = false;
+                window.__regularSpareInfoDirty = false;
+                if (typeof showModal === 'function') {
+                    showModal('배차반영 및 DB저장 완료', effective.iso + '부터 변경된 정규기사 정보를 주별통합 테이블에 반영하고 ' + effective.y + '년 ' + effective.m + '월 DB 문서에 저장했습니다.');
+                }
+            } catch (e) {
+                console.error('[배차반영/DB저장 실패]', e);
+                try { applyInfoEditModeControls(); } catch (e2) {}
+                if (typeof showModal === 'function') {
+                    showModal('배차반영 또는 DB저장 실패', '주별통합 반영 또는 DB 저장이 완료되지 않았습니다. 인터넷 연결과 DB 권한을 확인한 뒤 다시 시도하세요.\n' + String(e && e.message || e), true);
+                }
+            }
+        }
+        window.applyRegularSpareDispatchToWeekly = applyRegularSpareDispatchToWeekly;
 
         function setSpareToRegularNameBox(name) {
             try {
@@ -11088,6 +11584,9 @@ main{padding-top:18px !important;}
             const btn = document.getElementById('offListDbSaveBtn');
             try {
                 if (btn) { btn.disabled=true; btn.dataset._prevLabel=btn.textContent; btn.textContent='저장중...'; }
+                const __screenVersBefore = (typeof window.captureScreenOffSelVersions === 'function') ? window.captureScreenOffSelVersions() : null;
+                let __screenSnapBefore = null;
+                try { __screenSnapBefore = JSON.parse(JSON.stringify(window.__monthlyOffListSelectionsDocSnapshot || {})); } catch (eSn) {}
                 const infoDirty = !!(window.__offListInfoDirty || window.__regularSpareInfoDirty);
                 const effective = (typeof getOffListEffectiveDateValue === 'function') ? getOffListEffectiveDateValue() : null;
                 const infoMonth = (typeof getRegularSpareInfoMonth === 'function') ? getRegularSpareInfoMonth() : null;
@@ -11102,21 +11601,25 @@ main{padding-top:18px !important;}
                         else startChecked = (window.__monthlyOffDispatchStartEnabled === true);
                     }
                 } catch (e) {}
-                // 체크 시에만 정보변경적용일자 필수
-                if (infoDirty && startChecked && !effective) {
-                    showModal('정보변경적용일자 확인','정규·스페어 정보가 변경되었습니다. 데이터불러오기 월의 변경적용일자를 선택하세요.',true,5000);
-                    return;
-                }
-                if (infoDirty && startChecked && infoMonth && (Number(effective.y)!==Number(infoMonth.y) || Number(effective.m)!==Number(infoMonth.m))) {
-                    showModal('적용일자 확인','변경적용일자는 데이터불러오기 월(' + infoMonth.y + '년 ' + infoMonth.m + '월) 안에서 선택해야 합니다. 휴무자명단의 대상 월과는 별개입니다.',true,6000);
-                    return;
+                // 정규/스페어 정보는 휴무자명단작성 년·월(대상 월) 문서에만 저장 (데이터불러오기 월/이전달에는 저장하지 않음)
+                const __leaveTarget = getOffListTargetYearMonth();
+                let __infoEffective = null;
+                if (infoDirty && startChecked) {
+                    let __ed = 1;
+                    try {
+                        const __st = getMonthlyOffDispatchStart();
+                        if (__st && Number(__st.y) === Number(__leaveTarget.y) && Number(__st.m) === Number(__leaveTarget.m)) __ed = Number(__st.d) || 1;
+                    } catch (eSt) {}
+                    const __p2 = function (n) { return String(n).padStart(2, '0'); };
+                    __infoEffective = { y: Number(__leaveTarget.y), m: Number(__leaveTarget.m), d: __ed,
+                        iso: __leaveTarget.y + '-' + __p2(__leaveTarget.m) + '-' + __p2(__ed) };
                 }
                 if (typeof showModal === 'function') {
                     showModal('저장 중',
                         startChecked
                           ? '휴무자명단·휴무 데이터와 정규·스페어 정보·변경 이력을 함께 저장하고 있습니다.\n기존 배차 원본은 별도로 보존합니다.'
                           : (infoDirty
-                              ? '휴무자명단·휴무 데이터와 변경된 정규·스페어 정보(미체크·전체 적용)를 저장하고 있습니다.'
+                              ? '휴무자명단·휴무 데이터와 변경된 정규·스페어 정보(미체크·DB만 저장, 화면 미적용)를 저장하고 있습니다.'
                               : '휴무자명단·휴무 데이터를 저장하고 있습니다.'),
                         false, 0);
                 }
@@ -11135,36 +11638,65 @@ main{padding-top:18px !important;}
                     return;
                 }
 
-                // 정규·스페어 변경분 저장
-                // - 미체크: 적용일자 없이 live 선택값 전체 저장 (분할 없음)
-                // - 체크: 적용일자 기준 버전 이력 저장
+                // 정규·스페어 저장
+                // - 미체크: 항상 현재 정규/스페어를 휴무일자 년·월 문서에 DB 저장 (infoDirty 무관)
+                // - 체크 + 변경: 적용일 기준 버전 이력 저장
                 let infoResult = { ok:true, originalSnapshotSaved:false };
-                if (infoDirty) {
-                    if (!startChecked && typeof window.saveRegularSpareInfoLiveToDB === 'function') {
-                        infoResult = await window.saveRegularSpareInfoLiveToDB();
-                        if (!infoResult || !infoResult.ok) {
-                            const reason = infoResult && infoResult.lookupFailed
-                              ? '기존 DB 문서를 다시 확인하지 못했습니다.'
-                              : infoResult && infoResult.missingDoc
-                                ? '해당 월 주별통합 DB 문서가 없습니다. 먼저 주별통합에서 DB저장 후 다시 시도하세요.'
-                                : '변경된 정규·스페어 정보 저장에 실패했습니다.';
-                            showModal('일부 저장 완료','휴무자명단과 휴무 데이터는 저장했지만, ' + reason, true, 7000);
-                            return;
-                        }
-                    } else {
-                        infoResult = await window.saveRegularSpareInfoToDB(effective);
-                        if (!infoResult || !infoResult.ok) {
-                            const reason = infoResult && infoResult.lookupFailed
-                              ? '기존 DB 문서를 다시 확인하지 못했습니다.'
-                              : infoResult && infoResult.effectiveMonthMismatch
-                                ? '정보변경적용일자와 저장 대상 월이 일치하지 않습니다.'
-                                : '정규·스페어 정보 및 변경 이력 저장에 실패했습니다.';
-                            showModal('일부 저장 완료','휴무자명단과 휴무 데이터는 저장했지만, ' + reason + '\n정규/스페어정보 탭에서 적용일자를 확인한 뒤 다시 저장하세요.',true,7000);
-                            return;
-                        }
+                if (!startChecked && typeof window.saveRegularSpareInfoLiveToDB === 'function') {
+                    // DOM → 선택값 동기화 후 강제 저장
+                    try {
+                        document.querySelectorAll('[data-monthly-off-key]').forEach(function (el) {
+                            const k = el.getAttribute('data-monthly-off-key');
+                            if (!k) return;
+                            if (!monthlyOffListSelections || typeof monthlyOffListSelections !== 'object') {
+                                monthlyOffListSelections = {};
+                            }
+                            monthlyOffListSelections[k] = el.value || '';
+                            window.monthlyOffListSelections = monthlyOffListSelections;
+                        });
+                        document.querySelectorAll('.monthly-off-spare-input').forEach(function (el, idx) {
+                            if (!monthlyOffListSelections || typeof monthlyOffListSelections !== 'object') {
+                                monthlyOffListSelections = {};
+                            }
+                            monthlyOffListSelections['스페어|' + (idx + 1)] = String(el.value || '').trim();
+                            window.monthlyOffListSelections = monthlyOffListSelections;
+                        });
+                    } catch (eSync2) { console.warn('[DB저장 전 동기화]', eSync2); }
+                    infoResult = await window.saveRegularSpareInfoLiveToDB(__leaveTarget);
+                    if (!infoResult || !infoResult.ok) {
+                        const reason = infoResult && infoResult.lookupFailed
+                          ? '기존 DB 문서를 다시 확인하지 못했습니다.'
+                          : infoResult && infoResult.verifyFailed
+                             ? ('저장 후 DB 재조회 값이 화면 값과 다릅니다. (' + (infoResult.diffKeys || []).join(', ') + ')')
+                           : infoResult && infoResult.emptySelections
+                            ? '저장할 정규/스페어 선택값이 비어 있습니다. 명단을 확인하세요.'
+                            : infoResult && infoResult.error
+                              ? ('저장 오류: ' + infoResult.error)
+                              : '정규·스페어 정보 DB 저장에 실패했습니다.';
+                        showModal('일부 저장 완료','휴무자명단과 휴무 데이터는 저장했지만, ' + reason, true, 7000);
+                        return;
+                    }
+                } else if (infoDirty && startChecked) {
+                    infoResult = await window.saveRegularSpareInfoToDB(__infoEffective, __leaveTarget);
+                    if (!infoResult || !infoResult.ok) {
+                        const reason = infoResult && infoResult.lookupFailed
+                          ? '기존 DB 문서를 다시 확인하지 못했습니다.'
+                          : infoResult && infoResult.effectiveMonthMismatch
+                            ? '정보변경적용일자와 저장 대상 월이 일치하지 않습니다.'
+                            : '정규·스페어 정보 및 변경 이력 저장에 실패했습니다.';
+                        showModal('일부 저장 완료','휴무자명단과 휴무 데이터는 저장했지만, ' + reason + '\n정규/스페어정보 탭에서 적용일자를 확인한 뒤 다시 저장하세요.',true,7000);
+                        return;
                     }
                 }
 
+                // 휴무자명단작성 월 문서에만 저장 — 현재 주별통합 화면은 저장 전 정규/스페어 버전을 그대로 유지
+                try {
+                    const __scrYMc = (typeof window.getScreenYearMonthForOffSel === 'function') ? window.getScreenYearMonthForOffSel() : { y: 0, m: 0 };
+                    if (__scrYMc.y && (Number(__leaveTarget.y) !== __scrYMc.y || Number(__leaveTarget.m) !== __scrYMc.m)) {
+                        if (__screenSnapBefore && Object.keys(__screenSnapBefore).length) window.__monthlyOffListSelectionsDocSnapshot = __screenSnapBefore;
+                        if (__screenVersBefore && typeof window.holdScreenOffSelVersions === 'function') window.holdScreenOffSelVersions(__screenVersBefore, __leaveTarget.y, __leaveTarget.m);
+                    }
+                } catch (eHold) {}
                 window.__monthlyOffDaysDirty = false;
                 window.__offListInfoDirty = false;
                 window.__regularSpareInfoDirty = false;
@@ -11175,7 +11707,8 @@ main{padding-top:18px !important;}
                     if (typeof window.clearMonthlySimCache === 'function') window.clearMonthlySimCache();
                     if (typeof renderMonthlyOffDayTable === 'function') renderMonthlyOffDayTable();
                     if (typeof renderMonthlyOffListView === 'function') renderMonthlyOffListView();
-                    if (typeof renderAllViews === 'function') renderAllViews();
+                    // 미체크 live 저장 시 주별통합 배차 화면은 재계산하지 않음
+                    if (startChecked && typeof renderAllViews === 'function') renderAllViews();
                 } catch(e) { console.warn('[휴무자명단 통합 저장 후 갱신]',e); }
                 // DB저장 완료 후 배차시작설정 체크 자동 해제 (저장된 패턴 기준일은 그대로 유지)
                 try {
@@ -11190,12 +11723,10 @@ main{padding-top:18px !important;}
                   : '기존 배차 원본 필드는 변경하지 않았습니다.';
                 const infoMonthLabel = (infoResult && infoResult.y && infoResult.m) ? (infoResult.y + '년 ' + infoResult.m + '월') : '';
                 let infoLine = '\n정규·스페어 정보 및 변경 이력은 기존 값을 유지했습니다.';
-                if (infoDirty) {
-                    if (infoResult && infoResult.liveSaved) {
-                        infoLine = '\n변경된 정규·스페어 정보(배차시작 미체크·전체 적용)를 데이터불러오기 월(' + infoMonthLabel + ') 문서에 저장했습니다.';
-                    } else {
-                        infoLine = '\n정규·스페어 정보·변경 이력은 데이터불러오기 월(' + infoMonthLabel + ') 문서에 별도로 저장했습니다.';
-                    }
+                if (infoResult && infoResult.liveSaved) {
+                    infoLine = '\n현재 정규·스페어 정보(배차시작 미체크)를 휴무일자 월(' + infoMonthLabel + ') 문서에 DB 저장했습니다. (키 ' + (infoResult.keyCount || '') + '개)\n현재 배차 화면에는 적용하지 않습니다.';
+                } else if (infoDirty) {
+                    infoLine = '\n정규·스페어 정보·변경 이력은 휴무자명단작성 월(' + infoMonthLabel + ') 문서에만 저장했습니다.';
                 }
                 showModal('저장 완료', leaveResult.y + '년 ' + leaveResult.m + '월 휴무자명단·휴무 데이터를 저장했습니다.' + infoLine + '\n' + archiveText);
             } catch(e) {
@@ -11248,7 +11779,9 @@ main{padding-top:18px !important;}
                         window.__offListSelVersions = oldVersions;
                         showModal('적용 실패', liveResult && liveResult.lookupFailed
                           ? '기존 DB 문서를 확인하지 못했습니다.'
-                          : liveResult && liveResult.missingDoc
+                          : liveResult && liveResult.verifyFailed
+                             ? ('저장 후 DB 재조회 값이 화면 값과 다릅니다. (' + (liveResult.diffKeys || []).join(', ') + ')')
+                           : liveResult && liveResult.missingDoc
                             ? '해당 월의 주별통합 DB 문서가 없습니다. 먼저 주별통합에서 DB저장 후 다시 시도하세요.'
                             : '정규/스페어 정보 저장에 실패했습니다.', true, 5000);
                         return;
@@ -11262,12 +11795,13 @@ main{padding-top:18px !important;}
                         localStorage.setItem(sk, JSON.stringify(monthlyOffListSelections || {}));
                     } catch(e) {}
                     try {
+                        // 배차 화면은 저장 전 버전 유지 — 전체 재시뮬/전탭 갱신으로 live 값을 적용하지 않음
                         window.__forceClearSimCache = true;
                         if (typeof window.clearMonthlySimCache === 'function') window.clearMonthlySimCache();
                         if (typeof renderMonthlyOffListView === 'function') renderMonthlyOffListView();
-                        if (typeof renderAllViews === 'function') renderAllViews();
+                        // 주별통합 등 배차 화면은 의도적으로 renderAllViews 호출하지 않음
                     } catch(e) { console.warn('[미체크 정보변경 후 화면 갱신]',e); }
-                    showModal('정보저장 완료', (liveResult.y + '년 ' + liveResult.m + '월') + ' 문서에 변경된 정규·스페어 정보를 저장했습니다.\n배차시작 미체크이므로 해당 월 전체에 동일하게 적용됩니다.');
+                    showModal('정보저장 완료', (liveResult.y + '년 ' + liveResult.m + '월') + ' 문서에 변경된 정규·스페어 정보를 저장했습니다.' + (liveResult.verifiedKeys ? ' (DB 재조회 확인: ' + liveResult.verifiedKeys + '개 키 일치)' : '') + '\n배차시작 미체크이므로 DB에만 저장되었습니다.\n현재 배차 화면에는 적용하지 않으며, 데이터불러오기 후에도 현재 배차 화면에는 적용되지 않습니다.');
                     return;
                 }
                 const effective = getOffListEffectiveDateValue();
@@ -13546,7 +14080,28 @@ function getMonthlyOffAllDriverNames(){
             // 다른 탭으로 나가면 모드 해제 + 조별코드/정규기사1·2/날짜박스 전부 비활성
             try {
                 if (tabId !== 'info') {
+                    // 정보변경저장을 누르지 않고 정보 탭을 떠나면 정규/스페어 정보를 원래대로 되돌림
+                    try {
+                        if (currentTab === 'info' && window.__infoEditOrig && window.__regularSpareInfoDirty) {
+                            const __o = window.__infoEditOrig;
+                            monthlyOffListSelections = JSON.parse(JSON.stringify(__o.sel));
+                            window.monthlyOffListSelections = monthlyOffListSelections;
+                            try { if (typeof appData !== 'undefined' && appData) { appData.spares = JSON.parse(JSON.stringify(__o.spares || [])); window.appData = appData; } } catch (e1) {}
+                            try { window.__taejinSpareNamePool = JSON.parse(JSON.stringify(__o.pool || [])); } catch (e2) {}
+                            window.__regularSpareInfoDirty = false;
+                            window.__offListInfoDirty = false;
+                            window.__offListEditEffectiveDate = null;
+                            window.monthlyOffListDirty = !!window.__monthlyOffDaysDirty;
+                            window.__infoEditOrig = null;
+                            try { invalidateOperationalJoCodeMap(); } catch (e3) {}
+                            try { __joCodeMapSigLive = ''; __joCodeMapLive = {}; } catch (e4) {}
+                            try { renderMonthlyOffListView(); } catch (e5) {}
+                        }
+                    } catch (eRevert) { console.warn('[정보변경 미저장 되돌리기 실패]', eRevert); }
                     window.__infoEditMode = null;
+                    window.__regularSpareDispatchApplied = false;
+                    const __dispatchApplyBtn = document.getElementById('infoDispatchApplyBtn');
+                    if (__dispatchApplyBtn) { __dispatchApplyBtn.disabled = true; __dispatchApplyBtn.style.opacity = '.45'; __dispatchApplyBtn.style.cursor = 'not-allowed'; }
                     document.querySelectorAll('#view-info select.monthly-off-jo-select').forEach(function (el) {
                         el.disabled = true;
                     });
@@ -14152,7 +14707,7 @@ function getMonthlyOffAllDriverNames(){
             } catch (e) {}
             let __selVerSig = '';
             try {
-                const vers = window.__offListSelVersions || [];
+                const vers = (typeof window.getScreenOffSelVersions === 'function') ? window.getScreenOffSelVersions() : (window.__offListSelVersions || []);
                 __selVerSig = vers.map(function (v) {
                     // 키 개수뿐 아니라 내용 지문까지 — 기사/조 변경 시 캐시 무효화
                     let fp = '';
@@ -15055,7 +15610,7 @@ function getMonthlyOffAllDriverNames(){
             });
         }
         window.addOffEntryNamesToByType = addOffEntryNamesToByType;
-        /** v2_43: 주별통합 테이블에서는 조별코드(1-1 ~ 6-4)를 모두 숨긴다 */
+        /** 주별통합 테이블: 각 기사 이름 옆에 조별코드(1-1 ~ 6-4)를 "(1-2)" 형태로 표시한다 (true 로 바꾸면 숨김) */
         const WEEKLY_HIDE_JO_CODE = true;
 
         /** v2_41: 표시 월의 휴무구분(monthlyOffDayEntries.type)을 DB 에서 직접 읽어 보관소에 반영하고 주별통합을 다시 그린다.
